@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?!= l10Include('L10Css'); ?>
+  <!-- The deployed web-app URL (blank in the embedded modal). Present uses it
+       to pop the room view out into a full standalone tab. -->
+  <script>window.__L10_WEBAPP_URL = '<?= (typeof webAppUrl !== "undefined" ? webAppUrl : "") ?>';</script>
+</head>
+<body>
+<!-- target=_self is load-bearing: <base target="_top"> would otherwise make
+     this navigate the TOP window (the whole Sheets tab) instead of jumping. -->
+<a class="skip-link" href="#l10-main" target="_self">Skip to content</a>
+<header>
+  <div class="logo">L10</div>
+  <div>
+    <h1 id="hdr-title">Level 10 Huddle</h1>
+    <div class="sub" id="hdr-sub">&nbsp;</div>
+  </div>
+  <div class="chips" id="hdr-chips"></div>
+  <button type="button" id="btn-schedule" class="hdr-schedule" title="Schedule a meeting on Google Calendar">📅 Schedule</button>
+  <span id="sync">Loading…</span>
+  <nav aria-label="Pages">
+    <button data-page="huddle" class="active">Huddle</button>
+    <button data-page="scorecard">Scorecard</button>
+    <button data-page="rocks">Rocks</button>
+    <button data-page="headlines">Headlines</button>
+    <button data-page="todos">To-dos</button>
+    <button data-page="issues">Issues</button>
+    <button data-page="oneonone">1:1s</button>
+    <button data-page="history">History</button>
+    <button data-page="settings">Settings</button>
+    <button data-page="how">How it runs</button>
+    <button type="button" id="btn-guide" title="New member guide — the two-minute visual tour" aria-label="Open the new member guide">?</button>
+  </nav>
+</header>
+<div id="events-strip" class="events-strip" style="display:none"></div>
+<main id="l10-main" tabindex="-1">
+  <div id="page-huddle" class="page visible"><div class="spinner">Setting up the room…</div></div>
+  <div id="page-scorecard" class="page"></div>
+  <div id="page-rocks" class="page"></div>
+  <div id="page-headlines" class="page"></div>
+  <div id="page-todos" class="page"></div>
+  <div id="page-issues" class="page"></div>
+  <div id="page-oneonone" class="page"></div>
+  <div id="page-history" class="page"></div>
+  <div id="page-settings" class="page"></div>
+  <div id="page-how" class="page methodology">
+    <h2 class="page-title">How a Level 10 huddle runs</h2>
+    <p class="page-sub">Same agenda every week, same order, hard timeboxes. The meeting earns its keep when the team rates it 10/10 on the way out.</p>
+    <div class="card">
+      <h3>The agenda (default 90 minutes — segment lengths are editable in L10_Config)</h3>
+      <table class="data">
+        <tr><th>Segment</th><th>Min</th><th>What happens — and what doesn't</th></tr>
+        <tr><td><b>Segue</b></td><td>5</td><td>One personal + one business good-news item each. Connect as people; no work talk yet. Kudos shout-outs land here.</td></tr>
+        <tr><td><b>Scorecard</b></td><td>5</td><td>Read the weekly numbers: each is on track or off track — nothing else. Off track? Say "drop it down" to the issues list. <b>No discussing, no explaining, no solving here.</b></td></tr>
+        <tr><td><b>Rock review</b></td><td>5</td><td>Each rock's owner says "on track" or "off track". Off track drops to issues. Same rule: no discussion. Each rock's milestones sit on a to-scale timeline under it — tick them off as they land; the last one marks the rock done.</td></tr>
+        <tr><td><b>Headlines</b></td><td>5</td><td>One-liners: customer news, people news, FYIs. Anything that needs talk drops to issues.</td></tr>
+        <tr><td><b>To-do list</b></td><td>5</td><td>Read last week's to-dos: done or not done. Team target ≥90% done. Not-done items carry over (and get visibly stale).</td></tr>
+        <tr><td><b>IDS</b></td><td>60</td><td>The real meeting. Pick the top issues by vote, then for each: <b>Identify</b> the root cause, <b>Discuss</b> it once (no politicking, no re-runs), <b>Solve</b> it — the solution becomes a to-do with one owner and a date. Solve for good, not for this week.</td></tr>
+        <tr><td><b>Conclude</b></td><td>5</td><td>Recap new to-dos, pick what cascades to leadership, everyone rates the meeting 1–10. Below 8: say where it lost you.</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>House rules</h3>
+      <ul>
+        <li><b>The scorecard never gets discussed in the scorecard segment.</b> "Drop it down" is the whole conversation. That's what keeps 5 minutes at 5 minutes.</li>
+        <li><b>One owner per to-do.</b> "We'll all look at it" means nobody will.</li>
+        <li><b>Issues are not status updates.</b> If it doesn't need a decision or a solution, it's a headline.</li>
+        <li><b>Park what belongs in a 1:1.</b> Two-person topics don't spend the whole room's hour — park the issue to the right 1:1 and move on.</li>
+        <li><b>Numbers carry their caveats.</b> A scorecard metric can show a data caveat — read the number with it.</li>
+        <li><b>Solved means written down.</b> The resolution gets logged on the issue; the actions get owners and dates. Otherwise it comes back in a month wearing a different hat.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Where everything lives</h3>
+      <p>This app reads and writes the <b>L10_*</b> tabs in this spreadsheet — they are the database and the audit trail. Edit definitions there (scorecard metrics, config, events); run the meeting here.</p>
+      <p>Issue forms match what you type against your <b>analysis playbook</b> (<span class="mono">L10_Playbook</span>) and past decisions, so recurring problems start from the record instead of memory. The Conclude segment circles back on solved issues to ask whether the fix held — that verdict builds the <b>decision ledger</b> on the History page.</p>
+    </div>
+  </div>
+</main>
+<div id="notify-stack"></div>
+<?!= l10Include('L10Js'); ?>
+</body>
+</html>
