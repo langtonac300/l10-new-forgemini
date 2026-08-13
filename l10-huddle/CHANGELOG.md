@@ -5,7 +5,89 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.9.1 (2026-07-28)** · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.10 (2026-08-13)** · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.10 (2026-08-13) — every load path gets faster
+
+A systematic loading-performance pass: initial load, loads after actions, and
+the scorecard capture were audited path by path (7-dimension review, every
+finding adversarially verified before landing) and the confirmed costs cut.
+Nothing changes in what the app does — only in how long you wait for it.
+
+**Initial load — the boot round trips are gone or overlapped:**
+- `doGet()` and the Sheets-modal open now **embed the core boot slice as JSON
+  in the served page** (`window.__L10_BOOT`, `<` escaped so user text can't
+  break out of the script block). The header and start screen paint when the
+  page parses — the old flow paid a full `google.script.run` execution
+  (startup + serialize + network) before anything could render. Consumed
+  exactly once; `null` (or a pre-upgrade paste) falls back to the four-slice
+  fetch unchanged.
+- **Repeat loads paint the list pages instantly** from a per-workbook
+  `localStorage` snapshot of the work/plan/scorecard slices
+  (stale-while-revalidate: the live slices still fetch and re-render seconds
+  later — the same staleness window the 3-minute idle refetch already
+  accepts). The open meeting and the user are never snapshotted.
+- **Experiment Hub counts no longer ride the first paint.** `l10BootCore_` is
+  cache-only ({pending} on a cold cache — the normal case for a weekly app);
+  the client fetches live counts after paint via new `l10_hubCounts`, the same
+  pattern as the health strip. Hub failures now cache briefly, so a
+  misconfigured URL stops taxing every boot with a full openByUrl failure.
+- The Settings-only notify/digests tables (two tab reads) moved off the boot
+  payload to new `l10_settingsData`, fetched the first time Settings is
+  actually opened. `renderSettings`' `l10_getSettings` probe is memoized — it
+  used to fire a redundant execution on every hydration pass (4 per boot).
+- Fonts: `fonts.gstatic.com` preconnect added and the Google Fonts stylesheet
+  is non-render-blocking (`media="print"` + onload flip, noscript fallback).
+- Server-side per-execution memos for `Utilities.formatDate` (every Date cell
+  of every tab crossed the V8→Java bridge unmemoized — same-day cells share a
+  timestamp, so a year-old workbook was paying hundreds of ms per boot),
+  `Session.getActiveUser`, and `l10NextId_`; the internal `_row` key no longer
+  serializes into every shipped row.
+
+**Refreshes and loads after actions:**
+- `refresh()` fetches the four slices **in parallel** (wall-clock = slowest
+  slice, not the 16-read sequential `l10_bootstrap`), applied in one atomic
+  pass; slice failure falls back to the composed call, whose failure shows the
+  error banner.
+- **Start/conclude/discard a meeting no longer reboot the app.** Each was a
+  full four-execution reload between the click and seeing the app again; the
+  client now splices the server's response (start returns the meeting row) and
+  paints immediately. Conclude still refreshes in the background — the meeting
+  is over, so it's safe.
+- Docket promote splices the returned issue row locally; the scheduler caches
+  the calendar context per session (opens after the first skip an execution).
+- Every row write (`l10SetCells_`) now writes **only the updated columns**
+  (coalesced runs) with no read-before-write — ~50ms less per write app-wide,
+  and a concurrent edit to another column of the same row can no longer be
+  clobbered by the old full-row rewrite.
+- Bulk to-do flips resolve every row from one tab read (was: one full re-read
+  per item) and mint trail ids from one scan. The weekly carry sweep batches
+  its 2-per-row writes into contiguous-run `setValues` — the week's first boot
+  stops paying ~100-300ms per carried to-do.
+
+**Scorecard capture:**
+- The hub force-pull runs **only when an active HUB_\* metric will consume
+  it** (and only for the current week) — it used to pay the multi-second
+  foreign-workbook openByUrl on every capture, hub metrics or not.
+- GA4 metrics resolve as **one parallel `UrlFetchApp.fetchAll`** instead of a
+  serial HTTP wait per metric.
+- Re-capture row updates coalesce into ranged `setValues`; new rows keep
+  per-row `appendRow` (the deliberate concurrent-capture guard).
+- Data-health: the BigQuery poll starts immediately (the old unconditional
+  800ms pre-sleep only added latency) and failures cache for 5 minutes.
+
+**Harness:** `build.js` resolves the new `bootJson` scriptlet and emits a
+second `preview-embed.html` with a fixture-built inline payload; `run.js`
+gains embed-path and snapshot-path smoke sections (asserting the core slice is
+NOT re-fetched, the three list slices still reconcile, and the snapshot writes
+and reads back), clears `localStorage` between variants, and the meeting
+fixtures mirror the server's row-returning start/conclude shapes.
+
+- **Re-paste:** `L10Code.gs`, `L10Setup.gs`, `L10Ga4.gs`, `L10Health.gs`,
+  `L10Index.html`, `L10Js.html` — the full set together (the embed spans
+  server + template + client). **Web-app redeploy required** (new deployment
+  version) so `doGet` serves the embed; the Sheets-modal path picks it up on
+  the next open.
 
 ## v2.9.1 (2026-07-28) — Jira assignee regression fixed + retro-assign pass
 
