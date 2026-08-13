@@ -79,11 +79,16 @@
       { 'Week Of': WEEK_OF, 'Section': 'DOCKET', 'Rank': 1, 'Title': 'PDC feed disapprovals climbing', 'Body': '412 SKUs disapproved; ~$18K/mo spend at risk.', 'Dollars At Stake': '18000', 'Accounts': 'PDC', 'Caveat': '', 'Playbook Ref': 'PB-002', 'Promoted To': '', 'Received At': WEEK_OF + ' 08:31' },
       { 'Week Of': WEEK_OF, 'Section': 'WATCHLIST', 'Rank': 1, 'Title': 'Seton CA CPL drift', 'Body': 'CPL +22% WoW on brand.', 'Dollars At Stake': '', 'Accounts': 'Seton', 'Caveat': 'GTM defect skews CA conversions', 'Playbook Ref': '', 'Promoted To': '', 'Received At': WEEK_OF + ' 08:31' }
     ],
+    user: 'alex@bradycorp.com'
+  };
+
+  // Settings-page data — rides OFF the boot payload now (l10_settingsData is
+  // fetched the first time the Settings page becomes visible).
+  const SETTINGS_DATA = {
     notify: TEAM.map(function (p) { return { person: p, headsup: p !== 'Scott', recap: 'EVERY' }; }),
     digests: [
       { id: 'D-001', person: 'Alex', label: 'Morning to-dos', content: ['TODOS'], freq: 'WEEKDAYS', weekday: '', hour: 8, enabled: true }
-    ],
-    user: 'alex@bradycorp.com'
+    ]
   };
 
   const TODOS = [
@@ -190,12 +195,21 @@
     l10_bootScorecard: SCORECARD,
     l10_bootstrap: bootstrapAll,
 
-    // Meetings
+    l10_settingsData: SETTINGS_DATA,
+    l10_hubCounts: { running: 7, needDecision: 6 },
+
+    // Meetings — `row` mirrors the real server's shape (the client splices it
+    // into state.boot.openMeeting and paints the first segment immediately).
     l10_startMeeting: function (attendees) {
-      return { ok: true, meeting: { 'ID': 'M-012', 'Date': TODAY, 'Status': 'OPEN', 'Attendees': String(attendees || ''), 'Segue (JSON)': '', 'Ratings (JSON)': '{}' } };
+      return { ok: true, id: 'M-012', row: {
+        'ID': 'M-012', 'Date': TODAY, 'Status': 'OPEN',
+        'Attendees': (attendees || []).join(', '), 'Started At': TODAY + ' 09:00',
+        'Segue (JSON)': '', 'Ratings (JSON)': '{}', 'Todo Done %': '', 'Rating Avg': '',
+        'Issues Solved': '', 'Cascade': '', 'Recap': '', 'Notes': ''
+      } };
     },
     l10_saveSegue: ok,
-    l10_concludeMeeting: { ok: true, recap: 'Recap text', cascade: 'Cascade text' },
+    l10_concludeMeeting: { ok: true, todoPct: 86, ratingAvg: 8.5, issuesSolved: 2 },
     l10_cancelMeeting: ok,
 
     // To-dos

@@ -4,7 +4,12 @@
   <base target="_top">
   <meta charset="utf-8">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- media="print" + onload flip = non-render-blocking stylesheet: the app's
+       own 60KB CSS is inline, so text paints in the fallback font immediately
+       and Inter swaps in when the font CSS lands (display=swap). -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
   <?!= l10Include('L10Css'); ?>
   <!-- The deployed web-app URL (blank in the embedded modal). Present uses it
        to pop the room view out into a full standalone tab. -->
@@ -83,6 +88,10 @@
   </div>
 </main>
 <div id="notify-stack"></div>
+<!-- The core boot slice, computed inside the doGet/modal execution — boot()
+     consumes it once and skips that whole server round trip. 'null' (compute
+     failure or a pre-upgrade deployment) falls back to the slice fetch. -->
+<script>window.__L10_BOOT = <?!= bootJson ?>;</script>
 <?!= l10Include('L10Js'); ?>
 </body>
 </html>

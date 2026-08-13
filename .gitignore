@@ -1,0 +1,8 @@
+# Harness build artifacts (see l10-huddle/harness/README.md — generated files
+# are never tracked; only the harness source scripts and README are).
+l10-huddle/harness/node_modules/
+l10-huddle/harness/package.json
+l10-huddle/harness/package-lock.json
+l10-huddle/harness/preview.html
+l10-huddle/harness/preview-embed.html
+l10-huddle/harness/shots/

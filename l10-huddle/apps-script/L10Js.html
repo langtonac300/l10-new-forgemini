@@ -50,7 +50,8 @@ var state = {
 var L10_READS_ = { l10_bootCore: 1, l10_bootWork: 1, l10_bootPlan: 1, l10_bootScorecard: 1,
   l10_bootstrap: 1, l10_getSettings: 1, l10_getGuideHtml: 1, l10_webAppUrl: 1,
   l10_calContext: 1, l10_calDay: 1, l10_testRangeRef: 1, l10_ga4Test: 1,
-  l10_metricPacks: 1, l10_getNotifyPrefs: 1, l10_getDigests: 1 };
+  l10_metricPacks: 1, l10_getNotifyPrefs: 1, l10_getDigests: 1,
+  l10_hubCounts: 1, l10_settingsData: 1, l10_dataHealth: 1 };
 function busy(delta, isRead) {
   state.busyN = Math.max(0, state.busyN + delta);
   state.busyW = Math.max(0, (state.busyW || 0) + (isRead ? 0 : delta));
@@ -479,7 +480,17 @@ function wireBrief(scope) {
       gs('l10_promoteBriefItem', state.boot.weekOf, btn.dataset.promote).then(function (res) {
         if (!res || !res.ok) { btn.disabled = false; errToast(res || 'Promote failed'); return; }
         notify(res.already ? 'Already promoted as ' + res.id : 'Promoted to issues as ' + res.id, 'ok');
-        return refresh();
+        // Splice the new issue + the docket flip locally — a full reload for
+        // one new row cost seconds mid-segment. Older server (no row): reload.
+        if (!res.row && !res.already) return refresh();
+        if (res.row) state.boot.issues.push(res.row);
+        (state.boot.brief || []).forEach(function (r) {
+          if (String(r['Section']) === 'DOCKET' && String(r['Rank']) === String(btn.dataset.promote)) {
+            r['Promoted To'] = res.id;
+          }
+        });
+        if (!state.inMeeting) renderHuddle();
+        rerenderLists();
       }).catch(function (e) { btn.disabled = false; errToast(e); });
     });
   });
@@ -738,6 +749,9 @@ function showPage(name) {
     else b.removeAttribute('aria-current');
   });
   layoutTimelines($('page-' + name)); // widths were 0 while the page was hidden
+  // The notify/digests tables load the first time Settings is actually opened
+  // — they ride off the boot payload (see fetchSettingsData_).
+  if (name === 'settings') fetchSettingsData_();
 }
 
 // --- Dialog semantics shared by every fixed overlay -------------------------
@@ -891,11 +905,104 @@ function bootFail_(e) {
       '<br>In the spreadsheet, run <b>Paid Media L10 Huddle → Setup / repair tabs</b> (or l10Setup in the script editor), then reload. ' +
       'If it keeps failing, check L10_Scorecard_Data for stray non-number cells in the Value column.</div>';
 }
+// --- Embedded boot payload + per-workbook snapshot ---------------------------
+// The served page carries the CORE slice inline (window.__L10_BOOT — computed
+// in the same server execution that built the HTML), so the header and start
+// screen paint the moment the page parses instead of after a full extra
+// google.script.run round trip. Consumed exactly ONCE: the post-action boot()
+// calls (conclude / discard fallbacks) must never re-apply the page-load-stale
+// payload — after a conclude that would resurrect the meeting as open.
+function bootEmbed_() {
+  var pre = window.__L10_BOOT || null;
+  window.__L10_BOOT = null;
+  return (pre && typeof pre === 'object' && pre.config) ? pre : null;
+}
+// Stale-while-revalidate snapshot of the three LIST slices (work/plan/
+// scorecard), keyed per workbook by the embed's sid. A repeat load paints the
+// lists instantly from last session's data while the live slices are in
+// flight — the same staleness window the 3-minute idle refetch already
+// accepts, and every write is id-keyed so acting on a stale row fails loudly
+// server-side instead of corrupting anything. Core state (the open meeting,
+// the user) is deliberately NEVER snapshotted — the embed supplies it fresh.
+var SNAP_KEYS_ = ['todoTabsReady', 'todos', 'todoSteps', 'todoLog', 'issues', 'headlines',
+  'rocks', 'milestones', 'playbook', 'scorecard'];
+function snapKey_() { return state.snapSid ? 'l10Snap1:' + state.snapSid : null; }
+function snapLoad_() {
+  var key = snapKey_();
+  if (!key) return null;
+  try {
+    var snap = JSON.parse(localStorage.getItem(key) || 'null');
+    return (snap && snap.v === 1 && snap.data) ? snap.data : null;
+  } catch (e) { return null; }
+}
+function snapSave_() {
+  if (!state.boot || !hyd('work') || !hyd('plan') || !hyd('scorecard')) return;
+  var key = snapKey_();
+  if (!key) return;
+  try {
+    var data = {};
+    SNAP_KEYS_.forEach(function (k) { if (state.boot[k] !== undefined) data[k] = state.boot[k]; });
+    localStorage.setItem(key, JSON.stringify({ v: 1, data: data }));
+  } catch (e) {} // quota or blocked storage — snapshotting is best-effort
+}
+// Apply the core slice: segue rehydrate + the once-per-browser lens default.
+// Shared by the embed path and the l10_bootCore slice path.
+function applyCore_(c) {
+  bootApply_(c);
+  if (c.sid) state.snapSid = c.sid;
+  state.hydrated.core = true;
+  // Rehydrate segue notes saved on the open meeting (a reload must not wipe
+  // — and then overwrite — what's already stored in the sheet).
+  if (c.openMeeting && c.openMeeting['Segue (JSON)'] && !Object.keys(state.segue).length) {
+    try { state.segue = JSON.parse(c.openMeeting['Segue (JSON)']) || {}; } catch (e) {}
+  }
+  if (!c.openMeeting) state.segue = {};
+  // Default the lens to the viewer, once per browser: TEAM_EMAILS maps the
+  // logged-in email to a roster name. Auto-set only when nothing was chosen.
+  try {
+    if (!localStorage.getItem('l10LensAuto') && !lensGet_() && c.user) {
+      String((c.config || {}).TEAM_EMAILS || '').split(',').forEach(function (pair) {
+        var eq = pair.indexOf('=');
+        if (eq > 0 && pair.slice(eq + 1).trim().toLowerCase() === String(c.user).trim().toLowerCase()) {
+          lensSet_(pair.slice(0, eq).trim());
+        }
+      });
+      localStorage.setItem('l10LensAuto', '1');
+    }
+  } catch (e) {}
+  fetchHub_();
+}
+// Lazy hub-count fetch: the boot payload carries {pending:true} when the
+// server's 5-minute cache was cold — the live pull opens ANOTHER workbook
+// (seconds) and must never gate first paint. Same pattern as fetchHealth_.
+function fetchHub_() {
+  var hub = state.boot && state.boot.hub;
+  if (!hub || !hub.pending) return;
+  gs('l10_hubCounts').then(function (h) {
+    if (!state.boot || !state.boot.hub || !state.boot.hub.pending) return;
+    state.boot.hub = (h && h.pending) ? null : h;
+    if (!state.inMeeting && hyd('core')) renderHeader();
+  }).catch(function () {
+    if (state.boot && state.boot.hub && state.boot.hub.pending) state.boot.hub = null;
+  });
+}
+var L10_FIRST_BOOT_ = true;
 function boot(keepSeg) {
   if (!keepSeg) state.segIdx = 0;
   state.hydrated = { core: false, work: false, plan: false, scorecard: false };
-  ['page-scorecard', 'page-rocks', 'page-headlines', 'page-todos', 'page-issues',
-   'page-oneonone', 'page-history', 'page-settings'].forEach(pageLoading_);
+  var embed = bootEmbed_();
+  // The snapshot is an initial-page-load affordance only: a mid-session boot()
+  // (post-conclude fallback) already has fresher data in flight.
+  var snap = null;
+  if (embed && L10_FIRST_BOOT_) {
+    if (embed.sid) state.snapSid = embed.sid;
+    snap = snapLoad_();
+  }
+  L10_FIRST_BOOT_ = false;
+  if (!snap) {
+    ['page-scorecard', 'page-rocks', 'page-headlines', 'page-todos', 'page-issues',
+     'page-oneonone', 'page-history', 'page-settings'].forEach(pageLoading_);
+  }
   // EVERY slice arrival re-renders EVERY page: the renderers self-guard on
   // their own dependencies, so each page paints the moment its last slice
   // lands — regardless of which order the four calls resolve in. (v1 of this
@@ -916,30 +1023,22 @@ function boot(keepSeg) {
     renderHistory();
     if (state.inMeeting && hyd('work') && hyd('plan') && hyd('scorecard')) renderSegment();
   }
-  var core = gs('l10_bootCore').then(function (c) {
-    bootApply_(c);
-    state.hydrated.core = true;
-    // Rehydrate segue notes saved on the open meeting (a reload must not wipe
-    // — and then overwrite — what's already stored in the sheet).
-    if (c.openMeeting && c.openMeeting['Segue (JSON)'] && !Object.keys(state.segue).length) {
-      try { state.segue = JSON.parse(c.openMeeting['Segue (JSON)']) || {}; } catch (e) {}
-    }
-    if (!c.openMeeting) state.segue = {};
-    // Default the lens to the viewer, once per browser: TEAM_EMAILS maps the
-    // logged-in email to a roster name. Auto-set only when nothing was chosen.
-    try {
-      if (!localStorage.getItem('l10LensAuto') && !lensGet_() && c.user) {
-        String((c.config || {}).TEAM_EMAILS || '').split(',').forEach(function (pair) {
-          var eq = pair.indexOf('=');
-          if (eq > 0 && pair.slice(eq + 1).trim().toLowerCase() === String(c.user).trim().toLowerCase()) {
-            lensSet_(pair.slice(0, eq).trim());
-          }
-        });
-        localStorage.setItem('l10LensAuto', '1');
-      }
-    } catch (e) {}
-    hydRender_();
-  });
+  var core;
+  if (embed) {
+    // Core arrived with the page — no round trip, first paint is NOW.
+    applyCore_(embed);
+    core = Promise.resolve();
+  } else {
+    core = gs('l10_bootCore').then(function (c) { applyCore_(c); hydRender_(); });
+  }
+  if (snap) {
+    bootApply_(snap);
+    state.hydrated.work = true;
+    state.hydrated.plan = true;
+    state.hydrated.scorecard = true;
+    // loadedAt stays 0 until the live slices land — the age chip stays honest.
+  }
+  if (embed || snap) hydRender_();
   var work = gs('l10_bootWork').then(function (w) {
     bootApply_(w);
     state.hydrated.work = true;
@@ -962,11 +1061,13 @@ function boot(keepSeg) {
   return Promise.all([core, work, plan, sc]).then(function () {
     state.loadedAt = Date.now();
     ageTick_(false);
+    snapSave_();
   }).catch(function () {
     // A transient slice failure must not strand pages on their spinners —
     // fall back to the atomic single-call payload (its own failure shows the
-    // full error banner).
-    return refresh();
+    // full error banner). Straight to the composed call: re-firing four
+    // slices that just failed would only delay the recovery.
+    return bootstrapDirect_();
   });
 }
 function fetchHealth_() {
@@ -1005,29 +1106,49 @@ setInterval(ageTick_, 30000);
 document.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'visible') ageTick_();
 });
-// Full single-call reload — the error-reconcile path stays one atomic payload.
+// Apply a full composed payload (all four slices' keys) in ONE pass — shared
+// by the parallel refresh and the single-call fallback, so nothing ever paints
+// from cross-slice-skewed state.
+function applyFull_(data) {
+  state.boot = data;
+  state.hydrated = { core: true, work: true, plan: true, scorecard: true };
+  if (data.openMeeting && data.openMeeting['Segue (JSON)'] && !Object.keys(state.segue).length) {
+    try { state.segue = JSON.parse(data.openMeeting['Segue (JSON)']) || {}; } catch (e) {}
+  }
+  if (!data.openMeeting) state.segue = {};
+  renderHeader();
+  renderHuddle();
+  renderScorecard();
+  renderRocks();
+  renderHeadlines();
+  renderTodos();
+  renderIssues();
+  renderOneOnOne();
+  renderHistory();
+  renderSettings();
+  state.loadedAt = Date.now();
+  ageTick_(false);
+  fetchHealth_();
+  fetchHub_();
+  snapSave_();
+}
+// The atomic single-call reload — recovery path when the slices fail; its own
+// failure shows the full error banner.
+function bootstrapDirect_() {
+  return gs('l10_bootstrap').then(applyFull_).catch(bootFail_);
+}
+// Full reload — the four slices in PARALLEL (wall-clock = the slowest slice,
+// not the 16-read sequential composed call), merged and applied atomically.
 function refresh() {
-  return gs('l10_bootstrap').then(function (data) {
-    state.boot = data;
-    state.hydrated = { core: true, work: true, plan: true, scorecard: true };
-    if (data.openMeeting && data.openMeeting['Segue (JSON)'] && !Object.keys(state.segue).length) {
-      try { state.segue = JSON.parse(data.openMeeting['Segue (JSON)']) || {}; } catch (e) {}
-    }
-    if (!data.openMeeting) state.segue = {};
-    renderHeader();
-    renderHuddle();
-    renderScorecard();
-    renderRocks();
-    renderHeadlines();
-    renderTodos();
-    renderIssues();
-    renderOneOnOne();
-    renderHistory();
-    renderSettings();
-    state.loadedAt = Date.now();
-    ageTick_(false);
-    fetchHealth_();
-  }).catch(bootFail_);
+  return Promise.all([gs('l10_bootCore'), gs('l10_bootWork'), gs('l10_bootPlan'), gs('l10_bootScorecard')])
+      .then(function (parts) {
+        var data = {};
+        parts.forEach(function (p) {
+          Object.keys(p).forEach(function (k) { data[k] = p[k]; });
+        });
+        applyFull_(data);
+      })
+      .catch(function () { return bootstrapDirect_(); });
 }
 
 function renderHeader() {
@@ -1036,7 +1157,9 @@ function renderHeader() {
   $('hdr-sub').textContent = 'Week of ' + b.weekOf;
   var chips = '<span class="chip">BDay ' + b.bday.n + ' of ' + b.bday.total + '</span>' +
       '<span class="chip ghost">' + esc(b.fiscal.fy + ' · ' + b.fiscal.q) + '</span>';
-  if (b.hub && !b.hub.error) {
+  // hub.pending = the server's cache was cold and the live count is being
+  // fetched lazily (fetchHub_) — show nothing rather than a placeholder.
+  if (b.hub && !b.hub.error && !b.hub.pending) {
     chips += '<span class="chip ghost">🧪 ' + b.hub.running + ' live · ' + b.hub.needDecision + ' need decision</span>';
   } else if (b.hub && b.hub.error) {
     chips += '<span class="chip warn" title="' + esc(b.hub.error) + '">🧪 hub unreachable</span>';
@@ -1200,7 +1323,11 @@ function renderStartScreen() {
         notify('Open huddle discarded — it won\'t appear in History.', 'ok');
         state.inMeeting = false;
         state.segue = {}; state.ratings = {}; state.drafts = {};
-        return boot();
+        // Splice: CANCELLED rows appear nowhere — drop the local row and
+        // repaint the start screen; no full reboot needed.
+        state.boot.openMeeting = null;
+        state.segIdx = 0;
+        renderHuddle();
       }).catch(function (e) { discard.disabled = false; errToast(e); });
     });
   });
@@ -1215,6 +1342,20 @@ function renderStartScreen() {
     gs('l10_startMeeting', attendees).then(function (res) {
       notify(res && res.resumed ? 'Resumed today\'s open huddle' : 'Huddle started', 'ok');
       state.segue = {}; state.ratings = {}; state.drafts = {};
+      // Splice: the server returns the meeting row, and every other slice is
+      // already on hand — paint the first segment NOW instead of re-booting
+      // the entire app (4 fresh server executions between click and clock).
+      if (res && res.row && hyd('core') && hyd('work') && hyd('plan') && hyd('scorecard')) {
+        state.boot.openMeeting = res.row;
+        // A resumed meeting brings its saved segue notes back with it.
+        if (res.resumed && res.row['Segue (JSON)']) {
+          try { state.segue = JSON.parse(res.row['Segue (JSON)']) || {}; } catch (e) {}
+        }
+        startSegment(0);
+        return;
+      }
+      // Older server (no row in the response) or start clicked mid-boot: the
+      // full reload is the safe path.
       return boot().then(function () { startSegment(0); });
     }).catch(function (e) {
       btn.disabled = false;
@@ -3407,7 +3548,7 @@ function buildCascade() {
         (check === 'off' ? '  ← off track' : ''));
   });
   lines.push('');
-  if (b.hub && !b.hub.error) {
+  if (b.hub && !b.hub.error && !b.hub.pending) {
     lines.push('Automation/testing: ' + b.hub.running + ' experiments live, ' + b.hub.needDecision + ' awaiting a decision.');
     lines.push('');
   }
@@ -3588,8 +3729,30 @@ function wireSegment(body) {
         }
         clearInterval(state.timerH);
         notify('Concluded — ' + (res.ratingAvg !== '' ? res.ratingAvg + '/10' : 'logged') + '. See you next week.', 'ok', 6000);
+        // Splice: flip the local meeting row, move it into history, and paint
+        // the start screen NOW — no 4-execution reboot between "Conclude" and
+        // seeing the app again. The background refresh reconciles the carry
+        // sweep and teammates' changes (safe: the meeting is over).
+        var m = state.boot.openMeeting;
+        var recapTxt = body.querySelector('.js-recap').value;
+        var cascadeTxt = body.querySelector('.js-cascade').value;
         state.segue = {}; state.ratings = {}; state.drafts = {};
-        return boot();
+        if (!m) return boot();
+        m['Status'] = 'CONCLUDED';
+        m['Concluded At'] = localToday();
+        m['Todo Done %'] = res.todoPct;
+        m['Rating Avg'] = res.ratingAvg;
+        m['Issues Solved'] = res.issuesSolved;
+        m['Recap'] = recapTxt;
+        m['Cascade'] = cascadeTxt;
+        (state.boot.history = state.boot.history || []).push(m);
+        state.boot.lastMeeting = m;
+        state.boot.openMeeting = null;
+        state.inMeeting = false;
+        state.segIdx = 0;
+        renderHuddle();
+        renderHistory();
+        refresh();
       }).catch(function (e) {
         conc.disabled = false;
         conc.textContent = concLabel;
@@ -3630,7 +3793,12 @@ function wireSegment(body) {
       clearInterval(state.timerH);
       notify('Huddle discarded — it won\'t appear in History.', 'ok');
       state.segue = {}; state.ratings = {}; state.drafts = {};
-      return boot();
+      // Splice: CANCELLED rows appear nowhere — drop the local row and paint
+      // the start screen immediately instead of a 4-execution reboot.
+      state.boot.openMeeting = null;
+      state.inMeeting = false;
+      state.segIdx = 0;
+      renderHuddle();
     }).catch(function (e) {
       disc.disabled = false;
       errToast(e);
@@ -5564,8 +5732,10 @@ function openScheduler(opts) {
   $('sched-close').addEventListener('click', schedClose);
   $('sched-backdrop').addEventListener('click', schedClose);
 
-  gs('l10_calContext').then(function (ctx) {
-    if (!ctx || !ctx.enabled) { schedRenderDisabled_(ctx); return; }
+  // The calendar context (calendars, people, day bounds) is effectively static
+  // for a session — cache it so every scheduler open after the first skips a
+  // full server execution and goes straight to the availability read.
+  var initSched_ = function (ctx) {
     state.sched = {
       ctx: ctx,
       title: String(opts.title || '').trim(),
@@ -5580,6 +5750,12 @@ function openScheduler(opts) {
       day: null, reqSeq: 0, creating: false
     };
     schedLoadDay_();
+  };
+  if (state.calCtx) { initSched_(state.calCtx); return; }
+  gs('l10_calContext').then(function (ctx) {
+    if (!ctx || !ctx.enabled) { schedRenderDisabled_(ctx); return; }
+    state.calCtx = ctx;
+    initSched_(ctx);
   }).catch(function (e) { schedRenderDisabled_({ message: (e && e.message) || 'Couldn\'t reach Google Calendar.' }); });
 }
 
@@ -5927,6 +6103,7 @@ function schedCreate_() {
     schedSuccess_(res, title);
   }).catch(function (e) {
     s.creating = false; if (btn) { btn.disabled = false; btn.textContent = 'Add to Google Calendar'; }
+    state.calCtx = null; // a failed create may mean permissions changed — refetch next open
     errToast(e);
   });
 }
@@ -6074,13 +6251,125 @@ function digestCollect_() {
   });
   return out;
 }
+// --- Settings-page lazy data ------------------------------------------------
+// The notify + digests tables ride OFF the boot payload (two tab reads for a
+// page most sessions never open). They fetch the first time the page is
+// actually visible and cache for the session; when the data lands only the two
+// cards are patched — never the whole page, where someone may be mid-edit.
+function notifyCardInner_() {
+  var sdat = state.settingsData;
+  var head = '<h3>Notifications</h3>' +
+      '<p class="help mt-0">Each person picks how much email they get. The day-before <b>heads-up</b> is their own to-dos + rocks due; the <b>recap</b> is the after-huddle summary. (Chat pings stay a team-space broadcast for now.)</p>';
+  if (!sdat) return head + '<div class="help">Loading current preferences…</div>';
+  var labels = { EVERY: 'Every huddle', BIWEEKLY: 'Every other huddle', MONTHLY: 'First huddle each month', OFF: 'Off' };
+  return head + '<table class="data"><tr><th>Person</th><th>Heads-up email</th><th>Recap email</th></tr>' +
+      (sdat.notify || []).map(function (n) {
+        return '<tr data-nrow="' + esc(n.person) + '">' +
+          '<td>' + avatar(n.person) + esc(n.person) + (n.offRoster ? ' <span class="tag">off roster</span>' : '') + '</td>' +
+          '<td><label class="ck-lbl"><input type="checkbox" class="js-n-headsup"' + (n.headsup ? ' checked' : '') + '> on</label></td>' +
+          '<td><select class="js-n-recap">' + ['EVERY', 'BIWEEKLY', 'MONTHLY', 'OFF'].map(function (c) {
+            return '<option value="' + c + '"' + (String(n.recap).toUpperCase() === c ? ' selected' : '') + '>' + labels[c] + '</option>';
+          }).join('') + '</select></td></tr>';
+      }).join('') +
+      '</table>' +
+      '<button class="btn mt-3" id="set-save-notify">Save notifications</button>';
+}
+function digestsCardInner_() {
+  var head = '<h3>Custom digests</h3>' +
+      '<p class="help mt-0">On top of the heads-up and recap above, add your own scheduled emails — pick the content, how often, and the time of day. Example: just your to-dos, every morning at 8. Mix and match; add nothing and nothing changes.</p>';
+  if (!state.settingsData) return head + '<div class="help">Loading current digests…</div>';
+  return head + '<div id="digest-editor">' + digestRowsHtml_(state.digests, (state.boot && state.boot.team) || []) + '</div>' +
+      '<button class="btn mt-3" id="set-save-digests">Save digests</button>';
+}
+function reDigest_() {
+  var ed = $('digest-editor');
+  if (!ed) return;
+  ed.innerHTML = digestRowsHtml_(state.digests, (state.boot && state.boot.team) || []);
+  wireDigestEditor_();
+}
+function wireDigestEditor_() {
+  var ed = $('digest-editor');
+  if (!ed) return;
+  ed.querySelectorAll('[data-dadd]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.digests = digestCollect_();
+      state.digests.push(digestDefault_(btn.getAttribute('data-dadd')));
+      reDigest_();
+    });
+  });
+  // One ✕ per rule row, in the same document order as digestCollect_'s rows, so
+  // the button's index is the rule's index in the freshly collected array.
+  ed.querySelectorAll('[data-ddel]').forEach(function (btn, delIdx) {
+    btn.addEventListener('click', function () {
+      state.digests = digestCollect_();
+      if (delIdx < state.digests.length) state.digests.splice(delIdx, 1);
+      reDigest_();
+    });
+  });
+  ed.querySelectorAll('.js-d-freq').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      state.digests = digestCollect_(); // reveal/hide the weekday select
+      reDigest_();
+    });
+  });
+}
+function wireNotifyDigests_() {
+  var sn = $('set-save-notify');
+  if (sn) sn.addEventListener('click', function () {
+    var rows = [];
+    document.querySelectorAll('#card-notify [data-nrow]').forEach(function (tr) {
+      rows.push({
+        person: tr.getAttribute('data-nrow'),
+        headsup: tr.querySelector('.js-n-headsup').checked,
+        recap: tr.querySelector('.js-n-recap').value
+      });
+    });
+    sn.disabled = true;
+    gs('l10_saveNotifyPrefs', rows).then(function (res) {
+      sn.disabled = false;
+      if (!res || !res.ok) { errToast(res || 'Save failed'); return; }
+      if (state.settingsData) state.settingsData.notify = rows; // splice locally so later re-renders reflect the saved state
+      notify('Notification preferences saved', 'ok');
+    }).catch(function (e) { sn.disabled = false; errToast(e); });
+  });
+  wireDigestEditor_();
+  var sd = $('set-save-digests');
+  if (sd) sd.addEventListener('click', function () {
+    state.digests = digestCollect_();
+    sd.disabled = true;
+    gs('l10_saveDigests', state.digests).then(function (res) {
+      sd.disabled = false;
+      if (!res || !res.ok) { errToast(res || 'Save failed'); return; }
+      // Splice the canonical set (server-minted ids) back so later edits are stable.
+      if (state.settingsData) state.settingsData.digests = res.digests;
+      state.digests = (res.digests || []).map(digestClone_);
+      notify('Custom digests saved', 'ok');
+      reDigest_();
+    }).catch(function (e) { sd.disabled = false; errToast(e); });
+  });
+}
+function fetchSettingsData_() {
+  if (state.settingsData || state.settingsDataInflight) return;
+  var page = $('page-settings');
+  if (!page || !page.classList.contains('visible')) return; // fetch only when someone is looking
+  state.settingsDataInflight = true;
+  gs('l10_settingsData').then(function (d) {
+    state.settingsDataInflight = false;
+    state.settingsData = d || { notify: [], digests: [] };
+    state.digests = (state.settingsData.digests || []).map(digestClone_);
+    var nc = $('card-notify'), dc = $('card-digests');
+    if (nc) nc.innerHTML = notifyCardInner_();
+    if (dc) dc.innerHTML = digestsCardInner_();
+    wireNotifyDigests_();
+  }).catch(function () { state.settingsDataInflight = false; });
+}
 function renderSettings() {
   var page = $('page-settings');
   if (!page) return;
   if (!hyd('core')) return pageLoading_('page-settings');
   var b = state.boot, cfg = b.config || {};
   state.setSegs = (b.segments || []).map(function (sg) { return [String(sg[0]), Number(sg[1]) || 5]; });
-  state.digests = (b.digests || []).map(digestClone_);
+  state.digests = ((state.settingsData && state.settingsData.digests) || []).map(digestClone_);
   var chimeOn = String(cfg.TIMER_CHIME || 'YES').toUpperCase() !== 'NO';
   var html = '<h2 class="page-title">Settings</h2><p class="page-sub">The friendlier pen for L10_Config. Changes save straight to the config tab — the sheet stays the audit trail.</p>';
 
@@ -6104,27 +6393,10 @@ function renderSettings() {
       (b.team || []).map(function (p) { return '<span class="person-chip on is-static">' + avatar(p) + esc(p) + '</span>'; }).join(' ') + '</div>' +
       '<div class="help">Edit the <b>TEAM</b> row in L10_Config to change the roster — comma-separated names, matching the Owner column on rocks and to-dos.</div></div>';
 
-  // Notifications — per-analyst email preferences (the L10_Notify tab)
-  html += '<div class="card"><h3>Notifications</h3>' +
-      '<p class="help mt-0">Each person picks how much email they get. The day-before <b>heads-up</b> is their own to-dos + rocks due; the <b>recap</b> is the after-huddle summary. (Chat pings stay a team-space broadcast for now.)</p>' +
-      '<table class="data"><tr><th>Person</th><th>Heads-up email</th><th>Recap email</th></tr>' +
-      (b.notify || []).map(function (n) {
-        var labels = { EVERY: 'Every huddle', BIWEEKLY: 'Every other huddle', MONTHLY: 'First huddle each month', OFF: 'Off' };
-        return '<tr data-nrow="' + esc(n.person) + '">' +
-          '<td>' + avatar(n.person) + esc(n.person) + (n.offRoster ? ' <span class="tag">off roster</span>' : '') + '</td>' +
-          '<td><label class="ck-lbl"><input type="checkbox" class="js-n-headsup"' + (n.headsup ? ' checked' : '') + '> on</label></td>' +
-          '<td><select class="js-n-recap">' + ['EVERY', 'BIWEEKLY', 'MONTHLY', 'OFF'].map(function (c) {
-            return '<option value="' + c + '"' + (String(n.recap).toUpperCase() === c ? ' selected' : '') + '>' + labels[c] + '</option>';
-          }).join('') + '</select></td></tr>';
-      }).join('') +
-      '</table>' +
-      '<button class="btn mt-3" id="set-save-notify">Save notifications</button></div>';
-
-  // Custom digests — a free-schedule layer per analyst (the L10_Digests tab)
-  html += '<div class="card"><h3>Custom digests</h3>' +
-      '<p class="help mt-0">On top of the heads-up and recap above, add your own scheduled emails — pick the content, how often, and the time of day. Example: just your to-dos, every morning at 8. Mix and match; add nothing and nothing changes.</p>' +
-      '<div id="digest-editor">' + digestRowsHtml_(state.digests, b.team || []) + '</div>' +
-      '<button class="btn mt-3" id="set-save-digests">Save digests</button></div>';
+  // Notifications + custom digests — the inner content renders from the
+  // lazily-fetched settingsData (see fetchSettingsData_ / notifyCardInner_).
+  html += '<div class="card" id="card-notify">' + notifyCardInner_() + '</div>';
+  html += '<div class="card" id="card-digests">' + digestsCardInner_() + '</div>';
 
   // Integrations
   html += '<div class="card"><h3>Integrations</h3>' +
@@ -6212,8 +6484,11 @@ function renderSettings() {
     btn.disabled = true;
     gs('l10_installMailTriggers').then(function (res) {
       btn.disabled = false;
-      if (res && res.ok) { notify(res.msg || 'Email triggers installed', 'ok', 6000); $('set-mail-status').textContent = 'installed'; }
-      else errToast(res || 'Install failed');
+      if (res && res.ok) {
+        notify(res.msg || 'Email triggers installed', 'ok', 6000);
+        $('set-mail-status').textContent = 'installed';
+        if (state.settingsExtra) state.settingsExtra.mailTriggersOn = true;
+      } else errToast(res || 'Install failed');
     }).catch(function (e) { btn.disabled = false; errToast(e); });
   });
   $('set-jira-save-token').addEventListener('click', function () {
@@ -6225,6 +6500,7 @@ function renderSettings() {
       btn.disabled = false;
       $('set-jira-token').value = '';
       $('set-jira-status').textContent = 'set ✓';
+      if (state.settingsExtra) state.settingsExtra.jiraTokenSet = true;
       notify('Jira token saved', 'ok');
     }).catch(function (e) { btn.disabled = false; errToast(e); });
   });
@@ -6255,75 +6531,14 @@ function renderSettings() {
       notify('Integration settings saved', 'ok');
     }).catch(function (e) { btn.disabled = false; errToast(e); });
   });
-  var sn = $('set-save-notify');
-  if (sn) sn.addEventListener('click', function () {
-    var rows = [];
-    page.querySelectorAll('[data-nrow]').forEach(function (tr) {
-      rows.push({
-        person: tr.getAttribute('data-nrow'),
-        headsup: tr.querySelector('.js-n-headsup').checked,
-        recap: tr.querySelector('.js-n-recap').value
-      });
-    });
-    sn.disabled = true;
-    gs('l10_saveNotifyPrefs', rows).then(function (res) {
-      sn.disabled = false;
-      if (!res || !res.ok) { errToast(res || 'Save failed'); return; }
-      state.boot.notify = rows; // splice locally so later re-renders reflect the saved state
-      notify('Notification preferences saved', 'ok');
-    }).catch(function (e) { sn.disabled = false; errToast(e); });
-  });
+  wireNotifyDigests_();
+  fetchSettingsData_(); // no-op unless the page is visible and the data isn't in yet
 
-  // Custom digests editor wiring (mirrors the segment editor: collect the DOM into
-  // the working copy before every mutate, then re-render from it).
-  function reDigest_() {
-    var ed = $('digest-editor');
-    if (!ed) return;
-    ed.innerHTML = digestRowsHtml_(state.digests, b.team || []);
-    wireDigestEditor_();
-  }
-  function wireDigestEditor_() {
-    page.querySelectorAll('#digest-editor [data-dadd]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        state.digests = digestCollect_();
-        state.digests.push(digestDefault_(btn.getAttribute('data-dadd')));
-        reDigest_();
-      });
-    });
-    // One ✕ per rule row, in the same document order as digestCollect_'s rows, so
-    // the button's index is the rule's index in the freshly collected array.
-    page.querySelectorAll('#digest-editor [data-ddel]').forEach(function (btn, delIdx) {
-      btn.addEventListener('click', function () {
-        state.digests = digestCollect_();
-        if (delIdx < state.digests.length) state.digests.splice(delIdx, 1);
-        reDigest_();
-      });
-    });
-    page.querySelectorAll('#digest-editor .js-d-freq').forEach(function (sel) {
-      sel.addEventListener('change', function () {
-        state.digests = digestCollect_(); // reveal/hide the weekday select
-        reDigest_();
-      });
-    });
-  }
-  wireDigestEditor_();
-  var sd = $('set-save-digests');
-  if (sd) sd.addEventListener('click', function () {
-    state.digests = digestCollect_();
-    sd.disabled = true;
-    gs('l10_saveDigests', state.digests).then(function (res) {
-      sd.disabled = false;
-      if (!res || !res.ok) { errToast(res || 'Save failed'); return; }
-      // Splice the canonical set (server-minted ids) back so later edits are stable.
-      state.boot.digests = res.digests;
-      state.digests = (res.digests || []).map(digestClone_);
-      notify('Custom digests saved', 'ok');
-      reDigest_();
-    }).catch(function (e) { sd.disabled = false; errToast(e); });
-  });
-
-  // Async extras (web-app URL, Jira token presence, trigger status).
-  gs('l10_getSettings').then(function (st) {
+  // Async extras (web-app URL, Jira token presence, trigger status). Memoized
+  // per session — this used to fire a fresh server execution on EVERY
+  // hydRender_ pass (4 per boot) for values that change at most when someone
+  // installs triggers or saves a token, and those handlers patch the memo.
+  var applyExtras_ = function (st) {
     var ms = $('set-mail-status');
     if (ms) ms.textContent = st.mailTriggersOn ? 'installed' : 'not installed yet';
     var js = $('set-jira-status');
@@ -6340,10 +6555,21 @@ function renderSettings() {
         wl.innerHTML = '<div class="help mt-0">Not deployed yet. In the Apps Script editor: <b>Deploy → New deployment → Web app</b> (execute as you, access: anyone in your team\'s domain), then reopen Settings — the link shows here.</div>';
       }
     }
-  }).catch(function () {
-    var ms = $('set-mail-status'); if (ms) ms.textContent = '—';
-    var js = $('set-jira-status'); if (js) js.textContent = '—';
-  });
+  };
+  if (state.settingsExtra) {
+    applyExtras_(state.settingsExtra);
+  } else if (!state.settingsExtraInflight) {
+    state.settingsExtraInflight = true;
+    gs('l10_getSettings').then(function (st) {
+      state.settingsExtraInflight = false;
+      state.settingsExtra = st;
+      applyExtras_(st);
+    }).catch(function () {
+      state.settingsExtraInflight = false;
+      var ms = $('set-mail-status'); if (ms) ms.textContent = '—';
+      var js = $('set-jira-status'); if (js) js.textContent = '—';
+    });
+  }
 }
 
 // Make the toast stack a screen-reader live region once, at load — set before

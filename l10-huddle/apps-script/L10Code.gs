@@ -17,8 +17,26 @@ function l10Tz_() {
   return L10_TZ_;
 }
 
+// Memoized per (pattern, timestamp): Utilities.formatDate crosses the V8→Java
+// service bridge (~0.5-1.5ms per call) and the boot builders format every Date
+// cell of every tab — same-day cells share a midnight timestamp, so the hit
+// rate is high and a year-old workbook saves hundreds of ms per boot.
+var L10_FMT_CACHE_ = {};
 function l10Fmt_(d, pattern) {
-  return Utilities.formatDate(d, l10Tz_(), pattern);
+  var key = pattern + '|' + d.getTime();
+  var hit = L10_FMT_CACHE_[key];
+  if (hit !== undefined) return hit;
+  return (L10_FMT_CACHE_[key] = Utilities.formatDate(d, l10Tz_(), pattern));
+}
+
+// Session.getActiveUser also crosses the service bridge (~50-150ms) — one call
+// per execution is plenty (the user can't change mid-request).
+var L10_USER_CACHE_ = null;
+function l10User_() {
+  if (L10_USER_CACHE_ === null) {
+    try { L10_USER_CACHE_ = Session.getActiveUser().getEmail() || ''; } catch (e) { L10_USER_CACHE_ = ''; }
+  }
+  return L10_USER_CACHE_;
 }
 
 function l10Today_() { return l10Fmt_(new Date(), 'yyyy-MM-dd'); }
@@ -53,6 +71,7 @@ function l10ReadTab_(tabName) {
 function l10Sanitize_(obj) {
   var out = {};
   Object.keys(obj).forEach(function (k) {
+    if (k === '_row') return; // internal bookkeeping — never ships to the client
     var v = obj[k];
     out[k] = v instanceof Date ? l10Fmt_(v, 'yyyy-MM-dd') : v;
   });
@@ -99,30 +118,64 @@ function l10Config_() {
   return out;
 }
 
+// Per-execution max-id memo: a bulk action that mints several ids from the same
+// tab (10 status flips → 10 trail rows) pays ONE tab scan instead of one per id.
+// Safe because every id this execution mints goes through the memo, and ids
+// only ever grow — a concurrent execution appending the same id was already a
+// race under the read-every-time version.
+var L10_NEXTID_CACHE_ = {};
 function l10NextId_(tabName, prefix) {
-  var rows = l10ReadTab_(tabName).rows;
-  var max = 0;
-  rows.forEach(function (r) {
-    var m = String(r[Object.keys(r)[0]]).match(new RegExp('^' + prefix + '-(\\d+)$'));
-    if (m) max = Math.max(max, Number(m[1]));
-  });
+  var key = tabName + '|' + prefix;
+  var max = L10_NEXTID_CACHE_[key];
+  if (max === undefined) {
+    var tab = l10ReadTab_(tabName);
+    var first = tab.headers[0];
+    var re = new RegExp('^' + prefix + '-(\\d+)$');
+    max = 0;
+    tab.rows.forEach(function (r) {
+      var m = String(r[first]).match(re);
+      if (m) max = Math.max(max, Number(m[1]));
+    });
+  }
   var n = max + 1;
+  L10_NEXTID_CACHE_[key] = n;
   return prefix + '-' + (n < 1000 ? ('000' + n).slice(-3) : String(n));
 }
 
-// Set several fields on one row with ONE read + ONE write.
+// Write ONLY the updated cells of one row, coalescing adjacent columns into
+// ranged setValues. No read-before-write and no rewrite of untouched columns —
+// which both drops a ~50ms round trip from every write path AND means a
+// concurrent edit to another column of the same row can never be clobbered
+// (the old full-row rewrite had a read→write race window).
+function l10WriteRowCells_(sheet, headers, rowIdx, updates) {
+  var cols = [];
+  Object.keys(updates).forEach(function (h) {
+    var c = headers.indexOf(h);
+    if (c !== -1) cols.push(c);
+  });
+  if (!cols.length) return false;
+  cols.sort(function (a, b) { return a - b; });
+  var run = [cols[0]];
+  var flush = function () {
+    var vals = run.map(function (c) { return updates[headers[c]]; });
+    sheet.getRange(rowIdx, run[0] + 1, 1, run.length).setValues([vals]);
+  };
+  for (var i = 1; i < cols.length; i++) {
+    if (cols[i] === run[run.length - 1] + 1) { run.push(cols[i]); continue; }
+    flush();
+    run = [cols[i]];
+  }
+  flush();
+  return true;
+}
+
+// Set several fields on one row — row lookup by id, then updated-columns-only writes.
 function l10SetCells_(tabName, id, updates) {
   var tab = l10ReadTab_(tabName);
   for (var i = 0; i < tab.rows.length; i++) {
     if (String(tab.rows[i][tab.headers[0]]).trim() === String(id).trim()) {
       var sheet = l10Ss_().getSheetByName(tabName);
-      var rowIdx = tab.rows[i]._row;
-      var rowVals = sheet.getRange(rowIdx, 1, 1, tab.headers.length).getValues()[0];
-      Object.keys(updates).forEach(function (h) {
-        var c = tab.headers.indexOf(h);
-        if (c !== -1) rowVals[c] = updates[h];
-      });
-      sheet.getRange(rowIdx, 1, 1, tab.headers.length).setValues([rowVals]);
+      l10WriteRowCells_(sheet, tab.headers, tab.rows[i]._row, updates);
       l10TabDirty_(tabName);
       return true;
     }
@@ -251,8 +304,13 @@ function l10ResolveRef_(cell) {
 
 // Experiment Hub pulls (read-only). Cached 5 minutes — openByUrl on another
 // workbook costs seconds, and these two counts feed two scorecard tiles.
-// Failure returns {error} — never throws.
-function l10HubCounts_(config, forceFresh) {
+// Failure returns {error} — never throws. Errors are cached briefly too, so a
+// misconfigured hub URL can't make every boot pay the full openByUrl failure.
+// cacheOnly: return the cached value or {pending:true} — NEVER openByUrl. The
+// boot path uses this so a 5-minute cache miss (the normal case for a weekly
+// app) can't block first paint for seconds; the client fetches the live count
+// lazily via l10_hubCounts, the same pattern as the data-health strip.
+function l10HubCounts_(config, forceFresh, cacheOnly) {
   var url = String(config.EXPERIMENT_HUB_URL || '').trim();
   if (!url) return null;
   var cache = null;
@@ -263,6 +321,7 @@ function l10HubCounts_(config, forceFresh) {
       try { return JSON.parse(hit); } catch (e) {}
     }
   }
+  if (cacheOnly) return { pending: true };
   var result;
   try {
     var sheet = SpreadsheetApp.openByUrl(url).getSheetByName('Experiments');
@@ -273,24 +332,33 @@ function l10HubCounts_(config, forceFresh) {
       var headers = values[0].map(String);
       var iStatus = headers.indexOf('Status'), iDecision = headers.indexOf('Decision');
       if (iStatus === -1 || iDecision === -1) {
-        return { error: 'Hub Experiments tab is missing Status/Decision headers' };
+        result = { error: 'Hub Experiments tab is missing Status/Decision headers' };
+      } else {
+        var live = ['RUNNING', 'LAUNCHING', 'QUEUED', 'STOP_REQUESTED', 'APPLY_REQUESTED', 'GRADUATE_REQUESTED'];
+        var running = 0, needDecision = 0;
+        for (var i = 1; i < values.length; i++) {
+          var status = String(values[i][iStatus] || '').toUpperCase();
+          if (live.indexOf(status) !== -1) running++;
+          if (status === 'ENDED' && !String(values[i][iDecision] || '').trim()) needDecision++;
+        }
+        result = { running: running, needDecision: needDecision };
       }
-      var live = ['RUNNING', 'LAUNCHING', 'QUEUED', 'STOP_REQUESTED', 'APPLY_REQUESTED', 'GRADUATE_REQUESTED'];
-      var running = 0, needDecision = 0;
-      for (var i = 1; i < values.length; i++) {
-        var status = String(values[i][iStatus] || '').toUpperCase();
-        if (live.indexOf(status) !== -1) running++;
-        if (status === 'ENDED' && !String(values[i][iDecision] || '').trim()) needDecision++;
-      }
-      result = { running: running, needDecision: needDecision };
     }
   } catch (e) {
-    return { error: String(e).slice(0, 120) };
+    result = { error: String(e).slice(0, 120) };
   }
   if (cache) {
-    try { cache.put('l10_hub_counts', JSON.stringify(result), 300); } catch (e) {}
+    // Failures cache shorter, so a transient outage recovers in minutes while
+    // still absorbing the boot-storm at meeting start.
+    try { cache.put('l10_hub_counts', JSON.stringify(result), result.error ? 120 : 300); } catch (e) {}
   }
   return result;
+}
+
+// Client-callable: the lazy hub fetch fired after first paint when the boot
+// payload said {pending:true}. Uses the cache when warm; fills it when cold.
+function l10_hubCounts() {
+  return l10HubCounts_(l10Config_(), false);
 }
 
 // Outcome review on a SOLVED issue ("did the fix hold?"), asked by the Conclude
@@ -491,7 +559,11 @@ function l10_promoteBriefItem(weekOf, rank) {
   // Write-back so the docket card flips to "promoted" and re-taps dedupe.
   var sheet = l10Ss_().getSheetByName(L10.TABS.BRIEF);
   sheet.getRange(row._row, tab.headers.indexOf('Promoted To') + 1).setValue(res.id);
-  return { ok: true, id: res.id };
+  // Ship the created issue row (with the Identified patch) so the client can
+  // splice it locally instead of paying a full bootstrap reload mid-segment.
+  var issueRow = res.row || null;
+  if (issueRow && identified) issueRow['Identified'] = identified;
+  return { ok: true, id: res.id, row: issueRow };
 }
 
 // Brief menu wrappers (menu built in L10Setup.gs).
@@ -641,8 +713,10 @@ function l10MenuBriefStatus() {
 // ---------------------------------------------------------------------------
 
 // Core: everything the first paint needs — config/team/segments, the meeting
-// state, the events strip, scorecard packs + GA4 catalog, the Experiment Hub
-// counts, and this week's pre-huddle brief. Four tab reads (+ the hub pull).
+// state, the events strip, scorecard packs + GA4 catalog, the (cached) hub
+// counts, and this week's pre-huddle brief. Three tab reads; the Settings-only
+// notify/digests tables moved to l10_settingsData (fetched when that page is
+// actually opened), and the hub pull is cache-only here.
 function l10BootCore_() {
   var config = l10Config_();
   var team = String(config.TEAM || '').split(',').map(function (s) { return s.trim(); }).filter(String);
@@ -675,14 +749,22 @@ function l10BootCore_() {
     history: concluded.slice(-12),
     packs: l10_metricPacks(),
     ga4: l10Ga4Catalog_(),
-    hub: l10HubCounts_(config, false),
+    // Cache-only: a cold hub cache returns {pending:true} and the client
+    // fetches the live counts AFTER first paint (l10_hubCounts) — openByUrl on
+    // the foreign workbook costs seconds and must never gate the first render.
+    hub: l10HubCounts_(config, false, true),
     // Pre-huddle brief + analysis playbook. Both read as zero rows on a
     // pre-upgrade workbook (missing tab), so old deployments keep working.
     brief: l10BriefFor_(l10WeekOf_()),
-    notify: l10_getNotifyPrefs(),
-    digests: l10_getDigests(),
-    user: Session.getActiveUser().getEmail() || ''
+    user: l10User_()
   };
+}
+
+// Settings-page data (the L10_Notify + L10_Digests tables). Fetched lazily the
+// first time the Settings page is opened — two tab reads that used to ride the
+// first-paint core slice on every boot for a page most sessions never visit.
+function l10_settingsData() {
+  return { notify: l10_getNotifyPrefs(), digests: l10_getDigests() };
 }
 
 // Work: the week-to-week lists. Five tab reads.
@@ -837,15 +919,18 @@ function l10_startMeeting(attendees) {
     l10SetCells_(L10.TABS.MEETINGS, String(sameDay['ID']), {
       'Attendees': (attendees || []).join(', ')
     });
-    return { ok: true, id: String(sameDay['ID']), resumed: true };
+    // Ship the (sanitized) row back so the client can splice it into local
+    // state and paint the first segment immediately — no full re-boot.
+    var row = l10Sanitize_(sameDay);
+    row['Attendees'] = (attendees || []).join(', ');
+    return { ok: true, id: String(sameDay['ID']), resumed: true, row: row };
   }
   var id = l10NextId_(L10.TABS.MEETINGS, 'M');
-  l10TabDirty_(L10.TABS.MEETINGS);
-  l10Ss_().getSheetByName(L10.TABS.MEETINGS).appendRow([
+  var fresh = l10Append_(L10.TABS.MEETINGS, [
     id, today, 'OPEN', (attendees || []).join(', '), l10Now_(),
     '', '', '', '', '', '', '', '', '', '', ''
   ]);
-  return { ok: true, id: id };
+  return { ok: true, id: id, row: fresh };
 }
 
 // Discard a meeting started by mistake / while testing. CANCELLED rows are
@@ -934,12 +1019,36 @@ function l10_concludeMeeting(meetingId, payload) {
 // written plus notes for anything that could not be read or parsed.
 function l10_captureWeek(weekOf, manual) {
   manual = manual || {};
-  // Live Experiment Hub counts for any HUB_RUNNING/HUB_DECISIONS scorecard rows.
-  var hub = l10HubCounts_(l10Config_(), true);
   var scTab = l10ReadTab_(L10.TABS.SCORECARD);
   var defs = scTab.rows.filter(function (d) {
     return String(d['Active']).toUpperCase() === 'YES';
   });
+  var isCurrentWeek = weekOf === l10WeekOf_();
+  // Live Experiment Hub counts — pulled ONLY when a HUB_RUNNING/HUB_DECISIONS
+  // metric will actually consume them (current week only; backfills are
+  // manual-only). The unconditional force-pull used to pay openByUrl on the
+  // foreign workbook — seconds — on every capture, hub metrics or not.
+  var needsHub = isCurrentWeek && defs.some(function (d) {
+    var s = String(d['Source']).toUpperCase();
+    return s === 'HUB_RUNNING' || s === 'HUB_DECISIONS';
+  });
+  var hub = needsHub ? l10HubCounts_(l10Config_(), true) : null;
+  // GA4 metrics resolve as ONE parallel fetchAll instead of a serial HTTP
+  // round trip per metric — see l10Ga4ResolveMany_.
+  var ga4Ids = [], ga4Refs = [];
+  if (isCurrentWeek) {
+    defs.forEach(function (d) {
+      if (String(d['Source']).toUpperCase() !== 'GA4') return;
+      if (manual[String(d['ID'])] !== undefined && String(manual[String(d['ID'])]).trim() !== '') return; // manual override wins
+      ga4Ids.push(String(d['ID']));
+      ga4Refs.push(String(d['Source Ref'] === undefined || d['Source Ref'] === null ? '' : d['Source Ref']).trim());
+    });
+  }
+  var ga4ByMetric = {};
+  if (ga4Refs.length) {
+    var ga4Res = l10Ga4ResolveMany_(ga4Refs);
+    ga4Ids.forEach(function (id, i) { ga4ByMetric[id] = ga4Res[i]; });
+  }
   // Source Ref cells may hold live formulas (='Metrics'!H7) — getValues()
   // then returns the computed NUMBER, not the reference text — so formulas
   // and display text are read separately and resolved per row.
@@ -959,7 +1068,7 @@ function l10_captureWeek(weekOf, manual) {
       display: String(refDisplays[i] ? refDisplays[i][0] : '')
     };
   }
-  var written = {}, notes = [];
+  var written = {}, notes = [], updates = [];
   var data = l10ReadTab_(L10.TABS.DATA);
   var index = {};
   data.rows.forEach(function (r) {
@@ -978,19 +1087,19 @@ function l10_captureWeek(weekOf, manual) {
         return;
       }
     } else if (source === 'RANGE') {
-      if (weekOf !== l10WeekOf_()) return; // backfill is manual-only: the source cell holds TODAY's value, not that week's
+      if (!isCurrentWeek) return; // backfill is manual-only: the source cell holds TODAY's value, not that week's
       var res = l10ResolveRef_(refCell(d));
       value = res.value;
       note = 'auto: ' + (res.how || '');
       if (value === null) notes.push(id + ': could not capture — ' + res.why + '.');
     } else if (source === 'GA4') {
-      if (weekOf !== l10WeekOf_()) return; // same rule as RANGE: a trailing window resolved today is not that past week's number
-      var ga = l10Ga4Resolve_(String(d['Source Ref'] === undefined || d['Source Ref'] === null ? '' : d['Source Ref']).trim());
+      if (!isCurrentWeek) return; // same rule as RANGE: a trailing window resolved today is not that past week's number
+      var ga = ga4ByMetric[id] || { value: null, why: 'the Google Analytics batch skipped this ref — retry the capture' };
       value = ga.value;
       note = 'auto: ' + (ga.how || '');
       if (value === null) notes.push(id + ': could not capture — ' + ga.why + '.');
     } else if (source === 'HUB_RUNNING' || source === 'HUB_DECISIONS') {
-      if (weekOf !== l10WeekOf_()) return; // hub count is a "now" value like RANGE/GA4 — never backfilled
+      if (!isCurrentWeek) return; // hub count is a "now" value like RANGE/GA4 — never backfilled
       var hubVal = (hub && !hub.error)
           ? (source === 'HUB_RUNNING' ? hub.running : hub.needDecision) : null;
       var cell = refCell(d);
@@ -1014,7 +1123,7 @@ function l10_captureWeek(weekOf, manual) {
     if (value === null || value === undefined || !isFinite(value)) return;
     var key = weekOf + '|' + id;
     if (index[key]) {
-      sheet.getRange(index[key], 3, 1, 3).setValues([[value, l10Now_(), note]]);
+      updates.push({ row: index[key], vals: [value, l10Now_(), note] });
     } else {
       // appendRow (not getLastRow math) so concurrent captures can't overwrite
       // each other's freshly written rows.
@@ -1022,6 +1131,22 @@ function l10_captureWeek(weekOf, manual) {
     }
     written[id] = value;
   });
+  // Re-captures of an existing week update scattered rows — but a week's rows
+  // were appended together, so they're usually contiguous: coalesce runs and
+  // write each with one setValues instead of one round trip per metric.
+  if (updates.length) {
+    updates.sort(function (a, b) { return a.row - b.row; });
+    var run = [updates[0]];
+    var flushRun = function () {
+      sheet.getRange(run[0].row, 3, run.length, 3).setValues(run.map(function (u) { return u.vals; }));
+    };
+    for (var ui = 1; ui < updates.length; ui++) {
+      if (updates[ui].row === run[run.length - 1].row + 1) { run.push(updates[ui]); continue; }
+      flushRun();
+      run = [updates[ui]];
+    }
+    flushRun();
+  }
   if (hub && hub.error) notes.push('Experiment Hub unreachable: ' + hub.error);
   l10TabDirty_(L10.TABS.DATA);
   return { ok: true, written: written, notes: notes };
@@ -1795,18 +1920,35 @@ function l10SweepCarries_() {
   var week = l10WeekOf_();
   var today = l10Today_();
   var sheet = l10Ss_().getSheetByName(L10.TABS.TODOS);
-  var n = 0;
+  // Collect the rows to advance, then write them as contiguous-run batches —
+  // one setValues per run per column instead of two setValue round trips per
+  // row (the week's first boot used to pay ~100-300ms per carried to-do).
+  var dirty = []; // [{row, carry}] keyed to _row, ascending sheet order
   tab.rows.forEach(function (t) {
     if (!l10TodoOpen_(t['Status'])) return;
     var due = l10DateStr_(t['Due']);
     if (!due || due >= today) return;                      // not past due yet
     if (l10DateStr_(t['Last Carried Week']) === week) return;  // already counted this week
-    sheet.getRange(t._row, iCarry).setValue((Number(t['Carried Over']) || 0) + 1);
-    sheet.getRange(t._row, iWeek).setValue(week);
-    n++;
+    dirty.push({ row: t._row, carry: (Number(t['Carried Over']) || 0) + 1 });
   });
-  if (n) l10TabDirty_(L10.TABS.TODOS);
-  return n;
+  if (!dirty.length) return 0;
+  dirty.sort(function (a, b) { return a.row - b.row; });
+  var run = [dirty[0]];
+  var flush = function () {
+    var top = run[0].row;
+    sheet.getRange(top, iCarry, run.length, 1).setValues(run.map(function (d) { return [d.carry]; }));
+    sheet.getRange(top, iWeek, run.length, 1).setValues(run.map(function () { return [week]; }));
+  };
+  for (var i = 1; i < dirty.length; i++) {
+    // A gap in _row (a clean or blank intervening row) ends the run — untouched
+    // rows are never rewritten.
+    if (dirty[i].row === run[run.length - 1].row + 1) { run.push(dirty[i]); continue; }
+    flush();
+    run = [dirty[i]];
+  }
+  flush();
+  l10TabDirty_(L10.TABS.TODOS);
+  return dirty.length;
 }
 
 // Boot-path guard for the sweep: at most one sweep per calendar week per
@@ -1896,10 +2038,18 @@ function l10_setTodoStatus(id, status, opts) {
   opts = opts || {};
   // Read the row first: we need its Owner + text for the chat line, and the
   // prior status so re-confirming an already-DONE to-do doesn't double-post.
+  // A bulk caller pre-resolves every row from ONE tab read (opts._bulkCtx) —
+  // without it, each iteration's write dirties the tab cache and the next
+  // lookup re-reads the whole tab (N full reads for an N-item flip).
+  var ctx = opts._bulkCtx || null;
   var todo = null;
-  l10ReadTab_(L10.TABS.TODOS).rows.forEach(function (t) {
-    if (String(t['ID']).trim() === String(id).trim()) todo = t;
-  });
+  if (ctx) {
+    todo = ctx.byId[String(id).trim()] || null;
+  } else {
+    l10ReadTab_(L10.TABS.TODOS).rows.forEach(function (t) {
+      if (String(t['ID']).trim() === String(id).trim()) todo = t;
+    });
+  }
   if (!todo) return { ok: false, error: 'To-do ' + id + ' not found.' };
   var was = String(todo['Status']).toUpperCase();
   var wasDone = was === 'DONE';
@@ -1918,7 +2068,16 @@ function l10_setTodoStatus(id, status, opts) {
   } else if (was === 'BLOCKED') {
     updates['Blocked On'] = '';
   }
-  var wrote = l10SetCells_(L10.TABS.TODOS, id, updates);
+  var wrote;
+  if (ctx) {
+    // Row + headers already resolved — write directly, skip the per-call tab
+    // lookup. Appends during the batch (weekly respawns, trail rows) never
+    // shift existing _row indices, so the pre-resolved index stays valid.
+    wrote = l10WriteRowCells_(ctx.sheet, ctx.headers, todo._row, updates) || true;
+    l10TabDirty_(L10.TABS.TODOS);
+  } else {
+    wrote = l10SetCells_(L10.TABS.TODOS, id, updates);
+  }
   if (!wrote) return { ok: false, error: 'To-do ' + id + ' not found.' };
   // opts._silent suppresses the per-item ping so a bulk flip posts ONE grouped
   // line instead of ten — same rule l10_addTodoMulti follows for a fan-out.
@@ -1981,6 +2140,14 @@ function l10_setTodoStatusBulk(ids, status, opts) {
   var each = {};
   Object.keys(opts || {}).forEach(function (k) { each[k] = opts[k]; });
   each._silent = true;
+  // Resolve every row from ONE read up front — see the _bulkCtx note in
+  // l10_setTodoStatus. Trail-row ids and the author email are memoized
+  // per-execution (l10NextId_ / l10User_), so a 10-item flip costs one tab
+  // scan and one Session call instead of ten of each.
+  var tab = l10ReadTab_(L10.TABS.TODOS);
+  var byId = {};
+  tab.rows.forEach(function (t) { byId[String(t['ID']).trim()] = t; });
+  each._bulkCtx = { byId: byId, headers: tab.headers, sheet: l10Ss_().getSheetByName(L10.TABS.TODOS) };
   var done = [], failed = [], nextRows = [], owners = {};
   for (var i = 0; i < ids.length; i++) {
     var res = l10_setTodoStatus(ids[i], status, each);
@@ -2060,10 +2227,7 @@ function l10TodoLogAppend_(todoId, note, who) {
   try {
     if (!note) return null;
     var id = l10NextId_(L10.TABS.TODO_LOG, 'TL');
-    var author = who;
-    if (!author) {
-      try { author = Session.getActiveUser().getEmail() || ''; } catch (e) { author = ''; }
-    }
+    var author = who || l10User_();
     return l10Append_(L10.TABS.TODO_LOG, [
       id, String(todoId), l10Now_(), author, String(note).slice(0, 1000)
     ]);
