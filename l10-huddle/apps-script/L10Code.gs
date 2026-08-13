@@ -713,8 +713,10 @@ function l10MenuBriefStatus() {
 // ---------------------------------------------------------------------------
 
 // Core: everything the first paint needs — config/team/segments, the meeting
-// state, the events strip, scorecard packs + GA4 catalog, the Experiment Hub
-// counts, and this week's pre-huddle brief. Four tab reads (+ the hub pull).
+// state, the events strip, scorecard packs + GA4 catalog, the (cached) hub
+// counts, and this week's pre-huddle brief. Three tab reads; the Settings-only
+// notify/digests tables moved to l10_settingsData (fetched when that page is
+// actually opened), and the hub pull is cache-only here.
 function l10BootCore_() {
   var config = l10Config_();
   var team = String(config.TEAM || '').split(',').map(function (s) { return s.trim(); }).filter(String);
@@ -754,10 +756,15 @@ function l10BootCore_() {
     // Pre-huddle brief + analysis playbook. Both read as zero rows on a
     // pre-upgrade workbook (missing tab), so old deployments keep working.
     brief: l10BriefFor_(l10WeekOf_()),
-    notify: l10_getNotifyPrefs(),
-    digests: l10_getDigests(),
     user: l10User_()
   };
+}
+
+// Settings-page data (the L10_Notify + L10_Digests tables). Fetched lazily the
+// first time the Settings page is opened — two tab reads that used to ride the
+// first-paint core slice on every boot for a page most sessions never visit.
+function l10_settingsData() {
+  return { notify: l10_getNotifyPrefs(), digests: l10_getDigests() };
 }
 
 // Work: the week-to-week lists. Five tab reads.

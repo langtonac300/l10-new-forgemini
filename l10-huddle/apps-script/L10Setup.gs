@@ -251,11 +251,33 @@ function l10BuildMenu() {
   } catch (e) {}
 }
 
+// The core boot slice, serialized for embedding into the served page. Costs
+// ~3 tab reads inside the doGet/modal execution and saves the client an entire
+// google.script.run round trip (execution startup + serialize + network) before
+// anything can paint — the header/start screen renders the moment the page
+// parses instead of after a spinner. The hub pull inside l10BootCore_ is
+// cache-only, so this can never block on the foreign-workbook openByUrl.
+// Every '<' is JSON-escaped (backslash-u003c) so user-typed text can never
+// break out of the script block (a literal closing script tag in a headline
+// would otherwise end it — an XSS-adjacent hole, not just a parse error).
+// Any failure serves 'null' and the client falls back to the normal slice
+// fetch (its errors surface there).
+function l10BootJson_() {
+  try {
+    var core = l10BootCore_();
+    core.sid = l10Ss_().getId(); // keys the client-side snapshot per workbook
+    return JSON.stringify(core).replace(/</g, '\\u003c');
+  } catch (e) {
+    return 'null';
+  }
+}
+
 function l10OpenDashboard() {
   // Modal (embedded) context: no web-app URL (Present pops out from the
   // standalone tab, not the modal). The template var must still be defined.
   var t = HtmlService.createTemplateFromFile('L10Index');
   t.webAppUrl = '';
+  t.bootJson = l10BootJson_();
   var html = t.evaluate().setWidth(1400).setHeight(850).setTitle('Level 10 Huddle');
   SpreadsheetApp.getUi().showModalDialog(html, 'Level 10 Huddle');
 }
@@ -272,6 +294,7 @@ function doGet() {
   // here and go full-screen (full-screen is blocked inside the Sheets modal).
   var t = HtmlService.createTemplateFromFile('L10Index');
   t.webAppUrl = l10WebAppUrl_();
+  t.bootJson = l10BootJson_();
   return t.evaluate()
       .setTitle('Level 10 Huddle')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');

@@ -32,6 +32,9 @@ async function clickNav(page, target) {
     if (msg.type() === 'error') errors.push('console.error: ' + msg.text());
   });
   page.on('pageerror', (err) => errors.push('pageerror: ' + err.message));
+  // All preview variants share the file:// origin's storage — clear it so the
+  // boot snapshot (stale-while-revalidate) can't leak between runs/pages.
+  await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
 
   await page.goto('file://' + path.join(HERE, 'preview.html'));
   // Boot: all four slices resolve → the huddle start screen replaces the spinner.
@@ -154,10 +157,62 @@ async function clickNav(page, target) {
     await shot(page, 'meeting-started');
   }
 
+  // --- Embed path: the production-primary boot (core inline in the page) ---
+  // The core slice must come from window.__L10_BOOT — no l10_bootCore call —
+  // and the app still hydrates fully from the three remaining slices.
+  const pageE = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  pageE.on('console', (m) => { if (m.type() === 'error') errors.push('embed console.error: ' + m.text()); });
+  pageE.on('pageerror', (e) => errors.push('embed pageerror: ' + e.message));
+  await pageE.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+  await pageE.goto('file://' + path.join(HERE, 'preview-embed.html'));
+  await pageE.waitForFunction(() => {
+    const el = document.querySelector('#page-huddle');
+    return el && !el.querySelector('.spinner');
+  }, { timeout: 10000 });
+  await pageE.waitForTimeout(250);
+  const embedCalls = await pageE.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+  if (embedCalls.includes('l10_bootCore')) errors.push('embed path still fetched l10_bootCore — the inline payload was not consumed');
+  for (const fn of ['l10_bootWork', 'l10_bootPlan', 'l10_bootScorecard']) {
+    if (!embedCalls.includes(fn)) errors.push('embed path never fetched ' + fn + ' — lists would go stale');
+  }
+  const embedHdr = await pageE.$eval('#hdr-sub', (el) => el.textContent);
+  if (!/Week of/.test(embedHdr)) errors.push('embed path header did not hydrate (hdr-sub: "' + embedHdr + '")');
+  const embedStart = await pageE.$('text=Start');
+  if (!embedStart) errors.push('embed path start screen missing its Start button');
+  // The boot snapshot must have been saved once all slices hydrated.
+  const snapRaw = await pageE.evaluate(() => { try { return localStorage.getItem('l10Snap1:fixture-ss'); } catch (e) { return null; } });
+  let snapOK = false;
+  try { const s = JSON.parse(snapRaw); snapOK = !!(s && s.v === 1 && s.data && s.data.todos && s.data.todos.length); } catch (e) {}
+  if (!snapOK) errors.push('boot snapshot was not saved after hydration (stale-while-revalidate dead)');
+  await shot(pageE, 'embed-boot');
+  await pageE.close();
+
+  // --- Snapshot path: a repeat load paints from the stored snapshot ---
+  // (no localStorage clear on this page — it must inherit the save above).
+  const pageS = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  pageS.on('console', (m) => { if (m.type() === 'error') errors.push('snapshot console.error: ' + m.text()); });
+  pageS.on('pageerror', (e) => errors.push('snapshot pageerror: ' + e.message));
+  await pageS.goto('file://' + path.join(HERE, 'preview-embed.html'));
+  await pageS.waitForFunction(() => {
+    const el = document.querySelector('#page-huddle');
+    return el && !el.querySelector('.spinner');
+  }, { timeout: 10000 });
+  await pageS.waitForTimeout(250);
+  // Snapshot-hydrated pages must render real content, and the live slices must
+  // still be fetched to reconcile.
+  const snapCalls = await pageS.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+  for (const fn of ['l10_bootWork', 'l10_bootPlan', 'l10_bootScorecard']) {
+    if (!snapCalls.includes(fn)) errors.push('snapshot path skipped the live ' + fn + ' reconcile');
+  }
+  const snapTodos = await pageS.$eval('#page-todos', (el) => el.innerHTML.trim().length);
+  if (snapTodos < 40) errors.push('snapshot path left the To-dos page empty');
+  await pageS.close();
+
   // --- First-run: empty workspace shows the setup checklist ---
   const page2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page2.on('console', (m) => { if (m.type() === 'error') errors.push('firstrun console.error: ' + m.text()); });
   page2.on('pageerror', (e) => errors.push('firstrun pageerror: ' + e.message));
+  await page2.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
   await page2.goto('file://' + path.join(HERE, 'preview.html') + '#firstrun');
   await page2.waitForFunction(() => {
     const el = document.querySelector('#page-huddle');
