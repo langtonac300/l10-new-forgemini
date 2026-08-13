@@ -60,7 +60,14 @@ function l10_dataHealth(force) {
     return out;
   } catch (e) {
     // A warehouse hiccup must read as "health unknown", not break the huddle.
-    return { ok: false, reason: String(e && e.message || e).slice(0, 200) };
+    // Cache the failure briefly too — without this, every scorecard render in
+    // the outage window re-paid the full (multi-second) BigQuery attempt.
+    var bad = { ok: false, reason: String(e && e.message || e).slice(0, 200) };
+    try {
+      var c2 = CacheService.getScriptCache();
+      if (c2 && !force) c2.put(L10H.CACHE_KEY, JSON.stringify(bad), 300);
+    } catch (e2) {}
+    return bad;
   }
 }
 
@@ -154,11 +161,15 @@ function l10HealthBq_(sql) {
     { configuration: { query: { query: sql, useLegacySql: false } } }, pid);
   var jobId = job.jobReference.jobId;
   var loc = job.jobReference.location || L10H.LOCATION;
+  // Poll immediately — getQueryResults long-polls server-side (timeoutMs), so
+  // the old unconditional 800ms pre-sleep only added latency. Sleep briefly
+  // between subsequent polls only.
   var res, deadline = Date.now() + 1000 * 60 * 3;
-  do {
-    Utilities.sleep(800);
+  res = BigQuery.Jobs.getQueryResults(pid, jobId, { location: loc, timeoutMs: 30000 });
+  while (!res.jobComplete && Date.now() < deadline) {
+    Utilities.sleep(400);
     res = BigQuery.Jobs.getQueryResults(pid, jobId, { location: loc, timeoutMs: 30000 });
-  } while (!res.jobComplete && Date.now() < deadline);
+  }
   if (!res.jobComplete) throw new Error('BigQuery job timed out: ' + jobId);
   var info = BigQuery.Jobs.get(pid, jobId, { location: loc });
   if (info.status && info.status.errorResult) throw new Error(info.status.errorResult.message);

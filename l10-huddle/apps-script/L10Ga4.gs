@@ -109,19 +109,19 @@ function l10Ga4Window_(win) {
   return span(back(6), yest); // 7d — the default window
 }
 
-// Resolve a GA4 Source Ref to a number. Same contract as l10ResolveRef_:
-// {value, how} on success, {value:null, why} on any failure — the capture
-// loop, the cascade/leadership summary, and the builder's live test all consume it.
-function l10Ga4Resolve_(ref) {
-  var prop = l10Ga4Property_();
-  if (!prop) return { value: null, why: 'set your GA4 property ID in Settings → Integrations first' };
+// Validate a ref and build its runReport request. Returns {ok:true, ref,
+// request} or {ok:false, why} — the request shape feeds UrlFetchApp.fetchAll.
+function l10Ga4BuildRequest_(ref, prop) {
   var p = l10Ga4ParseRef_(ref);
-  if (!p.ok) return { value: null, why: p.why };
+  if (!p.ok) return { ok: false, why: p.why };
   var range = l10Ga4Window_(p.window);
-  if (range.why) return { value: null, why: range.why };
-  var res;
-  try {
-    res = UrlFetchApp.fetch('https://analyticsdata.googleapis.com/v1beta/properties/' + prop + ':runReport', {
+  if (range.why) return { ok: false, why: range.why };
+  return {
+    ok: true,
+    ref: p.ref,
+    range: range,
+    request: {
+      url: 'https://analyticsdata.googleapis.com/v1beta/properties/' + prop + ':runReport',
       method: 'post',
       contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
@@ -130,25 +130,68 @@ function l10Ga4Resolve_(ref) {
         dateRanges: [{ startDate: range.startDate, endDate: range.endDate }]
       }),
       muteHttpExceptions: true
-    });
-  } catch (e) {
-    return { value: null, why: 'could not reach Google Analytics (' + String(e).slice(0, 120) + ')' };
-  }
+    }
+  };
+}
+
+// Map one runReport HTTP response back to the {value, how}/{value:null, why}
+// contract shared with l10ResolveRef_.
+function l10Ga4ParseResponse_(res, built, prop) {
   var code = res.getResponseCode();
   var body = res.getContentText() || '';
-  if (code < 200 || code >= 300) return { value: null, why: l10Ga4ErrWhy_(code, body, prop, p.ref) };
+  if (code < 200 || code >= 300) return { value: null, why: l10Ga4ErrWhy_(code, body, prop, built.ref) };
   var json = null;
   try { json = JSON.parse(body); } catch (e2) {}
-  if (!json) return { value: null, why: 'Google Analytics sent back something unreadable for ' + p.ref };
+  if (!json) return { value: null, why: 'Google Analytics sent back something unreadable for ' + built.ref };
   // A well-formed 2xx with no rows means no data in the window — a REAL ZERO
   // (a quiet week captures as 0), never an error.
   var v = 0;
   if (json.rows && json.rows.length) {
     var mv = json.rows[0].metricValues;
     v = Number(mv && mv[0] ? mv[0].value : NaN);
-    if (!isFinite(v)) return { value: null, why: 'Google Analytics sent back a non-number for ' + p.ref };
+    if (!isFinite(v)) return { value: null, why: 'Google Analytics sent back a non-number for ' + built.ref };
   }
-  return { value: v, how: 'GA4 ' + p.ref + ' (' + range.startDate + ' → ' + range.endDate + ')' };
+  return { value: v, how: 'GA4 ' + built.ref + ' (' + built.range.startDate + ' → ' + built.range.endDate + ')' };
+}
+
+// Resolve MANY GA4 Source Refs with ONE parallel fetchAll instead of a serial
+// UrlFetch per metric — a 5-GA4-metric capture pays one HTTP wait, not five.
+// Returns an array index-aligned with refs; each entry keeps the single-ref
+// contract ({value, how} / {value:null, why}).
+function l10Ga4ResolveMany_(refs) {
+  var prop = l10Ga4Property_();
+  var out = new Array(refs.length);
+  if (!prop) {
+    for (var i = 0; i < refs.length; i++) out[i] = { value: null, why: 'set your GA4 property ID in Settings → Integrations first' };
+    return out;
+  }
+  var built = [], slots = [];
+  refs.forEach(function (ref, i) {
+    var b = l10Ga4BuildRequest_(ref, prop);
+    if (!b.ok) { out[i] = { value: null, why: b.why }; return; }
+    built.push(b);
+    slots.push(i);
+  });
+  if (!built.length) return out;
+  var responses;
+  try {
+    responses = UrlFetchApp.fetchAll(built.map(function (b) { return b.request; }));
+  } catch (e) {
+    var why = 'could not reach Google Analytics (' + String(e).slice(0, 120) + ')';
+    slots.forEach(function (slot) { out[slot] = { value: null, why: why }; });
+    return out;
+  }
+  responses.forEach(function (res, j) {
+    out[slots[j]] = l10Ga4ParseResponse_(res, built[j], prop);
+  });
+  return out;
+}
+
+// Resolve a GA4 Source Ref to a number. Same contract as l10ResolveRef_:
+// {value, how} on success, {value:null, why} on any failure — the builder's
+// live test consumes it; the capture loop batches via l10Ga4ResolveMany_.
+function l10Ga4Resolve_(ref) {
+  return l10Ga4ResolveMany_([ref])[0];
 }
 
 // Map an error response to one plain sentence the reader can act on. The two
