@@ -245,7 +245,25 @@
     l10_issueNeedsData: ok,
     l10_sendIssueToHub: { ok: true, id: 'IDEA-042' },
     l10_promoteIssue: function (id) { idSeq++; return { ok: true, rock: { 'ID': 'RK-' + idSeq, 'Rock': 'Promoted', 'Owner': 'Alex', 'Due': '', 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': id, fq: '' } }; },
-    l10_promoteBriefItem: function (id) { idSeq++; return { ok: true, issue: { 'ID': 'IS-' + idSeq, 'Issue': 'Promoted from brief', 'Raised By': 'Alex', 'Raised': TODAY, 'Votes': 0, 'Status': 'OPEN' } }; },
+    // Mirrors the real server: {ok, id, row} on first promote, {ok, id,
+    // already:true} on a re-tap — the client's splice path depends on `row`.
+    l10_promoteBriefItem: (function () {
+      const promoted = {};
+      return function (weekOf, rank) {
+        const key = weekOf + '|' + rank;
+        if (promoted[key]) return { ok: true, id: promoted[key], already: true };
+        idSeq++;
+        const id = 'IS-' + idSeq;
+        promoted[key] = id;
+        return { ok: true, id: id, row: {
+          'ID': id, 'Issue': 'Promoted from brief', 'Raised By': 'Alex', 'Raised': TODAY,
+          'Accounts': 'PDC', 'Category': '', 'Votes': 0, 'Status': 'OPEN', 'Park With': '',
+          'Resolution': '', 'Solved In': '', 'Notes': 'from pre-brief ' + weekOf,
+          'Identified': 'Promoted docket context', 'Discussed': '', 'Outcome': '',
+          'Outcome At': '', 'Review On': '', 'Waiting On': ''
+        } };
+      };
+    })(),
 
     // Headlines / rocks / milestones
     l10_addHeadline: function (payload) { idSeq++; return { ok: true, headline: { 'ID': 'HL-' + idSeq, 'Date': TODAY, 'Type': (payload && payload.type) || 'FYI', 'Headline': (payload && payload.text) || 'New', 'By': 'Alex', 'Cascade': '', 'Meeting ID': '', 'Status': '' } }; },

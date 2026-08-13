@@ -349,8 +349,11 @@ function l10HubCounts_(config, forceFresh, cacheOnly) {
   }
   if (cache) {
     // Failures cache shorter, so a transient outage recovers in minutes while
-    // still absorbing the boot-storm at meeting start.
-    try { cache.put('l10_hub_counts', JSON.stringify(result), result.error ? 120 : 300); } catch (e) {}
+    // still absorbing the boot-storm at meeting start. Permission-flavored
+    // failures are PER-USER (one analyst without hub access must not paint
+    // "hub unreachable" for the whole team) — never share those.
+    var perUser = result.error && /permission|access|denied|sign in|auth/i.test(result.error);
+    try { if (!perUser) cache.put('l10_hub_counts', JSON.stringify(result), result.error ? 120 : 300); } catch (e) {}
   }
   return result;
 }

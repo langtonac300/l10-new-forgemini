@@ -64,6 +64,10 @@ function busy(delta, isRead) {
 function gs(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   var isRead = !!L10_READS_[fn];
+  // Write counter: boot()'s barrier compares it so a write made against
+  // snapshot-hydrated state (allowed — writes are id-keyed) triggers one
+  // reconcile instead of the in-flight slices visually reverting it.
+  if (!isRead) state.writeSeq = (state.writeSeq || 0) + 1;
   busy(1, isRead);
   return new Promise(function (resolve, reject) {
     var runner = google.script.run
@@ -481,7 +485,16 @@ function wireBrief(scope) {
         if (!res || !res.ok) { btn.disabled = false; errToast(res || 'Promote failed'); return; }
         notify(res.already ? 'Already promoted as ' + res.id : 'Promoted to issues as ' + res.id, 'ok');
         // Splice the new issue + the docket flip locally — a full reload for
-        // one new row cost seconds mid-segment. Older server (no row): reload.
+        // one new row cost seconds mid-segment. Three cases still reload:
+        // the work slice hasn't landed yet (the embed paints this button
+        // before state.boot.issues exists, and an in-flight slice would
+        // overwrite a local push anyway — refresh() is fetched after the
+        // write, so it carries the row), an "already" whose issue isn't in
+        // local state (promoted by someone else), or an older server (no row).
+        if (!hyd('work')) return refresh();
+        if (res.already && !(state.boot.issues || []).some(function (i) { return String(i['ID']) === String(res.id); })) {
+          return refresh();
+        }
         if (!res.row && !res.already) return refresh();
         if (res.row) state.boot.issues.push(res.row);
         (state.boot.brief || []).forEach(function (r) {
@@ -750,8 +763,15 @@ function showPage(name) {
   });
   layoutTimelines($('page-' + name)); // widths were 0 while the page was hidden
   // The notify/digests tables load the first time Settings is actually opened
-  // — they ride off the boot payload (see fetchSettingsData_).
-  if (name === 'settings') fetchSettingsData_();
+  // — they ride off the boot payload (see fetchSettingsData_). The extras memo
+  // (webAppUrl / trigger / token status) clears on each deliberate open so
+  // "deploy, then reopen Settings" keeps working — hydRender_'s background
+  // renderSettings passes still hit the memo, which was the point of it.
+  if (name === 'settings') {
+    state.settingsExtra = null;
+    fetchSettingsData_();
+    renderSettings();
+  }
 }
 
 // --- Dialog semantics shared by every fixed overlay -------------------------
@@ -1058,7 +1078,12 @@ function boot(keepSeg) {
   // query (cached server-side), and the huddle must never wait on it. When it
   // lands, only the scorecard surfaces repaint.
   fetchHealth_();
+  var writeSeq0 = state.writeSeq || 0;
   return Promise.all([core, work, plan, sc]).then(function () {
+    // A write raced the slice flight (only possible from the embed/snapshot
+    // paint): the slice payloads were read BEFORE that write, so trusting
+    // them would visually revert it — reconcile once with a fresh fetch.
+    if ((state.writeSeq || 0) !== writeSeq0) return refresh();
     state.loadedAt = Date.now();
     ageTick_(false);
     snapSave_();
@@ -1110,6 +1135,14 @@ document.addEventListener('visibilitychange', function () {
 // by the parallel refresh and the single-call fallback, so nothing ever paints
 // from cross-slice-skewed state.
 function applyFull_(data) {
+  // A refresh that started BEFORE a meeting did must not un-render the room:
+  // the post-conclude background reconcile can land after the next huddle has
+  // already been started (its row appended after the refresh's reads). Carry
+  // the local open meeting forward — the next natural reconcile picks up the
+  // server truth once the room isn't live.
+  if (state.inMeeting && state.boot && state.boot.openMeeting && !data.openMeeting) {
+    data.openMeeting = state.boot.openMeeting;
+  }
   state.boot = data;
   state.hydrated = { core: true, work: true, plan: true, scorecard: true };
   if (data.openMeeting && data.openMeeting['Segue (JSON)'] && !Object.keys(state.segue).length) {
@@ -1117,7 +1150,11 @@ function applyFull_(data) {
   }
   if (!data.openMeeting) state.segue = {};
   renderHeader();
-  renderHuddle();
+  // Never innerHTML-swap the live room from a background reconcile — the
+  // segment repaint would eat whatever is being typed (same contract as
+  // fetchHealth_ and ageTick_). The room picks fresh data up on its next
+  // natural render.
+  if (!state.inMeeting) renderHuddle();
   renderScorecard();
   renderRocks();
   renderHeadlines();
@@ -1345,7 +1382,11 @@ function renderStartScreen() {
       // Splice: the server returns the meeting row, and every other slice is
       // already on hand — paint the first segment NOW instead of re-booting
       // the entire app (4 fresh server executions between click and clock).
-      if (res && res.row && hyd('core') && hyd('work') && hyd('plan') && hyd('scorecard')) {
+      // state.loadedAt is 0 until the LIVE slice barrier resolves — snapshot
+      // hydration sets the hyd flags from last session's data, and a huddle
+      // must never start on that (nor have the arriving slices repaint the
+      // live segment out from under the room's typing).
+      if (res && res.row && state.loadedAt && hyd('core') && hyd('work') && hyd('plan') && hyd('scorecard')) {
         state.boot.openMeeting = res.row;
         // A resumed meeting brings its saved segue notes back with it.
         if (res.resumed && res.row['Segue (JSON)']) {
@@ -1784,8 +1825,11 @@ function wireHeadlineAdd(scope) {
       cascade: scope.querySelector('.js-hl-cascade').checked, meetingId: meetingId_()
     }).then(function (res) {
       if (!res || res.ok === false) { hlAdd.disabled = false; errToast(res || 'Add failed'); return; }
-      if (res.row) state.boot.headlines.push(res.row);
       notify('Headline added', 'ok');
+      // The embed paints this form before the work slice lands — a push into
+      // un-hydrated state would throw (and the in-flight slice would drop it).
+      if (!hyd('work')) return refresh();
+      if (res.row) state.boot.headlines.push(res.row);
       rerenderLists();
     }).catch(function (e) { hlAdd.disabled = false; errToast(e); });
   });
