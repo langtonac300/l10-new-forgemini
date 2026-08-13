@@ -90,8 +90,11 @@
 <div id="notify-stack"></div>
 <!-- The core boot slice, computed inside the doGet/modal execution — boot()
      consumes it once and skips that whole server round trip. 'null' (compute
-     failure or a pre-upgrade deployment) falls back to the slice fetch. -->
-<script>window.__L10_BOOT = <?!= bootJson ?>;</script>
+     failure or a pre-upgrade deployment) falls back to the slice fetch. The
+     typeof guard keeps the page serving when this file is pasted before the
+     L10Setup.gs that sets bootJson — a partial paste must degrade, not crash
+     every entry point. -->
+<script>window.__L10_BOOT = <?!= (typeof bootJson !== 'undefined' ? bootJson : 'null') ?>;</script>
 <?!= l10Include('L10Js'); ?>
 </body>
 </html>

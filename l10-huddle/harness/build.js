@@ -29,7 +29,7 @@ page = page.replace(
 // The boot-embed scriptlet: null = the slice-fetch fallback path (what a
 // pre-upgrade deployment serves). The embed variant overrides via the slot
 // below — the value must be built AFTER fixtures.js has run.
-page = page.replace(`<?!= bootJson ?>`, 'null');
+page = page.replace(`<?!= (typeof bootJson !== 'undefined' ? bootJson : 'null') ?>`, 'null');
 // The webAppUrl template scriptlet — blank, matching the embedded-modal case.
 page = page.replace(/<\?=[\s\S]*?\?>/g, '');
 // No network in the harness: drop the Google Fonts links (CSP-irrelevant here,

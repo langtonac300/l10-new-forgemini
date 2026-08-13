@@ -32,9 +32,8 @@ async function clickNav(page, target) {
     if (msg.type() === 'error') errors.push('console.error: ' + msg.text());
   });
   page.on('pageerror', (err) => errors.push('pageerror: ' + err.message));
-  // All preview variants share the file:// origin's storage — clear it so the
-  // boot snapshot (stale-while-revalidate) can't leak between runs/pages.
-  await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+  // NOTE: browser.newPage() creates an ISOLATED context per page — localStorage
+  // never leaks between the preview variants, so each starts snapshot-free.
 
   await page.goto('file://' + path.join(HERE, 'preview.html'));
   // Boot: all four slices resolve → the huddle start screen replaces the spinner.
@@ -148,13 +147,70 @@ async function clickNav(page, target) {
   await page.click('#guide-close');
   await page.waitForTimeout(120);
 
-  // --- Meeting: start → segment rail renders → timer runs ---
+  // --- Brief docket: promote must splice locally, not reload the app ---
   await clickNav(page, 'huddle');
-  const startBtn = await page.$('text=Start');
-  if (startBtn) {
+  const promoteBtn = await page.$('[data-promote]');
+  if (!promoteBtn) errors.push('docket promote button missing on the start screen');
+  else {
+    const beforeP = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+    await promoteBtn.click();
+    await page.waitForTimeout(300);
+    const afterP = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+    if (!afterP.includes('l10_promoteBriefItem')) errors.push('promote did not call l10_promoteBriefItem');
+    const reload = (fn) => afterP.filter((f) => f === fn).length > beforeP.filter((f) => f === fn).length;
+    if (reload('l10_bootstrap') || reload('l10_bootCore')) errors.push('promote fell back to a full reload despite hydrated state');
+    const flipped = await page.$eval('#page-huddle', (el) => /→ IS-/.test(el.textContent));
+    if (!flipped) errors.push('promoted docket card did not flip to its issue id');
+  }
+
+  // --- Meeting: start splice → segment rail; conclude + discard splices ---
+  await clickNav(page, 'huddle');
+  const startBtn = await page.$('#btn-start');
+  if (!startBtn) errors.push('start screen missing #btn-start');
+  else {
+    const beforeStart = await page.evaluate(() => window.__GS_CALLS.length);
     await startBtn.click();
     await page.waitForTimeout(400);
+    const startCalls = await page.evaluate((n) => window.__GS_CALLS.slice(n).map((c) => c.fn), beforeStart);
+    if (!startCalls.includes('l10_startMeeting')) errors.push('Start did not call l10_startMeeting');
+    if (startCalls.includes('l10_bootCore')) errors.push('start splice regressed to a full reboot (l10_bootCore refetched)');
+    if (!(await page.$('.segrail'))) errors.push('start splice did not paint the segment rail');
     await shot(page, 'meeting-started');
+
+    // Conclude: jump to the last segment, two clicks through the armed confirm,
+    // and the start screen must come back via the local splice.
+    await page.click('#btn-jump-conclude');
+    await page.waitForTimeout(250);
+    const conc = await page.$('.js-conclude');
+    if (!conc) errors.push('Conclude segment missing its conclude button');
+    else {
+      await conc.click();
+      await page.waitForTimeout(150);
+      await conc.click();
+      await page.waitForTimeout(600);
+      const concCalls = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+      if (!concCalls.includes('l10_concludeMeeting')) errors.push('conclude never called l10_concludeMeeting');
+      if (!(await page.$('#btn-start'))) errors.push('conclude splice did not return to the start screen');
+      await shot(page, 'after-conclude');
+    }
+
+    // Discard: start another huddle and leave through the other splice.
+    const start2 = await page.$('#btn-start');
+    if (start2) {
+      await start2.click();
+      await page.waitForTimeout(400);
+      await page.click('#btn-jump-conclude');
+      await page.waitForTimeout(250);
+      const disc = await page.$('.js-discard');
+      if (!disc) errors.push('discard button missing in the Conclude segment');
+      else {
+        await disc.click();
+        await page.waitForTimeout(150);
+        await disc.click();
+        await page.waitForTimeout(400);
+        if (!(await page.$('#btn-start'))) errors.push('discard splice did not return to the start screen');
+      }
+    }
   }
 
   // --- Embed path: the production-primary boot (core inline in the page) ---
@@ -163,7 +219,18 @@ async function clickNav(page, target) {
   const pageE = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   pageE.on('console', (m) => { if (m.type() === 'error') errors.push('embed console.error: ' + m.text()); });
   pageE.on('pageerror', (e) => errors.push('embed pageerror: ' + e.message));
-  await pageE.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+  // Record snapshot reads so the reload below can PROVE the snapshot path ran
+  // (a fresh page in a fresh context would silently skip it — that made the
+  // first version of this test vacuous).
+  await pageE.addInitScript(() => {
+    window.__SNAP_READS = [];
+    const orig = Storage.prototype.getItem;
+    Storage.prototype.getItem = function (k) {
+      const v = orig.call(this, k);
+      try { if (String(k).indexOf('l10Snap1:') === 0) window.__SNAP_READS.push({ key: String(k), hit: v !== null }); } catch (e) {}
+      return v;
+    };
+  });
   await pageE.goto('file://' + path.join(HERE, 'preview-embed.html'));
   await pageE.waitForFunction(() => {
     const el = document.querySelector('#page-huddle');
@@ -185,34 +252,32 @@ async function clickNav(page, target) {
   try { const s = JSON.parse(snapRaw); snapOK = !!(s && s.v === 1 && s.data && s.data.todos && s.data.todos.length); } catch (e) {}
   if (!snapOK) errors.push('boot snapshot was not saved after hydration (stale-while-revalidate dead)');
   await shot(pageE, 'embed-boot');
-  await pageE.close();
 
-  // --- Snapshot path: a repeat load paints from the stored snapshot ---
-  // (no localStorage clear on this page — it must inherit the save above).
-  const pageS = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  pageS.on('console', (m) => { if (m.type() === 'error') errors.push('snapshot console.error: ' + m.text()); });
-  pageS.on('pageerror', (e) => errors.push('snapshot pageerror: ' + e.message));
-  await pageS.goto('file://' + path.join(HERE, 'preview-embed.html'));
-  await pageS.waitForFunction(() => {
+  // --- Snapshot path: a RELOAD in the same context consumes the snapshot ---
+  await pageE.reload();
+  await pageE.waitForFunction(() => {
     const el = document.querySelector('#page-huddle');
     return el && !el.querySelector('.spinner');
   }, { timeout: 10000 });
-  await pageS.waitForTimeout(250);
-  // Snapshot-hydrated pages must render real content, and the live slices must
-  // still be fetched to reconcile.
-  const snapCalls = await pageS.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+  await pageE.waitForTimeout(250);
+  // The boot must have READ the stored snapshot (instrumented above)…
+  const snapReads = await pageE.evaluate(() => window.__SNAP_READS || []);
+  if (!snapReads.some((r) => r.key === 'l10Snap1:fixture-ss' && r.hit)) {
+    errors.push('repeat load never read the boot snapshot (stale-while-revalidate not consumed)');
+  }
+  // …and still fetch the live slices to reconcile, with the lists rendered.
+  const snapCalls = await pageE.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
   for (const fn of ['l10_bootWork', 'l10_bootPlan', 'l10_bootScorecard']) {
     if (!snapCalls.includes(fn)) errors.push('snapshot path skipped the live ' + fn + ' reconcile');
   }
-  const snapTodos = await pageS.$eval('#page-todos', (el) => el.innerHTML.trim().length);
+  const snapTodos = await pageE.$eval('#page-todos', (el) => el.innerHTML.trim().length);
   if (snapTodos < 40) errors.push('snapshot path left the To-dos page empty');
-  await pageS.close();
+  await pageE.close();
 
   // --- First-run: empty workspace shows the setup checklist ---
   const page2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page2.on('console', (m) => { if (m.type() === 'error') errors.push('firstrun console.error: ' + m.text()); });
   page2.on('pageerror', (e) => errors.push('firstrun pageerror: ' + e.message));
-  await page2.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
   await page2.goto('file://' + path.join(HERE, 'preview.html') + '#firstrun');
   await page2.waitForFunction(() => {
     const el = document.querySelector('#page-huddle');

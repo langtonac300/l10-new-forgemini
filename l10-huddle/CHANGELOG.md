@@ -5,7 +5,54 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.10 (2026-08-13)** · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.10.1 (2026-08-13)** · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.10.1 (2026-08-13) — v2.10 hardening (adversarial review findings)
+
+A 25-agent adversarial review of the v2.10 diff (4 lenses, every claim
+re-verified against the code) confirmed a set of edge-window defects in the new
+fast paths — all in the seconds-wide windows the embed opened by painting the
+UI before every slice lands. Fixed:
+
+- **Docket promote / headline add during the boot window** no longer throw:
+  the embed paints those buttons before the work slice exists; a splice into
+  un-hydrated state hit a TypeError on a write that had already SUCCEEDED
+  server-side (false-failure toast, invisible new issue). Both now fall back
+  to a refresh when the work slice isn't in — which also covers the promote
+  `already` race where someone ELSE promoted the item.
+- **A huddle can no longer start on snapshot (last-session) data**: the
+  start-meeting splice now also requires the live slice barrier
+  (`state.loadedAt`), restoring the pre-v2.10 invariant — otherwise the
+  arriving slices repainted the live segment out from under the room's typing
+  and the first minutes read stale numbers.
+- **The post-conclude background refresh can't kick the room out of a
+  just-started next huddle**: `applyFull_` carries a locally-open meeting
+  forward when the (older) fetch says there is none, and never repaints the
+  huddle surface mid-meeting — the same contract `fetchHealth_` and
+  `ageTick_` already honor.
+- **A write racing the boot slices now forces one reconcile** instead of the
+  slice payloads (read before the write) visually reverting it.
+- **Partial-paste safety**: `L10Index.html` guards the new template variable
+  (`typeof bootJson`) so pasting it before `L10Setup.gs` degrades to the
+  slice-fetch path instead of crashing every entry point.
+- **Hub failures**: permission-flavored errors are no longer cached in the
+  script-wide cache (one analyst without hub access must not paint "hub
+  unreachable" for the whole team for 2 minutes).
+- **Settings web-app-URL card**: the extras memo clears on each deliberate
+  Settings open, so "deploy, then reopen Settings" shows the fresh URL again
+  (background renders still hit the memo — the 4-fetches-per-boot fix holds).
+- **Harness**: the snapshot smoke was vacuous (`browser.newPage()` gets an
+  isolated context, so the "repeat load" never saw the saved snapshot) — it
+  now reloads in the SAME context and asserts, via an instrumented
+  `localStorage.getItem`, that the snapshot was actually read. New smoke
+  coverage drives the promote splice (card flips, no reload), the start
+  splice (segment rail with no reboot), and full conclude and discard flows
+  back to the start screen. `l10_promoteBriefItem`'s fixture now mirrors the
+  real `{ok, id, row}` / `{ok, id, already}` server contract.
+
+- **Re-paste:** `L10Code.gs`, `L10Setup.gs`, `L10Index.html`, `L10Js.html`
+  (paste `L10Setup.gs` before or with `L10Index.html`). Web-app redeploy
+  required if v2.10 was already deployed; otherwise deploy both together.
 
 ## v2.10 (2026-08-13) — every load path gets faster
 
