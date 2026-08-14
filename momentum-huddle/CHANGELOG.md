@@ -500,13 +500,13 @@ shared screen is unfiltered by construction, not by discipline.
 
 **Defects found and fixed (these were costing time every day):**
 - **Every to-do action rebuilt six pages.** `setTodoStatus_` called `rerenderLists()`,
-  which re-renders segment + rocks + headlines + todos + issues + 1:1s via `innerHTML` —
+  which re-renders segment + priorities + headlines + todos + issues + 1:1s via `innerHTML` —
   destroying keyboard focus, reflowing the list under the pointer, and discarding any
   half-typed inline edit elsewhere. New `spliceTodoRow_` repaints **one row**; the full
   pass now runs only when a row actually leaves its list.
 - **`Carried Over` only incremented inside `l10_concludeMeeting`.** A week where nobody
-  pressed Conclude never advanced it, so the staleness signal the page leans on silently
-  under-reported — it was a conclude-count, not a week-count. Replaced by an idempotent
+  pressed Wrap-up never advanced it, so the staleness signal the page leans on silently
+  under-reported — it was a wrap-up-count, not a week-count. Replaced by an idempotent
   weekly sweep (`l10SweepCarries_`, stamped in the new `Last Carried Week` column, guarded
   to once per week per workbook by `l10SweepCarriesIfDue_`).
 - **The boot payload shipped every to-do ever written** (headlines had a 21-day cutoff,
@@ -541,8 +541,8 @@ started task is noise).
 | **Bulk actions** | Tick rows → done · working · +7 days · drop. One request, one toast, one Undo — and Undo restores each row's **own** prior status, so a mixed selection doesn't come back uniformly OPEN. |
 | **Sub-steps** | New `L10_Todo_Steps` tab, mirroring `L10_Rock_Milestones` exactly — same parent/child shape, same roll-up: the last step to close carries the to-do DONE (routed through `l10_setTodoStatus`, so the chat ping and the weekly respawn fire as they would on a manual completion). |
 | **Activity trail** | New append-only `L10_Todo_Log` tab. Status changes and date moves made from the to-do's own controls log themselves; anyone can add a progress note. (The inline **edit** row writes `Due` without a trail entry — it's the generic multi-field editor, not a to-do-specific action.) The story of a multi-day to-do stops living in Google Chat. |
-| **Stale to-dos get re-filed, not nagged** | At `TODO_STALE_CARRIES` (default 3) the row is flagged with one line — *"carried N weeks — that usually means this isn't a to-do"* — and two doors: **make it a rock** or **take it to IDS**. EOS-correct and blame-free: a 7-day commitment that survives three weeks is misclassified work. |
-| **Duplicate warning on add** | Opt-in per call site (`checkDupe`): the composer and quick-add ask, the machine-driven paths (IDS solve, weekly respawn, "bring the data") never do — a prompt there would stall a save mid-huddle. Warns with "Add anyway", never blocks; scoped to the same owner, since two people running the same play on different accounts is normal here. |
+| **Stale to-dos get re-filed, not nagged** | At `TODO_STALE_CARRIES` (default 3) the row is flagged with one line — *"carried N weeks — that usually means this isn't a to-do"* — and two doors: **make it a priority** or **take it to Solve**. Correct and blame-free: a 7-day commitment that survives three weeks is misclassified work. |
+| **Duplicate warning on add** | Opt-in per call site (`checkDupe`): the composer and quick-add ask, the machine-driven paths (Solve, weekly respawn, "bring the data") never do — a prompt there would stall a save mid-huddle. Warns with "Add anyway", never blocks; scoped to the same owner, since two people running the same play on different accounts is normal here. |
 | **Phone** | `.itemline` was a rigid flex row (fixed 110px owner column + up to seven buttons) with no breakpoint below 900px. It stacks at 640px now, with real tap targets. |
 
 **Still team-level, still no per-person score.** The PIP-sensitivity decision stands — the

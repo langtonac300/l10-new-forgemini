@@ -3160,7 +3160,7 @@ function idsSplice_(ta, from, to, insert, caret) {
 //   • Tab indents two spaces / Shift+Tab outdents (Shift+Tab with nothing to
 //     outdent falls through, so a keyboard user is never trapped)
 //   • ⌘/Ctrl+B wraps the selection in **…** (a convention, not WYSIWYG)
-//   • ⌘/Ctrl+Enter advances Identify→Discuss→Solve, or fires Solve on Solve
+//   • ⌘/Ctrl+Enter advances Identify→Discuss→Decide, or fires Decide on Decide
 function wireTextareaErgonomics_(o, ta, step) {
   ta.addEventListener('keydown', function (ev) {
     var v = ta.value, s = ta.selectionStart, e = ta.selectionEnd;
@@ -3205,7 +3205,7 @@ function wireTextareaErgonomics_(o, ta, step) {
 }
 // --- Issue context modal ----------------------------------------------------
 // Read-only view of the issue a to-do came from ("from IS-### ↗" on a to-do
-// line): the issue text, its Identify/Discuss/Solve notes, and the sibling
+// line): the issue text, its Identify/Discuss/Decide notes, and the sibling
 // to-dos it spawned — so a week-old assignment explains itself. Separate from
 // the issue-solving overlay on purpose: this is memory, not a working surface.
 function ensureCtxOverlay_() {
@@ -3234,7 +3234,7 @@ function openIssueContext(id) {
   state.ctxIssue = String(id);
   var st = String(iss['Status']).toUpperCase();
   var pill = st === 'SOLVED' ? 'ps-ontrack' : st === 'OPEN' ? 'ps-warn' : st === 'PARKED' ? 'ps-done' : 'ps-neutral';
-  // isHtml lets the Solve section carry a tappable RK reference; everything
+  // isHtml lets the Decide section carry a tappable RK reference; everything
   // else stays plain escaped text.
   function sect(num, name, val, emptyText, isHtml) {
     return '<div class="ctx-sect"><div class="ids-step"><span class="num">' + num + '</span> ' + name + '</div>' +
@@ -3257,7 +3257,7 @@ function openIssueContext(id) {
       '<button class="btn subtle" id="ctx-close">✕ Close</button></div>' +
       sect('①', 'Identify', iss['Identified'], 'No root-cause notes were captured.') +
       sect('②', 'Discuss', iss['Discussed'], 'No discussion notes were captured.') +
-      sect('③', 'Solve', rockRefsHtml_(solveText), st === 'SOLVED' ? 'Solved, but no resolution text was saved.' :
+      sect('③', 'Decide', rockRefsHtml_(solveText), st === 'SOLVED' ? 'Solved, but no resolution text was saved.' :
           st === 'KILLED' ? 'Killed — the team agreed it wasn\'t worth solving.' : 'Not solved yet.', true) +
       (made.length ? '<div class="ctx-sect"><div class="ids-step"><span class="num">→</span> To-dos this issue created</div>' +
         made.map(function (t) {
@@ -3265,7 +3265,7 @@ function openIssueContext(id) {
           return '<div class="ctx-td' + (done ? ' done' : '') + '">' + (done ? '✓' : '○') + ' ' + esc(t['ID']) + ' · ' + esc(t['To-Do']) +
               ' — ' + esc(t['Owner'] || '—') + ', due ' + esc(d10(t['Due']) || '—') + '</div>';
         }).join('') + '</div>' : '') +
-      (st === 'OPEN' ? '<div class="mt-4"><button class="btn" id="ctx-openids">Open in IDS →</button>' +
+      (st === 'OPEN' ? '<div class="mt-4"><button class="btn" id="ctx-openids">Open in Solve →</button>' +
         '<span class="help help--after">still on the open list — pick the conversation back up</span></div>' : '') +
       '</div>';
   var o = $('ctx-overlay');
@@ -3277,9 +3277,9 @@ function openIssueContext(id) {
   if (oi) oi.addEventListener('click', function () { closeIssueContext(); openIds(String(id)); });
 }
 
-// --- Rock context modal ---------------------------------------------------
-// Read-only view of the rock behind an "RK-###" reference (a solved
-// issue's "Promoted to rock RK-###" resolution, the decision ledger, a
+// --- Priority context modal ---------------------------------------------------
+// Read-only view of the priority behind an "RK-###" reference (a solved
+// issue's "Promoted to priority RK-###" resolution, the decision ledger, a
 // "from RK-###" note): owner + status, the definition of done, the metric it
 // moves, and the milestone timeline. Memory, not a working surface — the
 // sibling of the issue-context modal, completing the two-way link.
@@ -3302,7 +3302,7 @@ function closeRockContext() {
 }
 function openRockContext(id) {
   var r = findRow(state.boot.rocks, 'ID', id);
-  if (!r) { notify('Rock ' + id + ' isn\'t in L10_Rocks anymore — check the tab.', 'warn'); return; }
+  if (!r) { notify('Priority ' + id + ' isn\'t in L10_Rocks anymore — check the tab.', 'warn'); return; }
   ensureRkCtxOverlay_();
   closeIssueContext(); // the two context modals never stack
   if (!state.ctxRock) dlgOpened_('rkctx-overlay');
@@ -3314,7 +3314,7 @@ function openRockContext(id) {
   var ms = rockMilestones(r['ID']);
   var html = '<div class="ids-backdrop" id="rkctx-backdrop"></div><div class="ids-card ctx-card rkctx-card" role="dialog" aria-modal="true" aria-labelledby="rkctx-title-h">' +
       '<div class="ids-head"><div class="grow">' +
-      '<div class="ids-kicker">The rock behind this</div>' +
+      '<div class="ids-kicker">The priority behind this</div>' +
       '<div class="ids-title" id="rkctx-title-h">' + esc(r['Rock']) + '</div>' +
       '<div class="m">' + esc(r['ID']) + ' · ' + who(r['Owner']) + ' · ' +
       (due ? 'due ' + esc(due) + (r.fq ? ' (' + esc(r.fq) + ')' : '') : 'no due date') + ' ' +
@@ -3328,7 +3328,7 @@ function openRockContext(id) {
       (r['Notes'] ? '<div class="m mt-2">' + linkify(r['Notes']) + '</div>' : '') +
       (ms.length ? '<div class="ctx-sect"><div class="ids-step"><span class="num">→</span> Milestones</div>' +
         rockTimeline(r, false) + '</div>' : '') +
-      '<div class="mt-4"><button class="btn" id="rkctx-open">Open the Rocks page →</button></div>' +
+      '<div class="mt-4"><button class="btn" id="rkctx-open">Open the Priorities page →</button></div>' +
       '</div>';
   var o = $('rkctx-overlay');
   o.innerHTML = html;
@@ -3341,10 +3341,10 @@ function openRockContext(id) {
     btn.addEventListener('click', function () { closeRockContext(); openIssueContext(btn.dataset.issueref); });
   });
 }
-// Escape text while turning RK-### mentions that resolve to a real rock
+// Escape text while turning RK-### mentions that resolve to a real priority
 // into tappable references (the same convention as sourceRefHtml_). Used on
-// resolutions ("Promoted to rock RK-###"), the decision ledger, and
-// free-text notes ("from RK-###" on dropped-rock issues).
+// resolutions ("Promoted to priority RK-###"), the decision ledger, and
+// free-text notes ("from RK-###" on dropped-priority issues).
 function rockRefsHtml_(text) {
   return String(text === undefined || text === null ? '' : text).split(/(RK-\d+)/).map(function (part) {
     if (/^RK-\d+$/.test(part) && findRow(state.boot.rocks, 'ID', part)) {
@@ -3434,7 +3434,7 @@ function issueFormCard() {
       '<div class="js-is-suggest suggest-box"></div></div>';
 }
 // --- Issue voting round ------------------------------------------------------
-// Structured prioritization for the top of the IDS segment: a random
+// Structured prioritization for the top of the Solve segment: a random
 // attendee goes first, then the round proceeds through the room in turn order
 // (wrapping the attendee list), 3 votes each — stack them or spread them. The
 // list order FREEZES while the round runs (buttons must not jump underneath
@@ -3544,8 +3544,8 @@ function segIds() {
       return (lb - la) || (Number(b['Votes']) || 0) - (Number(a['Votes']) || 0);
     });
   }
-  var html = '<div class="banner info"><b>IDS:</b> vote, take the top issue, <b>Identify</b> the root cause, <b>Discuss</b> once, <b>Solve</b> — the solution becomes a to-do with one owner and a date. Solve forever, not for this week.</div>';
-  // Unpromoted docket items ride along into IDS so a pre-briefed candidate can
+  var html = '<div class="banner info"><b>Solve:</b> vote, take the top issue, <b>Identify</b> the root cause, <b>Discuss</b> once, <b>Decide</b> — the solution becomes a to-do with one owner and a date. Solve forever, not for this week.</div>';
+  // Unpromoted docket items ride along into Solve so a pre-briefed candidate can
   // still be taken up mid-segment without leaving the page.
   if (briefOn_()) html += briefDocketHtml(true);
   html += votingCardHtml_();
@@ -3561,7 +3561,7 @@ function segIds() {
   return html;
 }
 
-// --- Conclude segment ---
+// --- Wrap-up segment ---
 // Cascade — the talking points carried up after the huddle, in a
 // standing order: wins → metrics → risks → asks. Values are never invented:
 // anything not captured renders as a ___ blank to fill from the source.
@@ -3600,7 +3600,7 @@ function buildCascade() {
   var risks = 0;
   offMetrics.forEach(function (name) { lines.push('- ' + name + ' — off track this week'); risks++; });
   b.rocks.filter(function (r) { return String(r['Status']) === 'OFF TRACK'; }).forEach(function (r) {
-    lines.push('- Rock off track: ' + r['Rock'] + ' (' + (r['Owner'] || '—') + ')');
+    lines.push('- Priority off track: ' + r['Rock'] + ' (' + (r['Owner'] || '—') + ')');
     risks++;
   });
   if (!risks) lines.push('- none flagged this week');
@@ -3626,9 +3626,9 @@ function buildRecap() {
     var v = (b.scorecard.values[String(d['ID'])] || {})[wk];
     if (ruleCheck(d, v) === 'off') offs.push(d['Metric'] + ' (' + fmtVal(v, d['Format']) + ', ' + (d['Owner'] || '—') + ')');
   });
-  lines.push('Scorecard: ' + (offs.length ? 'off track — ' + offs.join('; ') : 'all captured numbers on track'));
+  lines.push('Metrics: ' + (offs.length ? 'off track — ' + offs.join('; ') : 'all captured numbers on track'));
   var offRocks = b.rocks.filter(function (r) { return r['Status'] === 'OFF TRACK'; });
-  lines.push('Rocks: ' + (offRocks.length ? 'OFF TRACK — ' + offRocks.map(function (r) { return r['Rock'] + ' (' + r['Owner'] + ')'; }).join('; ') : 'all on track'));
+  lines.push('Priorities: ' + (offRocks.length ? 'OFF TRACK — ' + offRocks.map(function (r) { return r['Rock'] + ' (' + r['Owner'] + ')'; }).join('; ') : 'all on track'));
   lines.push('To-dos: ' + (s.pct === null ? 'none due' : s.pct + '% done (target ' + (b.config.TODO_DONE_TARGET || 90) + '%)'));
   var solved = b.issues.filter(function (i) { return String(i['Solved In']) === String(m['ID']); });
   if (solved.length) {
@@ -3646,7 +3646,7 @@ function buildRecap() {
   return lines.join('\n');
 }
 // Solved issues whose outcome review has come due (Review On ≤ today, no
-// verdict yet) — the Conclude segment closes the loop on past fixes.
+// verdict yet) — the Wrap-up segment closes the loop on past fixes.
 function outcomeDue_() {
   var today = localToday();
   return (state.boot.issues || []).filter(function (i) {
@@ -3690,7 +3690,7 @@ function segConclude() {
   });
   html += '<div class="help">Below ' + esc(b.config.RATING_BAR || 8) + '? Say where it lost you — that goes in the notes.</div>' +
       '<div class="field mt-2"><label>Notes / where we lost points</label><textarea class="js-conclude-notes"></textarea></div>' +
-      '<div class="mt-2"><button class="btn big js-conclude">✔ Conclude the huddle</button> ' +
+      '<div class="mt-2"><button class="btn big js-conclude">✔ Wrap up the huddle</button> ' +
       '<button class="btn subtle mini js-discard ml-2">discard this huddle (mistake / testing)</button></div></div>';
   return html;
 }
@@ -3708,7 +3708,7 @@ function saveSegueIfAny_() {
   });
   if (changed && state.boot.openMeeting) {
     gs('l10_saveSegue', String(state.boot.openMeeting['ID']), JSON.stringify(state.segue))
-        .then(function () { notify('Segue notes saved', 'ok', 2000); })
+        .then(function () { notify('Check-in notes saved', 'ok', 2000); })
         .catch(errToast);
   }
 }

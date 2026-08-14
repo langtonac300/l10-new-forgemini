@@ -618,7 +618,7 @@ function l10MailDoc_(innerHtml, opts) {
     '</tr></table></body></html>';
   // Gmail clips a message body at ~102KB — log if we approach it so an overgrown
   // recap is caught before the headlines silently fall behind a "[clipped]" link.
-  if (html.length > 95000) { try { Logger.log('L10 email body ' + html.length + ' bytes — near the Gmail ~102KB clip threshold.'); } catch (e) {} }
+  if (html.length > 95000) { try { Logger.log('Momentum email body ' + html.length + ' bytes — near the Gmail ~102KB clip threshold.'); } catch (e) {} }
   return html;
 }
 
@@ -693,7 +693,7 @@ function l10MailProgressBar_(done, all) {
   '</tr></table>';
 }
 
-// Scorecard — this week's captured values in Sort order, with goal + status pill.
+// Metrics — this week's captured values in Sort order, with goal + status pill.
 function l10MailScorecardHtml_() {
   var M = L10_MAIL, esc = l10MailEsc_;
   var weekOf = l10WeekOf_();
@@ -734,10 +734,10 @@ function l10MailScorecardHtml_() {
         '<tr class="l10-sc-head" style="background:' + M.TINT + ';"><td style="' + th + '">Metric</td><td style="' + th + 'text-align:right;">This week</td>' +
         '<td style="' + th + 'text-align:right;">Goal</td><td style="' + th + 'text-align:center;">Status</td></tr>' + scRows + '</table>' +
         '<p style="margin:6px 0 0;color:' + M.MUTED + ';font-size:11.5px;">"—" = not captured this week. Values are as recorded in the huddle; tracking caveats noted inline.</p>'
-    : l10MailEmptyP_('No active scorecard metrics.');
+    : l10MailEmptyP_('No active metrics.');
 }
 
-// Rocks — off track first, with status badge, owner, fiscal quarter, milestones.
+// Priorities — off track first, with status badge, owner, fiscal quarter, milestones.
 function l10MailRocksHtml_() {
   var M = L10_MAIL, esc = l10MailEsc_;
   var allMs = l10ReadTab_(L10.TABS.MILESTONES).rows;
@@ -762,7 +762,7 @@ function l10MailRocksHtml_() {
             (fq ? ' · ' + esc(fq) : '') + '</div>' +
           l10MailProgressBar_(mc.done, mc.all) + '</div>';
       }).join('')
-    : l10MailEmptyP_('No active rocks.');
+    : l10MailEmptyP_('No active priorities.');
 }
 
 // What we solved this meeting + count still open.
@@ -823,7 +823,7 @@ function l10MailHeadlinesHtml_() {
 
 // ---------------------------------------------------------------------------
 // Manager recap (Stuart) — a fuller "here's everything going on" view:
-// scorecard, rocks, what we solved, to-dos, headlines. REAL captured numbers
+// metrics, priorities, what we solved, to-dos, headlines. REAL captured numbers
 // only — a metric not captured this week shows "—", never a guess.
 // ---------------------------------------------------------------------------
 
@@ -965,13 +965,13 @@ function l10MailStuartHeadsupHtml_(config) {
       '<p style="margin:0 0 10px;font-size:15px;">Hi Stuart,</p>' +
       '<p style="margin:0 0 10px;font-size:13.5px;line-height:1.55;">You’re <b>not in this meeting</b> — the paid media team runs its weekly huddle ' + day + ' at 10. This is just your channel into it: if there’s anything you’d like us to cover, pass it along here and we’ll take it up for you.</p>' +
       how +
-      '<p style="margin:14px 0 0;font-size:12.5px;color:' + M.MUTED + ';line-height:1.5;">And after the huddle you’ll automatically get a recap each ' + day + ' — scorecard, rocks, what we solved, open to-dos, and headlines — so you always have the rundown without sitting in the room. This is your two-way channel: drop in what you want covered today, get the wrap-up ' + day + '.</p>' +
+      '<p style="margin:14px 0 0;font-size:12.5px;color:' + M.MUTED + ';line-height:1.5;">And after the huddle you’ll automatically get a recap each ' + day + ' — metrics, priorities, what we solved, open to-dos, and headlines — so you always have the rundown without sitting in the room. This is your two-way channel: drop in what you want covered today, get the wrap-up ' + day + '.</p>' +
     '</div></div>';
 }
 
 // ---------------------------------------------------------------------------
 // 1:1 prep packs — emailed to Alex the morning of each 1:1 so he never walks in
-// cold: that person's parked-for-1:1 issues, open to-dos, rocks/milestones, and
+// cold: that person's parked-for-1:1 issues, open to-dos, priorities/milestones, and
 // the issues they raised. Stuart's (manager) 1:1 gets a prep-to-report-up pack.
 // ---------------------------------------------------------------------------
 
@@ -1043,7 +1043,7 @@ function l10MailPrepHelpers_() {
           '<div style="font-size:12px;color:' + M.MUTED + ';margin-top:2px;">' + (off ? 'OFF TRACK' : 'ON TRACK') +
             (all.length ? ' · ' + done + '/' + all.length + ' milestones' : '') +
             (next ? ' · next: ' + esc(next.t) + (next.d ? ' (' + esc(next.d) + ')' : '') : '') + '</div></div>';
-      }).join('') : this.empty('No active rocks.');
+      }).join('') : this.empty('No active priorities.');
     },
     issueList: function (rows) {
       return rows.length ? '<ul style="margin:6px 0 0;padding-left:18px;">' + rows.map(function (i) {
@@ -1072,7 +1072,7 @@ function l10MailReportPrepHtml_(o, ctx) {
   var inner =
     H.sect('Parked for this 1:1') + (H.issueList(parked) || H.empty('Nothing parked for this 1:1.')) +
     H.sect('Their open to-dos') + H.todoList(todos) +
-    H.sect('Their rocks') + H.rockList(rocks, ctx.milestones) +
+    H.sect('Their priorities') + H.rockList(rocks, ctx.milestones) +
     H.sect('Open issues they raised') + (H.issueList(theirOpen) || H.empty('None.'));
   return H.shell('1:1 prep — ' + o.name, 'Quick agenda for your 1:1 today', inner);
 }
@@ -1085,19 +1085,19 @@ function l10MailMgrPrepHtml_(o, ctx) {
   var offRocks = ctx.rocks.filter(function (r) { return String(r['Status']).toUpperCase() === 'OFF TRACK'; });
   var offHtml = offRocks.length ? '<ul style="margin:6px 0 0;padding-left:18px;">' + offRocks.map(function (r) {
     return '<li style="margin:3px 0;font-size:13.5px;">' + H.esc(r['Rock']) + ' <span style="color:' + H.M.MUTED + ';font-size:11.5px;">— ' + H.esc(r['Owner'] || '') + '</span></li>';
-  }).join('') + '</ul>' : H.empty('All rocks on track.');
+  }).join('') + '</ul>' : H.empty('All priorities on track.');
   var inner =
     H.sect('To raise with Stuart') + (H.issueList(parked) || H.empty('Nothing parked for the Stuart 1:1.')) +
-    H.sect('Team rocks off track (surface up)') + offHtml +
+    H.sect('Team priorities off track (surface up)') + offHtml +
     H.sect('Your open to-dos') + H.todoList(myTodos) +
-    H.sect('Your rocks') + H.rockList(myRocks, ctx.milestones);
+    H.sect('Your priorities') + H.rockList(myRocks, ctx.milestones);
   return H.shell('1:1 prep — Stuart (manager)', 'Prep to report up at your 1:1 today', inner);
 }
 
 // ---------------------------------------------------------------------------
 // Monday cascade draft — fixes the timing gap: the huddle runs Tuesday but the
 // digital-team meeting the cascade feeds is Monday, so the in-app cascade
-// (built at Tuesday's Conclude) always lands a week stale. This sends Alex a
+// (built at Tuesday's Wrap-up) always lands a week stale. This sends Alex a
 // fresh draft Monday morning, hours before that meeting: live dashboard pulls
 // for the pacing lines + the still-flagged headlines, in the same order as the
 // in-app cascade (revenue/pacing → leading indicators → automation — never
@@ -1123,7 +1123,7 @@ function l10SendCascadeDraft(force) {
     l10MailRecapHeader_('Cascade draft — today’s digital-team meeting', esc(l10Today_()), config) +
     '<div style="padding:18px 20px;">' +
       '<p style="margin:0 0 10px;color:' + M.MUTED + ';font-size:13px;">Fresh pulls as of this morning — copy, trim to what moved, and walk in with it. ' +
-      'Blanks (___) mean the source cell had no number; pull it from the live tool or drop the line. Nothing here was written to the scorecard — Tuesday’s capture stays the number of record.</p>' +
+      'Blanks (___) mean the source cell had no number; pull it from the live tool or drop the line. Nothing here was written to the metrics — Tuesday’s capture stays the number of record.</p>' +
       '<pre style="white-space:pre-wrap;font-size:13px;line-height:1.5;background:#f7f9fc;border:1px solid ' + M.LINE + ';border-radius:8px;padding:12px 14px;color:' + M.INK + ';">' + esc(text) + '</pre>' +
     '</div>';
   MailApp.sendEmail({
@@ -1255,9 +1255,9 @@ function l10DigestRuleMatches_(rule, now, force) {
   return true;
 }
 
-// Compact human label for a content set, canonical order: "To-dos + Scorecard".
+// Compact human label for a content set, canonical order: "To-dos + Metrics".
 function l10DigestContentLabel_(set) {
-  var names = { TODOS: 'To-dos', ROCKS: 'Rocks', SCORECARD: 'Scorecard', HEADLINES: 'Headlines' };
+  var names = { TODOS: 'To-dos', ROCKS: 'Priorities', SCORECARD: 'Metrics', HEADLINES: 'Headlines' };
   var out = [];
   L10.DIGEST_CONTENT.forEach(function (t) { if (set.indexOf(t) !== -1) out.push(names[t] || t); });
   return out.length ? out.join(' + ') : 'Digest';
@@ -1299,7 +1299,7 @@ function l10DigestBuildHtml_(p, set, ctx, config, r) {
   }
   if (set.indexOf('ROCKS') !== -1) {
     var dr = needDue(); has.ROCKS = dr.rocks.length > 0;
-    parts.push(l10MailSect_('Your rocks') + l10MailRockListHtml_(dr.rocks));
+    parts.push(l10MailSect_('Your priorities') + l10MailRockListHtml_(dr.rocks));
   }
   if (set.indexOf('SCORECARD') !== -1) {
     has.SCORECARD = l10DigestScorecardHas_();
@@ -1421,14 +1421,14 @@ function l10MenuSendRecap() {
   l10MailToast_(r.ok ? ('Recap sent for ' + r.meeting + ' to ' + r.recipients + ' recipients.') : ('Not sent: ' + (r.error || '')));
 }
 // Test fire: sends the EXACT team recap to YOU only — preview the layout without
-// emailing the whole team. Uses the latest concluded meeting (a test huddle is fine).
+// emailing the whole team. Uses the latest wrapped-up meeting (a test huddle is fine).
 function l10TestRecap() {
   var config = l10Config_();
   var roster = l10MailRoster_(config);
   var me = (roster.byName['alex'] && roster.byName['alex'].email) || Session.getActiveUser().getEmail();
   if (!me) return { ok: false, error: 'Could not resolve your email.' };
   var concluded = l10ReadTab_(L10.TABS.MEETINGS).rows.filter(function (m) { return String(m['Status']).toUpperCase() === 'CONCLUDED'; });
-  if (!concluded.length) return { ok: false, error: 'No concluded meeting yet — conclude a (test) huddle first.' };
+  if (!concluded.length) return { ok: false, error: 'No wrapped-up meeting yet — wrap up a (test) huddle first.' };
   var meeting = concluded[concluded.length - 1];
   MailApp.sendEmail({
     to: me,
@@ -1448,14 +1448,14 @@ function l10MenuSendStuartRecap() {
 }
 
 // Test fire: sends the EXACT manager recap to YOU, not Stuart — preview it before
-// it ever reaches him. Uses the latest concluded meeting (a test huddle is fine).
+// it ever reaches him. Uses the latest wrapped-up meeting (a test huddle is fine).
 function l10TestStuartRecap() {
   var config = l10Config_();
   var roster = l10MailRoster_(config);
   var me = (roster.byName['alex'] && roster.byName['alex'].email) || Session.getActiveUser().getEmail();
   if (!me) return { ok: false, error: 'Could not resolve your email.' };
   var concluded = l10ReadTab_(L10.TABS.MEETINGS).rows.filter(function (m) { return String(m['Status']).toUpperCase() === 'CONCLUDED'; });
-  if (!concluded.length) return { ok: false, error: 'No concluded meeting yet — conclude a (test) huddle first.' };
+  if (!concluded.length) return { ok: false, error: 'No wrapped-up meeting yet — wrap up a (test) huddle first.' };
   var meeting = concluded[concluded.length - 1];
   MailApp.sendEmail({
     to: me,
