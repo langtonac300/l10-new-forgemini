@@ -1,4 +1,4 @@
-# Jira sync (L10 → Jira) — added 2026-06-30
+# Jira sync (Momentum Huddle → Jira) — added 2026-06-30
 
 One-way push: huddle **To-Dos become Jira issues**, and completing a to-do closes
 its Jira issue. The digital-marketing department tracks work in Jira (the **BNADM**
@@ -47,11 +47,11 @@ issues** (v2.9.1) retro-assigns keyed open to-dos without overwriting manual pic
 
 **Deploy (no web-app redeploy needed):**
 1. Add file `L10Jira.gs`; re-paste `L10Setup.gs`. Reload the workbook (the menu rebuilds).
-2. Run **L10 Huddle → Setup / repair tabs** once (adds the `Jira Key` / `Jira Done`
+2. Run **Momentum Huddle → Setup / repair tabs** once (adds the `Jira Key` / `Jira Done`
    columns + the six config rows).
 3. In `L10_Config` set `JIRA_DOMAIN` (e.g. `bradycorp.atlassian.net`),
    `JIRA_PROJECT_KEY` (the BNADM project key), `JIRA_EMAIL`.
-4. **L10 Huddle → Jira → Set API token…** (paste the token Alex already created).
+4. **Momentum Huddle → Jira → Set API token…** (paste the token Alex already created).
 5. **Jira → Test connection** (confirms auth + lists your project keys so you can
    verify `JIRA_PROJECT_KEY`), then **Sync now**, then **Turn on auto-sync**.
 
@@ -85,7 +85,7 @@ issues** (v2.9.1) retro-assigns keyed open to-dos without overwriting manual pic
 > v2.9.1 (2026-07-28)**, with a warning comment on the function so the next rebase
 > doesn't drop it again, verified by a 19-assertion stub harness.
 >
-> **Retro-assignment (v2.9.1, was "optional upgrade (b)"):** **L10 Huddle → Jira →
+> **Retro-assignment (v2.9.1, was "optional upgrade (b)"):** **Momentum Huddle → Jira →
 > Assign owners on existing issues** (`l10JiraBackfillAssignees`) walks every open
 > to-do with a real Jira key and sets the issue's assignee from the Owner column.
 > It **never overwrites** an existing assignee (manual "Assign to me" picks survive),

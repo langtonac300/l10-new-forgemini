@@ -7,7 +7,7 @@ none** — the scheduled Tuesday-morning `tuesday-pre-brief` routine was retired
 2026-07-09. The contract stays live for manual session posts or a future producer.
 
 - **Auth:** the JSON body's `token` field must equal the **`L10_BRIEF_TOKEN` script
-  property** (menu: **L10 Huddle → Brief → Set intake token…**; never in a sheet
+  property** (menu: **Momentum Huddle → Brief → Set intake token…**; never in a sheet
   cell). No token property set = intake off, all posts rejected.
 - **Access requirement:** the web-app deployment must be **Execute as: Me · Who has
   access: Anyone** (plain "Anyone" — not "Anyone with Google account") or the

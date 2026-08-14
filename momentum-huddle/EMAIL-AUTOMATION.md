@@ -18,13 +18,13 @@ config helpers) and the `L10_*` schema — no new tabs.
 
 | Piece | Function | Trigger | What it does |
 |-------|----------|---------|--------------|
-| **Monday heads-up** | `l10SendMondayHeadsup` | day before `HUDDLE_DAY`, ~7am | One **personalized** email per person: their open to-dos due this week (overdue flagged), their rocks (status + next/this-week milestones), and the reply-with-issues ask |
+| **Monday heads-up** | `l10SendMondayHeadsup` | day before `HUDDLE_DAY`, ~7am | One **personalized** email per person: their open to-dos due this week (overdue flagged), their priorities (status + next/this-week milestones), and the reply-with-issues ask |
 | **Stuart's Monday ask** | `l10SendStuartHeadsup` | day before `HUDDLE_DAY`, ~7am | A manager-input email to Stuart: makes clear he's **not** in the meeting, invites him to reply with anything for the team to cover, explains it's fully automatic, and notes he'll get the recap after. Same subject Heads-up tag, so the sweep ingests his reply. |
 | **Reply ingest** | `l10ProcessMailReplies` | hourly | Scans Gmail for replies to either heads-up and adds each item to the huddle with the sender's name (Stuart's replies attribute to "Stuart") + a "via email" flag. **Confirms back to the sender** (`l10MailConfirmSender_`) recapping exactly what was added, and emails Alex a digest of everything that landed. |
-| **Recap** | `l10SendTuesdayRecap` | `HUDDLE_DAY`, ~5pm | Emails the team the meeting's recap (the text saved at Conclude, or an auto-summary of issues solved / new to-dos / off-track rocks + the by-the-numbers footer) |
-| **Manager recap** | `l10SendStuartRecap` | `HUDDLE_DAY`, ~5pm | Emails Stuart a fuller "here's everything going on" view — full scorecard (this week's captured values vs goal, on/off track, in Stuart-lens Sort order), all active rocks (off-track first), what we solved, open to-dos, recent headlines, BDay + FY/Q chips. **Real captured numbers only** — a metric not captured shows "—", never a guess. |
-| **1:1 prep packs** | `l10SendOneOnOnePreps` | each 1:1 weekday, ~8am | Emails **Alex** a per-person agenda the morning of each 1:1: parked-for-that-1:1 issues, their open to-dos, their rocks/milestones, and issues they raised. Stuart's (manager) 1:1 gets a *report-up* pack instead: issues parked to Stuart, team off-track rocks, and Alex's own to-dos/rocks. Schedule baked into `L10_MAIL_ONE_ON_ONES_DEFAULT` (Courtney/CJ Wed, Scott Fri, Stuart Thu). |
-| **Custom digests** | `l10RunDigests` | hourly | Sends each opt-in `L10_Digests` rule whose (Frequency, Weekday, Hour) matches the current clock-hour in the **sheet timezone**, deduped by a visible `Last Sent` stamp. Each rule picks its own content (to-dos / rocks / scorecard / headlines) and schedule; an **empty digest is not sent**. See *Custom digests (v2.2)* below. |
+| **Recap** | `l10SendTuesdayRecap` | `HUDDLE_DAY`, ~5pm | Emails the team the meeting's recap (the text saved at Wrap-up, or an auto-summary of issues decided / new to-dos / off-track priorities + the by-the-numbers footer) |
+| **Manager recap** | `l10SendStuartRecap` | `HUDDLE_DAY`, ~5pm | Emails Stuart a fuller "here's everything going on" view — full metrics (this week's captured values vs goal, on/off track, in Stuart-lens Sort order), all active priorities (off-track first), what we decided, open to-dos, recent headlines, BDay + FY/Q chips. **Real captured numbers only** — a metric not captured shows "—", never a guess. |
+| **1:1 prep packs** | `l10SendOneOnOnePreps` | each 1:1 weekday, ~8am | Emails **Alex** a per-person agenda the morning of each 1:1: parked-for-that-1:1 issues, their open to-dos, their priorities/milestones, and issues they raised. Stuart's (manager) 1:1 gets a *report-up* pack instead: issues parked to Stuart, team off-track priorities, and Alex's own to-dos/priorities. Schedule baked into `L10_MAIL_ONE_ON_ONES_DEFAULT` (Courtney/CJ Wed, Scott Fri, Stuart Thu). |
+| **Custom digests** | `l10RunDigests` | hourly | Sends each opt-in `L10_Digests` rule whose (Frequency, Weekday, Hour) matches the current clock-hour in the **sheet timezone**, deduped by a visible `Last Sent` stamp. Each rule picks its own content (to-dos / priorities / metrics / headlines) and schedule; an **empty digest is not sent**. See *Custom digests (v2.2)* below. |
 
 ## Custom digests (v2.2, 2026-07-10)
 
@@ -33,7 +33,7 @@ their own scheduled emails** from **Settings → Custom digests** — fully cust
 per person: **what** content, **how often**, and **what time of day**, mix-and-match.
 Example: someone wants only a daily to-dos email at 8am → they leave heads-up/recap at
 default and add one digest rule `{TODOS, Daily, 8:00 AM}`; another adds a Friday
-`{Scorecard + Headlines, Weekly, 9:00 AM}`; another adds nothing and is unaffected.
+`{Metrics + Headlines, Weekly, 9:00 AM}`; another adds nothing and is unaffected.
 
 **How it works:**
 - New **`L10_Digests`** tab — **one row per rule**, many per person. **Opt-in: no rows
@@ -45,7 +45,7 @@ default and add one digest rule `{TODOS, Daily, 8:00 AM}`; another adds a Friday
   `Frequency`/`Weekday` match today (`DAILY` = every day, `WEEKDAYS` = Mon–Fri, `WEEKLY`
   = the named day). The visible **`Last Sent`** stamp (`yyyy-MM-dd HH`) dedupes within the
   clock-hour, so a duplicate trigger run never double-sends. Content reuses the recap/
-  heads-up mail kit (one source of truth — the to-do list and rock cards are shared with
+  heads-up mail kit (one source of truth — the to-do list and priority cards are shared with
   the heads-up); an **empty digest is skipped** (no send, no stamp).
 - **No new OAuth scope** (send-only `MailApp` + `ScriptApp` triggers already in use).
 - **Menu:** *Email ▸ Run custom digests now* (`l10RunDigests`) and *Test my digest (to me)*
@@ -57,7 +57,7 @@ default and add one digest rule `{TODOS, Daily, 8:00 AM}`; another adds a Friday
 |--------|---------|
 | `ID` | Stable rule handle (`D-001`…). Lets a resave preserve `Last Sent` and the card edit/remove a specific rule. |
 | `Person` | Rule owner; matches the Owner column / roster name. |
-| `Label` | Optional subject label (blank = a label derived from the content, e.g. "To-dos + Scorecard"). |
+| `Label` | Optional subject label (blank = a label derived from the content, e.g. "To-dos + Metrics"). |
 | `Content` | Compact token cell — any of `TODOS, ROCKS, SCORECARD, HEADLINES` (one cell, not four columns, so a new content type never widens the schema). |
 | `Frequency` | `DAILY` / `WEEKDAYS` / `WEEKLY`. |
 | `Weekday` | `Mon`…`Sun`, used only when `Frequency = WEEKLY` (blank otherwise). |
@@ -113,11 +113,11 @@ clear the `L10_MAIL_PROCESSED` Script Property, to re-test.
 | Key | Purpose |
 |-----|---------|
 | `HUDDLE_DAY` | Weekday of the huddle (default **Tuesday**). Drives both the email copy and the trigger days (heads-up = the day before). |
-| `TEAM_EMAILS` | **Optional** override. The roster is baked into `L10Mail.gs` (`L10_MAIL_TEAM_DEFAULT` — Alex / Courtney / Scott / CJ at their `@bradycorp.com` addresses), so it works with this blank. Add/remove a teammate by editing that one line in the code; or set this `Name=email` cell to override (names must match the Owner column on rocks/to-dos). |
+| `TEAM_EMAILS` | **Optional** override. The roster is baked into `L10Mail.gs` (`L10_MAIL_TEAM_DEFAULT` — Alex / Courtney / Scott / CJ at their `@bradycorp.com` addresses), so it works with this blank. Add/remove a teammate by editing that one line in the code; or set this `Name=email` cell to override (names must match the Owner column on priorities/to-dos). |
 | `RECAP_TO` | Extra **team-recap** recipients; blank = team only. (Stuart gets the separate, fuller manager recap below — don't also add him here.) |
 | `STUART_EMAIL` | **Optional** override of the manager-recap recipient. Baked into `L10Mail.gs` (`L10_MAIL_STUART_DEFAULT` = `stuart_mackay@bradycorp.com`), so it works blank. |
 | `ONE_ON_ONES` | **Optional** override of the 1:1 schedule. Baked into `L10Mail.gs` (`L10_MAIL_ONE_ON_ONES_DEFAULT` — Courtney/CJ Wed, Scott Fri, Stuart Thu `:manager`), so it works blank. Format `Name:Weekday[:manager]`; names must match the Owner column. |
-| `EMAIL_FROM_NAME` | Display name on the emails (default "Paid Media L10"). |
+| `EMAIL_FROM_NAME` | Display name on the emails (default "Paid Media Momentum Huddle"). |
 
 **Stuart's two-way loop.** Monday he gets the *ask* (reply with anything for the
 huddle) → his reply is auto-added and he gets an instant *confirmation* of exactly
@@ -127,11 +127,11 @@ Menu has **send / test** for both his Monday ask and his recap.
 **Testing safely.** The `Email ▸` submenu has **Test Stuart's Monday ask (to me)**
 (`l10TestStuartHeadsup`) and **Test manager recap (to me)** (`l10TestStuartRecap`) —
 both send the *exact* email to you, not Stuart. The matching **Send … now** items
-fire to Stuart for real on demand. The recap uses the latest concluded meeting, so
+fire to Stuart for real on demand. The recap uses the latest wrapped-up meeting, so
 a discarded test huddle is enough to see real layout.
 
 **Install / upgrade:** paste `L10Mail.gs` into the project, run `l10Setup` once
-(adds the config rows), then run `l10InstallMailTriggers` (or **L10 Huddle →
+(adds the config rows), then run `l10InstallMailTriggers` (or **Momentum Huddle →
 Email: install / refresh triggers**). The team roster is already baked into
 `L10Mail.gs`, so there's nothing to fill in unless someone joins/leaves (edit
 `L10_MAIL_TEAM_DEFAULT`) or you want to override it in `L10_Config`. First run

@@ -4981,7 +4981,7 @@ function scGridHtml() {
     if (ck === 'on') a.on++; else if (ck === 'off') a.off++; else a.neutral++;
     return a;
   }, { on: 0, off: 0, nc: 0, neutral: 0 });
-  var strip = '<div class="sc-roll" role="group" aria-label="Scorecard health for the week of ' + esc(wk) + '">' +
+  var strip = '<div class="sc-roll" role="group" aria-label="Metrics health for the week of ' + esc(wk) + '">' +
       '<span class="sc-chip on"><b>' + roll.on + '</b> On track</span>' +
       '<span class="sc-chip off"><b>' + roll.off + '</b> Off track</span>' +
       '<span class="sc-chip nc"><b>' + roll.nc + '</b> Not captured</span>' +
@@ -5070,12 +5070,12 @@ function wireScGrid(scope) {
     });
   }
 }
-// The empty scorecard shows a template gallery instead of a bare grid — a new
-// team gets a working scorecard in one click, then refines it in the builder.
+// The empty Metrics page shows a template gallery instead of a bare grid — a new
+// team gets working metrics in one click, then refines it in the builder.
 function scPackGalleryHtml_() {
   var packs = state.boot.packs || [];
-  return '<div class="card"><h3>Your scorecard is empty — pick a starting point</h3>' +
-      '<p class="help mt-0">These are the weekly numbers the huddle reads in its Scorecard segment. Start from a pack (owners are spread across the team; every goal is editable) or build your own from scratch.</p>' +
+  return '<div class="card"><h3>Your Metrics page is empty — pick a starting point</h3>' +
+      '<p class="help mt-0">These are the weekly numbers the huddle reads in its Metrics segment. Start from a pack (owners are spread across the team; every goal is editable) or build your own from scratch.</p>' +
       '<div class="pack-grid">' + packs.map(function (p) {
         return '<div class="pack-card"><div class="pk-head"><span>' + esc(p.icon) + '</span> ' + esc(p.name) + '</div>' +
             '<ul>' + p.metrics.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>' +
@@ -5092,7 +5092,7 @@ function renderScorecard() {
   var weeks = b.scorecard.weeks;
   var active = b.scorecard.defs.filter(function (d) { return String(d['Active']).toUpperCase() === 'YES'; });
   var retired = b.scorecard.defs.filter(function (d) { return String(d['Active']).toUpperCase() !== 'YES'; });
-  var html = '<h2 class="page-title">Scorecard</h2><p class="page-sub">' + weeks.length +
+  var html = '<h2 class="page-title">Metrics</h2><p class="page-sub">' + weeks.length +
       ' trailing weeks. Select the ⓘ for a metric’s caveat; hover a metric for ✎ edit.</p>';
   if (!active.length) {
     html += scPackGalleryHtml_();
@@ -5137,14 +5137,14 @@ function renderScorecard() {
       var dd = findRow(state.boot.scorecard.defs, 'ID', btn.dataset.mbrevive);
       if (dd) dd['Active'] = 'YES';
       renderScorecard();
-      serverSync(gs('l10_setMetricActive', btn.dataset.mbrevive, true), 'Metric is back on the scorecard');
+      serverSync(gs('l10_setMetricActive', btn.dataset.mbrevive, true), 'Metric is back on the Metrics page');
     });
   });
 }
 
 // --- Metric builder ----------------------------------------------------------
-// Add/edit a scorecard metric in plain language — nobody opens the tab. Reuses
-// the IDS card shell; ESC/backdrop close; live "test it" for auto-pull refs.
+// Add/edit a metric in plain language — nobody opens the tab. Reuses
+// the Solve card shell; ESC/backdrop close; live "test it" for auto-pull refs.
 function ensureMbOverlay_() {
   if ($('mb-overlay')) return;
   var div = document.createElement('div');
@@ -5170,7 +5170,7 @@ function openMetricBuilder(id) {
   var om = $('mb-overlay');
   if (!om || om.style.display !== 'block') dlgOpened_('mb-overlay');
   var d = id ? findRow(state.boot.scorecard.defs, 'ID', id) : null;
-  if (id && !d) { notify('Metric ' + id + ' isn\'t in the scorecard anymore.', 'warn'); return; }
+  if (id && !d) { notify('Metric ' + id + ' isn\'t on the Metrics page anymore.', 'warn'); return; }
   var cur = {
     metric: d ? String(d['Metric']) : '', owner: d ? String(d['Owner'] || '') : (state.boot.team[0] || ''),
     format: d ? String(d['Format'] || 'num') : 'num', rule: d ? String(d['Rule'] || 'none') : '>=',
@@ -5238,8 +5238,8 @@ function openMetricBuilder(id) {
       '<details' + (cur.caveat ? ' open' : '') + '><summary class="sum-lbl">Add a data caveat (optional)</summary>' +
       '<div class="field mt-2"><textarea id="mb-caveat" placeholder="anything the room should know when reading this number…">' + esc(cur.caveat) + '</textarea></div></details>' +
       '<div class="row row--mid mt-4">' +
-        '<button class="btn big" id="mb-save">' + (d ? 'Save changes' : '＋ Add to the scorecard') + '</button>' +
-        (d && cur.active ? '<button class="btn mini subtle" id="mb-retire" title="Hides it from the scorecard; its history stays">Retire this metric</button>' : '') +
+        '<button class="btn big" id="mb-save">' + (d ? 'Save changes' : '＋ Add to Metrics') + '</button>' +
+        (d && cur.active ? '<button class="btn mini subtle" id="mb-retire" title="Hides it from Metrics; its history stays">Retire this metric</button>' : '') +
       '</div>';
   var o = $('mb-overlay');
   o.innerHTML = html;
@@ -5313,7 +5313,7 @@ function openMetricBuilder(id) {
         state.boot.scorecard.defs.push(res.row);
       }
       closeMetricBuilder();
-      notify(d ? 'Metric updated' : 'Metric added to the scorecard', 'ok');
+      notify(d ? 'Metric updated' : 'Metric added to Metrics', 'ok');
       renderScorecard();
       renderSegment();
     }).catch(function (e) { btn.disabled = false; errToast(e); });
@@ -5340,7 +5340,7 @@ function renderRocks() {
   var b = state.boot;
   var active = b.rocks.filter(function (r) { return ['DONE', 'DROPPED'].indexOf(String(r['Status'])) === -1; });
   var done = b.rocks.filter(function (r) { return String(r['Status']) === 'DONE'; });
-  var html = '<h2 class="page-title">Rocks</h2><p class="page-sub">The few things that matter this quarter — one owner each, tagged to the four shifts and the accounts they move. Fiscal quarters start Aug 1.</p>';
+  var html = '<h2 class="page-title">Priorities</h2><p class="page-sub">The few things that matter this quarter — one owner each, tagged to the four shifts and the accounts they move. Fiscal quarters start Aug 1.</p>';
   html += quarterHygieneHtml_(active);
   var byOwner = {};
   active.forEach(function (r) {
@@ -5348,13 +5348,13 @@ function renderRocks() {
     (byOwner[o] = byOwner[o] || []).push(r);
   });
   lensOwnerOrder_(Object.keys(byOwner)).forEach(function (o) {
-    html += '<div class="card"><h3>' + who(o) + ' <span class="h3-sub">' + byOwner[o].length + (byOwner[o].length === 1 ? ' rock' : ' rocks') + '</span></h3>' +
+    html += '<div class="card"><h3>' + who(o) + ' <span class="h3-sub">' + byOwner[o].length + (byOwner[o].length === 1 ? ' priority' : ' priorities') + '</span></h3>' +
         byOwner[o].map(function (r) { return rockLine(r, true); }).join('') + '</div>';
   });
-  if (!active.length) html += '<div class="card"><div class="empty"><div class="e">🪨</div>No active rocks — add this quarter\'s 3–7 priorities in the form below.</div></div>';
-  html += '<div class="card"><h3>Add a rock</h3><div class="row">' +
+  if (!active.length) html += '<div class="card"><div class="empty"><div class="e">🪨</div>No active priorities — add this quarter\'s 3–7 priorities in the form below.</div></div>';
+  html += '<div class="card"><h3>Add a priority</h3><div class="row">' +
       '<div class="field field--tight f-3"><input class="js-rk-title" placeholder="outcome, not activity…"></div>' +
-      '<div class="field field--tight"><select class="js-rk-owner" title="Each name shows how many rocks that person already owns">' + rockOwnerOpts_('') + '</select></div>' +
+      '<div class="field field--tight"><select class="js-rk-owner" title="Each name shows how many priorities that person already owns">' + rockOwnerOpts_('') + '</select></div>' +
       '<div class="field field--tight"><input class="js-rk-due" type="date"></div>' +
       '<div class="field field--tight"><select class="js-rk-shift"><option value="">shift…</option><option>Shift 1</option><option>Shift 2</option><option>Shift 3</option><option>Shift 4</option></select></div>' +
       '<div class="field field--tight"><select class="js-rk-acct"><option value="">tag…</option>' +
@@ -5382,7 +5382,7 @@ function renderRocks() {
     }).then(function (res) {
       if (!res || res.ok === false) { rkAdd.disabled = false; errToast(res || 'Add failed'); return; }
       if (res.row) state.boot.rocks.push(res.row);
-      notify('Rock added', 'ok');
+      notify('Priority added', 'ok');
       rerenderLists();
     }).catch(function (e) { rkAdd.disabled = false; errToast(e); });
   });
@@ -5408,7 +5408,7 @@ function renderHeadlines() {
 // above a working list is chrome that never earns its height — the list itself is
 // the information. The same figures still appear where they're actually read: the
 // ≥90% completion number in the huddle's To-do segment (segTodos) and on the
-// Scorecard. Don't reintroduce tiles here.
+// Metrics page. Don't reintroduce tiles here.
 
 // Desk controls. Transient by design — see the state.todoFilter note. The room
 // never sees these (applyPresent_ clears them), so they can be as personal as
@@ -5533,9 +5533,9 @@ function renderIssues() {
 
 // --- 1:1 page ---------------------------------------------------------------
 // One page per person for the smaller room: what's parked to their 1:1, their
-// open to-dos, their rocks, and the open issues they raised. 1:1s here
+// open to-dos, their priorities, and the open issues they raised. 1:1s here
 // are led by the person themselves — this is the agenda they walk in with, not
-// a scorecard (no completion percentages by design; that stays team-level).
+// a metrics page (no completion percentages by design; that stays team-level).
 function o11People_() {
   var b = state.boot;
   var list = b.team.slice();
@@ -5593,8 +5593,8 @@ function renderOneOnOne() {
       }).join('') : '<div class="empty">Nothing parked — the huddle owes this 1:1 nothing.</div>') + '</div>';
   html += '<div class="card"><h3>Open to-dos (' + todos.length + ')</h3>' +
       (todos.length ? todos.map(function (t) { return todoLine(t, true); }).join('') : '<div class="empty">No open to-dos for this 1:1.</div>') + '</div>';
-  html += '<div class="card"><h3>Rocks (' + rocks.length + ')</h3>' +
-      (rocks.length ? rocks.map(function (r) { return rockLine(r, false); }).join('') : '<div class="empty">No active rocks.</div>') + '</div>';
+  html += '<div class="card"><h3>Priorities (' + rocks.length + ')</h3>' +
+      (rocks.length ? rocks.map(function (r) { return rockLine(r, false); }).join('') : '<div class="empty">No active priorities.</div>') + '</div>';
   if (raised.length) {
     html += '<div class="card"><h3>Open issues they raised</h3>' +
         raised.map(function (i) { return issueLine(i, false); }).join('') + '</div>';
@@ -5657,7 +5657,7 @@ function renderHistory() {
     a.addEventListener('change', run);
   }
   if (!hist.length) {
-    html += '<div class="card"><div class="empty"><div class="e">📚</div>No concluded huddles yet — your first Conclude writes the record here.</div></div>' + ledgerCard;
+    html += '<div class="card"><div class="empty"><div class="e">📚</div>No wrapped-up huddles yet — your first Wrap-up writes the record here.</div></div>' + ledgerCard;
     $('page-history').innerHTML = html;
     wireLedger_();
     return;

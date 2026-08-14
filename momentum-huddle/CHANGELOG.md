@@ -857,7 +857,7 @@ the Settings-page token setter.
 > codebase on 2026-07-10.** See the v2.0 entry for what changed and the re-paste/deploy
 > steps. The threads below predate the rebase.
 
-> **In weekly use (confirmed 2026-06-23).** Alex introduced L10 to the team in a meeting
+> **In weekly use (confirmed 2026-06-23).** Alex introduced Momentum Huddle to the team in a meeting
 > **Fri Jun 12**; first full run **Tue Jun 16**, and it is now a regular weekly huddle.
 > The huddle app + the full email-automation suite (heads-up, reply-ingest, team +
 > manager recaps, Stuart Monday ask, 1:1 prep packs) are built and verified — this is a
@@ -874,8 +874,8 @@ apostrophe-stripped Source Refs that the parser now tolerates — don't "fix" th
 Open threads, in order:
 
 1. **Alex must re-paste the current file versions** after the final session's
-   PRs (#80 notifications + capture fix, #81 IDS focus mode, the v1.3 capture
-   fix, v1.4 rock milestones, v1.5 IDS reorder, v1.6 inline editing, and **v1.9
+   PRs (#80 notifications + capture fix, #81 Solve focus mode, the v1.3 capture
+   fix, v1.4 priority milestones, v1.5 Solve reorder, v1.6 inline editing, and **v1.9
    no-auto-start (`L10Js.html` + `L10Css.html`)** —
    v1.4–v1.6 touch **all five files** and need one run of **Momentum Huddle →
    Setup / repair tabs** to create the `L10_Rock_Milestones` tab and the two
@@ -901,11 +901,11 @@ Open threads, in order:
    **Also (2026-07-02): v1.20 needs all five files re-pasted + Setup/repair once +
    the intake token set + a NEW web-app deployment version (doPost) + mail triggers
    reinstalled — full steps in the v1.20 changelog entry.**
-   **Also (2026-07-08): v1.21 (menu quick-add · to-do→IDS context · kill headlines ·
+   **Also (2026-07-08): v1.21 (menu quick-add · to-do→Solve context · kill headlines ·
    turn-order voting) adds a NEW HTML file `L10QuickAdd` + re-paste `L10Setup.gs`,
    `L10Code.gs`, `L10Mail.gs`, `L10Js.html`, `L10Css.html`, run Setup/repair once
    (new `L10_Headlines` Status column), then redeploy — steps in the v1.21 entry.**
-2. **Experiment Hub hygiene** (explains the "scorecard shows 7 live · 6 need
+2. **Experiment Hub hygiene** (explains the "metrics shows 7 live · 6 need
    decision" surprise, verified against the live hub 2026-06-12): the counts
    are CORRECT — the hub really holds 7 live (6 RUNNING + 1 QUEUED, including
    junk rows `test - delete`, `ignore`, and the QUEUED `EXP-001 … Script Test
@@ -922,20 +922,20 @@ Open threads, in order:
    meeting it feeds; the new **Monday ~10am cascade-draft email** (fresh live
    pulls + still-flagged headlines, to Alex only) now covers that slot. The
    in-app cascade remains the Tuesday artifact of record. Any test meetings
-   should be discarded first (⏭ Conclude → discard).
+   should be discarded first (⏭ Wrap-up → discard).
 4. **Three config decisions Alex hasn't made yet** (recommended in-session,
    2026-06-12): (a) 60-min segment profile
-   (`[["Segue",5],["Scorecard",5],["Rock review",3],["Headlines",3],["To-do list",5],["IDS",35],["Conclude",4]]`
-   in `L10_Config`); (b) swap the seeded FY27-goal rocks for **Q4-sized
-   transition rocks** now, FY27 slices at the Aug 1 rock reset; (c) reorder
-   scorecard Stuart-lens + feed manual metrics from the Monday weekly trend
+   (`[["Check-in",5],["Metrics",5],["Priority review",3],["Headlines",3],["To-do list",5],["Solve",35],["Wrap-up",4]]`
+   in `L10_Config`); (b) swap the seeded FY27-goal priorities for **Q4-sized
+   transition priorities** now, FY27 slices at the Aug 1 priority reset; (c) reorder
+   metrics Stuart-lens + feed manual metrics from the Monday weekly trend
    report; SC-007 (leads) stays Active NO until the BQ source refreshes daily.
 5. **Install quirk to remember:** the script project is shared (FY27 Goals +
    Alex's older files); `l10BuildMenu();` must sit inside the existing
    `onOpen()`; never define a second `onOpen`/`doGet`; all L10 globals are
    `l10`-prefixed for this reason.
 6. After-the-first-huddle candidates (roadmap below): auto-capture on a Monday
-   trigger, ~~1:1 view of parked issues~~ (built, v1.20), quarterly rock-rollover
+   trigger, ~~1:1 view of parked issues~~ (built, v1.20), quarterly priority-rollover
    ceremony.
 7. **v1.20 first-run threads (2026-07-02):** ~~(b) mint + set the intake token~~
    ~~(c) confirm doPost answers ok:true~~ — **both done, verified live 2026-07-02**:
@@ -947,7 +947,7 @@ Open threads, in order:
    to `_drafts/` — Alex eyeballs it, then flips the automation live (the
    `routines/tuesday-pre-brief/` spec — since removed with the 2026-07-09 routine
    retirement; the automation prompt needed the SAME pinned /exec URL + token,
-   which lives in the L10 script properties).
+   which lives in the Momentum Huddle script properties).
 
 
 ## v1.22.1 (2026-07-09) — 📅 Schedule on the to-do surface too
@@ -962,13 +962,13 @@ Two changes this pass:
 
 1. **Book a meeting straight from the huddle.** New **`L10Calendar.gs`** + a scheduler
    module in `L10Js.html` (styles in `L10Css.html`, a **📅 Schedule** button in
-   `L10Index.html`). Alex's ask: schedule meetings during the L10 without leaving the
+   `L10Index.html`). Alex's ask: schedule meetings during the Momentum Huddle without leaving the
    app, with the **issue's text prefilled as the event title**, and a
    **calendar.google.com-style day view** so you "clearly see when you ARE and AREN'T
    busy" when you pick the time.
-   - **Entry points at every point of the L10** — a compact **📅** on every issue and
+   - **Entry points at every point of the Momentum Huddle** — a compact **📅** on every issue and
      headline line, a **📅 Schedule** button in the header (blank title), and one inside
-     the IDS overlay (schedule a follow-up for the issue being solved).
+     the Solve overlay (schedule a follow-up for the issue being solved).
    - **The picker** — a left form (title · date · length · calendar · invite chips ·
      mini month) next to a scrollable day column: hour lines, **titled busy blocks** for
      the target calendar (`Calendar.Events.list`), **hatched anonymous "Busy" blocks**
@@ -983,22 +983,22 @@ Two changes this pass:
    - **Config** (`l10Setup`-seeded): `CALENDAR_ENABLED`, `CALENDAR_ID`,
      `CALENDAR_DAY_START/END`, `CALENDAR_SLOT_MIN`, `CALENDAR_DEFAULT_DURATION`; invitee
      free/busy reuses the existing `TEAM_EMAILS` map. Full write-up: **`CALENDAR.md`**.
-2. **Retired the L10 → repo export** (`L10Export.gs` + `L10-EXPORT.md` + the generated
+2. **Retired the Momentum Huddle → repo export** (`L10Export.gs` + `L10-EXPORT.md` + the generated
    `l10-status.md` / `data/l10-status.json`). Alex is moving to a different strategy for
-   todos/updates; todos & team updates now live solely in the L10 sheet + Jira **BNADM**
+   todos/updates; todos & team updates now live solely in the Momentum Huddle sheet + Jira **BNADM**
    (no repo snapshot). Routing in the root `CLAUDE.md` + README updated accordingly.
 
-## v1.21 (2026-07-08) — quick-add menu dialogs · to-do→IDS context · kill headlines · turn-order voting
+## v1.21 (2026-07-08) — quick-add menu dialogs · to-do→Solve context · kill headlines · turn-order voting
 Four asks from Alex in one pass, all quality-of-life on the live huddle:
 
 1. **Quick add straight from the sheet menu — no app, no meeting.** The **Momentum Huddle**
-   menu grows five items: **Add headlines… / Add issues… / Add to-dos… / Add rocks… /
-   Update scorecard…** Each opens a small modal dialog (new **`L10QuickAdd.html`**,
+   menu grows five items: **Add headlines… / Add issues… / Add to-dos… / Add priorities… /
+   Update metrics…** Each opens a small modal dialog (new **`L10QuickAdd.html`**,
    one file templated per mode) with open rows and the full features of the app's
    forms: type · text · by · cascade for headlines; text · by · account · category for
    issues; text · due · **multi-owner chips** for to-dos (one to-do per tapped person —
    the same fan-out as the app, one grouped chat ping per row); title · owner · due ·
-   shift · account for rocks. **Update scorecard…** is the capture grid: auto metrics
+   shift · account for priorities. **Update metrics…** is the capture grid: auto metrics
    show "auto on capture", manual metrics take typed values (`95%` / `$1,234` fine),
    blank inputs are skipped — never written as zero. "＋ another row" adds slots; Save
    reports **per-row results** — rows that landed disappear from the dialog (the log
@@ -1007,24 +1007,24 @@ Four asks from Alex in one pass, all quality-of-life on the live huddle:
    `l10_addIssue` / `l10_addTodoMulti` / `l10_addRock` / `l10_captureWeek`, via the new
    `l10_quickAdd` batcher), so id minting, the next-Monday due default, and the v1.11
    chat pings stay defined in exactly one place.
-2. **To-dos link back to the IDS that spawned them.** A to-do whose `Source` is a real
+2. **To-dos link back to the Solve that spawned them.** A to-do whose `Source` is a real
    issue id now renders **`from IS-014 ↗`** as a tappable chip (to-do segment, To-dos
    page, 1:1 pages). It opens a read-only **issue-context modal**: the issue text +
-   status, its ① Identify / ② Discuss / ③ Solve notes, every sibling to-do the issue
-   created (done/open), and an **"Open in IDS →"** button while the issue is still
-   OPEN. Fixes "assigned it in 30 seconds during IDS, zero context a week later." The
+   status, its ① Identify / ② Discuss / ③ Decide notes, every sibling to-do the issue
+   created (done/open), and an **"Open in Solve →"** button while the issue is still
+   OPEN. Fixes "assigned it in 30 seconds during Solve, zero context a week later." The
    data was already there (`Source` column, v1.5) — non-issue sources (e.g. `EMAIL`)
    render as plain text like before.
 3. **Kill stale headlines mid-huddle.** Every headline line (in-meeting Headlines
    segment + the Headlines page) gets **✕ kill** — one click, with an Undo toast (same
    pattern as issue kill). New **`Status` column at the END of `L10_Headlines`**
-   (blank = live, `KILLED` = gone): killed rows leave the app lists, the Segue kudos,
+   (blank = live, `KILLED` = gone): killed rows leave the app lists, the Check-in kudos,
    the start-screen queue count, **both recap emails, the 1:1 prep context, the
    cascade builder and the Monday cascade draft** — but stay in the tab as the audit
    trail. Killing by hand in the tab works too (the column carries a KILLED validation
    + grey conditional format). A pre-repair tab fails loudly ("run Setup / repair
    tabs"), never a silent no-op.
-4. **IDS voting is now a turn-order round.** **"Start voting round"** atop the IDS
+4. **Solve voting is now a turn-order round.** **"Start voting round"** atop the Solve
    segment: clears lingering votes (server + local), picks a **random first voter**,
    then proceeds around the room in attendee order (wrapping), **3 votes each** —
    stack them on one issue or spread them. The banner names whose turn it is and votes
@@ -1055,7 +1055,7 @@ Four asks from Alex in one pass, all quality-of-life on the live huddle:
   turn order, 3-vote turns, mid-round freeze, skip, early end, post-round sort, vote
   reset on start, round cleared on the start screen) and server (quick-add per-row
   results + multi-owner fan-out + next-Monday due default, kill/revive incl. the
-  pre-repair guard and bootstrap exclusion, scorecard boot payload).
+  pre-repair guard and bootstrap exclusion, metrics boot payload).
 
 ## v1.20.2 (2026-07-02) — pin the intake URL (fixes the self-test hitting a stale door)
 Live debugging with Alex: the self-test kept failing with "web page instead of JSON"
