@@ -1,4 +1,80 @@
 <script>
+// ── Momentum Huddle brand intro (once-per-session splash) ──────────────────
+// Self-contained and fully wrapped so it can NEVER break app boot. Runs only
+// when the head gate set <html class="mh-intro-on"> (first load of a session,
+// reduced-motion off). Plays over the boot fetch, then removes itself.
+(function () {
+  try {
+    var root = document.documentElement;
+    if (root.className.indexOf('mh-intro-on') === -1) return;
+    var overlay = document.getElementById('mh-intro');
+    var mark = document.getElementById('mh-mark');
+    var badge = document.getElementById('mh-badge');
+    if (!overlay || !mark || !badge) return;
+    try { sessionStorage.setItem('mh_intro_played', '1'); } catch (e) {}
+
+    var N = 30, K = 70, C = 2.8, DURATION = 2.0;   // physics spec (from the handoff)
+    var COLORS = ['#003087', '#FF6B00', '#3366a8'];
+    var particles = [], els = [], raf = null;
+
+    for (var i = 0; i < N; i++) {
+      var angle = (i / N) * Math.PI * 2;
+      var radius = 80 + (i % 5) * 16;
+      var omega0 = 3.0 * (0.85 + ((i * 37) % 30) / 100);   // per-particle wobble
+      particles.push({
+        x: Math.cos(angle) * radius, y: Math.sin(angle) * radius,
+        vx: -Math.sin(angle) * omega0 * radius, vy: Math.cos(angle) * omega0 * radius,
+        size: 3 + (i % 3) * 2, color: COLORS[i % COLORS.length]
+      });
+    }
+    els = particles.map(function (p) {
+      var el = document.createElement('div');
+      el.className = 'mh-particle';
+      el.style.width = p.size + 'px'; el.style.height = p.size + 'px';
+      el.style.marginLeft = (-p.size / 2) + 'px'; el.style.marginTop = (-p.size / 2) + 'px';
+      el.style.background = p.color;
+      mark.insertBefore(el, badge);   // particles sit behind the badge tile
+      return el;
+    });
+
+    function render() {
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i], dist = Math.hypot(p.x, p.y);
+        els[i].style.opacity = Math.max(0, Math.min(1, dist / 26)).toFixed(2);
+        els[i].style.transform = 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px) scale(' +
+          Math.max(0.15, Math.min(1, dist / 70)).toFixed(2) + ')';
+      }
+    }
+
+    // Trigger the CSS reveal and the physics sim on the same tick (shared t=0).
+    root.className += ' mh-intro-play';
+    var start = performance.now(), last = start;
+    function step(now) {
+      var dt = Math.min((now - last) / 1000, 0.032); last = now;   // 31fps floor
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        p.vx += (-K * p.x - C * p.vx) * dt; p.vy += (-K * p.y - C * p.vy) * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+      }
+      render();
+      if ((now - start) / 1000 < DURATION) raf = requestAnimationFrame(step);
+    }
+    raf = requestAnimationFrame(step);
+
+    // Dismiss once the reveal has fully settled (~2.7s) plus a brief hold.
+    setTimeout(function () {
+      overlay.classList.add('mh-done');
+      setTimeout(function () {
+        if (raf) cancelAnimationFrame(raf);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        root.className = root.className.replace(/\s*mh-intro-(on|play)/g, '');
+      }, 600);
+    }, 3200);
+  } catch (e) {
+    try { var o = document.getElementById('mh-intro'); if (o && o.parentNode) o.parentNode.removeChild(o); } catch (e2) {}
+  }
+})();
+
 var state = {
   boot: null, segIdx: 0, segStartedAt: null, timerH: null,
   // Timer pause + view freshness + the capture-grid's selected week.

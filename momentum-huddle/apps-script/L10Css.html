@@ -767,4 +767,41 @@ tr:hover .sc-edit, .sc-edit:focus-visible { opacity: 1; }
 .is-static { cursor: default; }
 .wrap-any { overflow-wrap: anywhere; }
 .inline-mid { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── Momentum Huddle brand intro — once-per-session splash overlay ───────── */
+.mh-intro { display: none; }
+html.mh-intro-on .mh-intro {
+  display: flex; position: fixed; inset: 0; z-index: 9999;
+  flex-direction: column; align-items: center; justify-content: center;
+  background: #021e47; color: #fff;
+  font-family: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: opacity .5s cubic-bezier(.16, 1, .3, 1);
+}
+.mh-intro.mh-done { opacity: 0; pointer-events: none; }
+.mh-intro-group { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+.mh-mark { position: relative; width: 300px; height: 300px; }
+.mh-particle { position: absolute; top: 50%; left: 50%; border-radius: 50%; will-change: transform, opacity; pointer-events: none; }
+.mh-badge {
+  position: absolute; top: 50%; left: 50%; width: 96px; height: 96px;
+  border-radius: 22px; background: #fff; box-shadow: 0 8px 30px rgba(0, 0, 0, .10);
+  display: flex; align-items: flex-end; justify-content: center; gap: 8px;
+  padding-bottom: 18px; transform: translate(-50%, -50%) scale(1); opacity: 0;
+}
+.mh-bar { width: 16px; border-radius: 4px 4px 0 0; transform-origin: bottom; opacity: 0; }
+#mh-bar1 { height: 26px; background: #003087; }
+#mh-bar2 { height: 42px; background: #3366a8; }
+#mh-bar3 { height: 58px; background: #FF6B00; }
+.mh-wordmark { display: flex; flex-direction: column; align-items: center; gap: .35rem; opacity: 0; }
+.mh-name { font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; color: #fff; line-height: 1; }
+.mh-sublabel { font-size: .625rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
+html.mh-intro-play .mh-badge { animation: mhBadgeIn .5s cubic-bezier(.16, 1, .3, 1) 1.35s both; }
+html.mh-intro-play #mh-bar1 { animation: mhBarGrow .7s cubic-bezier(.16, 1, .3, 1) 1.5s both; }
+html.mh-intro-play #mh-bar2 { animation: mhBarGrow .7s cubic-bezier(.16, 1, .3, 1) 1.62s both; }
+html.mh-intro-play #mh-bar3 { animation: mhBarGrow .7s cubic-bezier(.16, 1, .3, 1) 1.74s both; }
+html.mh-intro-play .mh-wordmark { animation: mhFadeUp .6s cubic-bezier(.16, 1, .3, 1) 2s both; }
+html.mh-intro-play .mh-sublabel { animation: mhFadeUp .5s cubic-bezier(.16, 1, .3, 1) 2.18s both; }
+@keyframes mhBadgeIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.5); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes mhBarGrow { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
+@keyframes mhFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { html.mh-intro-on .mh-intro { display: none; } }
 </style>
