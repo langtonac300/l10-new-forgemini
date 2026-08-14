@@ -1,4 +1,4 @@
-// Level 10 Huddle — spreadsheet schema, one-time setup, and seed data.
+// Momentum Huddle — spreadsheet schema, one-time setup, and seed data.
 // Everything is prefixed L10/l10 because this script shares a project with other
 // bound scripts (FY27 Goals template, dashboard helpers). Run l10Setup() once.
 //
@@ -7,8 +7,8 @@
 // onOpen() to get the menu, or run l10Setup() straight from the editor.
 //
 // Internal identifiers keep the l10/L10 prefix; only user-facing strings carry the
-// L10 vocabulary the team already uses (Segue / Rock review / IDS / Headlines). The
-// scorecard metric builder, GA4 source, priorities + issue-solving upgrades, the
+// vocabulary the team uses (Check-in / Priority review / Solve / Headlines). The
+// metric builder, GA4 source, priorities + issue-solving upgrades, the
 // four-slice boot, and the settings page come from the reworked app; the Brady
 // seeds, config, Experiment Hub, pre-huddle brief intake, and email cascade are the
 // paid-media team's own layer on top.
@@ -43,16 +43,16 @@ var L10 = {
       'Source', 'Source Ref', 'Caveat', 'Active', 'Sort'],
     L10_Scorecard_Data: ['Week Of', 'Metric ID', 'Value', 'Captured At', 'Note'],
     // 'Metric ID'/'Source' sit at the END on purpose — 'Metric ID' optionally links
-    // a rock to the scorecard number it should move (its trend renders on the card);
-    // 'Source' is the issue id a promoted rock came from (the tappable cross-
+    // a priority to the metrics number it should move (its trend renders on the card);
+    // 'Source' is the issue id a promoted priority came from (the tappable cross-
     // reference — l10_promoteIssue writes it instead of a Notes breadcrumb).
     // Inserting either mid-row would shift every existing row under the wrong header.
     L10_Rocks: ['ID', 'Rock', 'Owner', 'Due', 'Shift', 'Accounts', 'Status',
       'Definition of Done', 'Notes', 'Created', 'Status Updated', 'Metric ID', 'Source'],
     L10_Rock_Milestones: ['ID', 'Rock ID', 'Milestone', 'Due', 'Status', 'Done At',
       'Created', 'Notes'],
-    // 'Jira Key'/'Jira Done' sit at the END on purpose — same rule as the IDS
-    // note columns below: they're the L10->Jira sync bookkeeping (created issue
+    // 'Jira Key'/'Jira Done' sit at the END on purpose — same rule as the Solve
+    // note columns below: they're the Momentum Huddle->Jira sync bookkeeping (created issue
     // key + close timestamp), and inserting them mid-row would shift every
     // existing row under the wrong header. See L10Jira.gs. 'Repeat' (WEEKLY = a
     // recurring weekly to-do that respawns on completion) is appended after them.
@@ -70,11 +70,11 @@ var L10 = {
     // Posting a note never changes the to-do's status — the trail is the story,
     // the Status column is the state.
     L10_Todo_Log: ['ID', 'Todo ID', 'At', 'Who', 'Note'],
-    // 'Identified'/'Discussed' (IDS notes) sit at the END on purpose — the
+    // 'Identified'/'Discussed' (Solve notes) sit at the END on purpose — the
     // columns were added later and inserting them mid-row would shift every
     // existing row's data under the wrong header. Same rule for the outcome-review
     // columns after them: 'Outcome' (did the fix hold), 'Outcome At', and 'Review
-    // On' (the date the Conclude segment starts asking about a solved issue's
+    // On' (the date the Wrap-up segment starts asking about a solved issue's
     // outcome) — and for 'Waiting On' (the homework to-do id when the huddle said
     // "bring the data"; the issue stays OPEN and resurfaces once that to-do
     // completes).
@@ -88,7 +88,7 @@ var L10 = {
     L10_Events: ['Start Date', 'End Date', 'Event', 'Notes'],
     L10_Config: ['Key', 'Value', 'Description'],
     // Pre-huddle brief rows, replaced per week by the intake endpoint (doPost in
-    // L10Code.gs). Section: DOCKET (ranked IDS candidates) / WATCHLIST /
+    // L10Code.gs). Section: DOCKET (ranked Solve candidates) / WATCHLIST /
     // EXPERIMENTS / NEGATIVES (one-line context strips).
     L10_Brief: ['Week Of', 'Section', 'Rank', 'Title', 'Body', 'Dollars At Stake',
       'Accounts', 'Caveat', 'Playbook Ref', 'Promoted To', 'Received At'],
@@ -131,7 +131,7 @@ var L10 = {
   RULES: ['>=', '<=', 'between', 'none'],
   FORMATS: ['num', 'usd', 'pct', 'x'],
   BRIEF_SECTIONS: ['DOCKET', 'WATCHLIST', 'EXPERIMENTS', 'NEGATIVES'],
-  // Outcome-review verdicts on a solved issue (Conclude segment). TOO EARLY is
+  // Outcome-review verdicts on a solved issue (Wrap-up segment). TOO EARLY is
   // never stored — it pushes Review On forward instead.
   ISSUE_OUTCOMES: ['HELD', 'DID NOT HOLD'],
   // How often the post-huddle recap reaches an analyst (L10_Notify.Recap).
@@ -146,45 +146,45 @@ var L10 = {
 };
 
 var L10_CONFIG_DEFAULTS = [
-  ['MEETING_NAME', 'Paid Media L10 Huddle', 'Shown in the app header and recaps.'],
+  ['MEETING_NAME', 'Paid Media Momentum Huddle', 'Shown in the app header and recaps.'],
   ['TEAM', 'Alex, Courtney, Scott, CJ', 'Attendee + owner roster (comma-separated). Edit freely.'],
-  ['SEGMENTS', '[["Segue",5],["Scorecard",5],["Rock review",5],["Headlines",5],["To-do list",5],["IDS",60],["Conclude",5]]',
-    'Agenda segments + minutes (JSON). Classic Level 10 = 90 min; trim minutes here to fit a shorter slot.'],
-  ['SCORECARD_WEEKS', 13, 'Trailing weeks shown on the scorecard grid (13 = one quarter).'],
+  ['SEGMENTS', '[["Check-in",5],["Metrics",5],["Priority review",5],["Headlines",5],["To-do list",5],["IDS",60],["Wrap-up",5]]',
+    'Agenda segments + minutes (JSON). Full agenda = 90 min; trim minutes here to fit a shorter slot.'],
+  ['SCORECARD_WEEKS', 13, 'Trailing weeks shown on the metrics grid (13 = one quarter).'],
   ['TODO_DONE_TARGET', 90, 'Weekly to-do completion target % (team-level, not per person).'],
   ['TODO_KEEP_DAYS', 60, 'How many days of FINISHED to-dos the app loads. Still-owed to-dos always load, whatever their age.'],
-  ['TODO_STALE_CARRIES', 3, 'Carry-overs before a to-do is flagged as misclassified work and offered a promotion to a rock or an issue.'],
+  ['TODO_STALE_CARRIES', 3, 'Carry-overs before a to-do is flagged as misclassified work and offered a promotion to a priority or an issue.'],
   ['RATING_BAR', 8, 'Meeting ratings below this prompt a "where did we lose you?" note.'],
-  ['DATA_HEALTH', 'ON', 'Scorecard data-source health strip (needs the BigQuery service + the v_l10_data_health view). OFF = hide.'],
+  ['DATA_HEALTH', 'ON', 'Metrics data-source health strip (needs the BigQuery service + the v_l10_data_health view). OFF = hide.'],
   ['HEALTH_MAP', '{"SC-007":["leads_lifecycle"],"SC-011":["spend_mart","web_orders","adobe_orders"],"SC-012":["spend_mart","web_orders","adobe_orders"],"SC-015":["spend_mart","amazon_sp","amazon_sb","amazon_mart_block"]}',
     'Metric ID → data-health source keys (JSON). A metric is flagged in the grid and at capture when any mapped source reads STALE or BROKEN.'],
   ['EXPERIMENT_HUB_URL', 'https://docs.google.com/spreadsheets/d/1tiONB25PX_N02oQmBRPmG98vQnvbeRv_vPm0ErVRgdg/edit',
-    'Experiment Hub sheet URL — feeds the auto experiment counts on the scorecard. Blank = off.'],
+    'Experiment Hub sheet URL — feeds the auto experiment counts on the metrics grid. Blank = off.'],
   ['ACCOUNT_TAGS', 'Brady US, Brady CA/MX/BR, Seton US, EMEDCO, Seton CA, PDC/Wristbands, Amazon, Social/Awareness, Marking, Cross-account',
-    'Account tags for rocks + issues (comma-separated).'],
+    'Account tags for priorities + issues (comma-separated).'],
   ['ISSUE_CATEGORIES', 'Tracking/Data, Budget/Pacing, Platform/Engine, Creative/LP, Feeds, Process/SOP, Test idea, Other',
     'Issue categories (comma-separated).'],
   ['PARK_TARGETS', 'Courtney 1:1 (Wed 9:30), CJ 1:1 (Wed 10:30), Scott 1:1 (Fri 11:00), Stuart 1:1 (Thu 10:00), Seton/EMEDCO weekly (Wed 2:00)',
     'Where an issue can be parked when it belongs in a smaller meeting.'],
   ['BDAYS_OVERRIDE', '', 'Optional business-day overrides, e.g. "2026-07=22, 2026-09=21". Default = weekday count (no holiday calendar).'],
   ['HUDDLE_DAY', 'Tuesday', 'Day the weekly huddle runs. Drives the email automation: heads-up goes out the day before, recap that evening.'],
-  ['TEAM_EMAILS', '', 'OPTIONAL override of the built-in roster in L10Mail.gs. Blank = use the addresses baked into the code. To override: "Alex=alex@bradycorp.com, Courtney=...", names matching the Owner column on rocks/to-dos.'],
+  ['TEAM_EMAILS', '', 'OPTIONAL override of the built-in roster in L10Mail.gs. Blank = use the addresses baked into the code. To override: "Alex=alex@bradycorp.com, Courtney=...", names matching the Owner column on priorities/to-dos.'],
   ['RECAP_TO', '', 'Extra recap recipients beyond the team (comma-separated emails), e.g. Stuart. Blank = team only.'],
-  ['STUART_EMAIL', '', 'OPTIONAL override of the manager-recap recipient (Stuart, baked into L10Mail.gs). Blank = use the built-in address. Gets the fuller manager recap (scorecard/rocks/to-dos/headlines) after each huddle.'],
+  ['STUART_EMAIL', '', 'OPTIONAL override of the manager-recap recipient (Stuart, baked into L10Mail.gs). Blank = use the built-in address. Gets the fuller manager recap (metrics/priorities/to-dos/headlines) after each huddle.'],
   ['ONE_ON_ONES', '', 'OPTIONAL override of the 1:1 schedule (baked into L10Mail.gs). Format "Name:Weekday[:manager]", e.g. "Courtney:Wed, CJ:Wed, Scott:Fri, Stuart:Thu:manager". Each weekday morning Alex gets a prep pack for that day\'s 1:1s.'],
-  ['EMAIL_FROM_NAME', 'Paid Media L10', 'Display name on the automated L10 emails.'],
+  ['EMAIL_FROM_NAME', 'Paid Media Momentum', 'Display name on the automated Momentum Huddle emails.'],
   ['CHAT_WEBHOOK_URL', '',
-    'Incoming-webhook URL for the team chat space. When set, adding or completing a to-do posts a line to that space (e.g. "L10 To-Do - Complete - Scott - Fix the PDC feed"). Blank = off. Create it in the space → Apps & integrations → Webhooks → Add; or use L10 Huddle → Chat → Set to-do webhook URL.'],
-  ['JIRA_DOMAIN', 'bradyagile.atlassian.net', 'Atlassian site host for the L10→Jira to-do sync (no https://, no trailing path). Blank = Jira sync off. See L10Jira.gs.'],
-  ['JIRA_PROJECT_KEY', 'BNADM', 'Jira project key new to-dos are created in (BNA - Digital Marketing board). Use L10 Huddle → Jira → Test connection to list the project keys you can access.'],
-  ['JIRA_EMAIL', '', 'Atlassian account email that owns the API token — issues are created as this user. Token itself lives in the L10_JIRA_API_TOKEN script property (L10 Huddle → Jira → Set API token).'],
+    'Incoming-webhook URL for the team chat space. When set, adding or completing a to-do posts a line to that space (e.g. "L10 To-Do - Complete - Scott - Fix the PDC feed"). Blank = off. Create it in the space → Apps & integrations → Webhooks → Add; or use Momentum Huddle → Chat → Set to-do webhook URL.'],
+  ['JIRA_DOMAIN', 'bradyagile.atlassian.net', 'Atlassian site host for the Momentum Huddle→Jira to-do sync (no https://, no trailing path). Blank = Jira sync off. See L10Jira.gs.'],
+  ['JIRA_PROJECT_KEY', 'BNADM', 'Jira project key new to-dos are created in (BNA - Digital Marketing board). Use Momentum Huddle → Jira → Test connection to list the project keys you can access.'],
+  ['JIRA_EMAIL', '', 'Atlassian account email that owns the API token — issues are created as this user. Token itself lives in the L10_JIRA_API_TOKEN script property (Momentum Huddle → Jira → Set API token).'],
   ['JIRA_ISSUE_TYPE', 'Task', 'Issue type created for each to-do (must exist in the project). Default Task.'],
   ['JIRA_DONE_TRANSITION', 'Done', 'Workflow transition name used to close a Jira issue when its to-do is completed in the huddle. Default Done; falls back to any transition whose target is in the "done" status category.'],
   ['JIRA_USER_MAP', '', 'OPTIONAL owner→Jira accountId map for assignment, e.g. "Scott=5b10...;CJ=5b10...". Blank = resolve owner → email → accountId via the roster (TEAM_EMAILS override if set, else the addresses baked into L10Mail.gs).'],
-  ['GA4_PROPERTY_ID', '', 'Google Analytics (GA4) property ID — the digits from Analytics → Admin → Property settings (a pasted "properties/123456" works too). Powers scorecard metrics with the GA4 source: each user\'s own sign-in reads the data, so no key or token is stored. Blank = off. Also editable in the app: Settings → Integrations.'],
-  ['BRIEF_ENABLED', 'YES', 'Show the pre-huddle brief (L10_Brief rows for the current week) on the start screen and in IDS. The rows arrive via the intake endpoint (doPost) or can be typed into the tab by hand. NO = hide.'],
+  ['GA4_PROPERTY_ID', '', 'Google Analytics (GA4) property ID — the digits from Analytics → Admin → Property settings (a pasted "properties/123456" works too). Powers metrics with the GA4 source: each user\'s own sign-in reads the data, so no key or token is stored. Blank = off. Also editable in the app: Settings → Integrations.'],
+  ['BRIEF_ENABLED', 'YES', 'Show the pre-huddle brief (L10_Brief rows for the current week) on the start screen and in Solve. The rows arrive via the intake endpoint (doPost) or can be typed into the tab by hand. NO = hide.'],
   ['FISCAL_START_MONTH', 8, 'First month of the fiscal year (1 = January; 8 = the Brady Aug–Jul fiscal year). Drives the fiscal-quarter date chips.'],
-  ['OUTCOME_REVIEW_WEEKS', 4, 'Weeks after an issue is SOLVED before the Conclude segment asks "did the fix hold?". The answer lands in the Outcome column — the decision ledger\'s hit rate.'],
+  ['OUTCOME_REVIEW_WEEKS', 4, 'Weeks after an issue is SOLVED before the Wrap-up segment asks "did the fix hold?". The answer lands in the Outcome column — the decision ledger\'s hit rate.'],
   ['CASCADE_DRAFT', 'YES', 'Email a cascade draft (fresh dashboard pulls + last huddle\'s flagged headlines) to Alex on Monday morning, before the digital-team meeting the cascade feeds. NO = off. Needs the mail triggers installed.'],
   ['TIMER_CHIME', 'YES', 'Play a soft chime when a huddle segment first goes over time. NO = silent (the red pulse still shows).'],
   ['CALENDAR_ENABLED', 'YES', 'Show the "📅 Schedule" control that books a Google Calendar meeting from an issue/headline. NO = hide. Needs the Calendar advanced service added in the Apps Script editor (Services → Calendar API).'],
@@ -200,17 +200,17 @@ function l10BuildMenu() {
   // request) — swallow it so a misplaced call can never break doGet.
   try {
     var ui = SpreadsheetApp.getUi();
-    ui.createMenu('L10 Huddle')
+    ui.createMenu('Momentum Huddle')
         .addItem('Open huddle', 'l10OpenDashboard')
         .addSeparator()
         // Quick add: small dialogs for between-huddle upkeep — add a batch of
-        // headlines/issues/to-dos/rocks or capture the scorecard week without
+        // headlines/issues/to-dos/priorities or capture the metrics week without
         // opening (or accidentally starting) the full huddle app.
         .addItem('Add headlines…', 'l10QuickAddHeadlines')
         .addItem('Add issues…', 'l10QuickAddIssues')
         .addItem('Add to-dos…', 'l10QuickAddTodos')
-        .addItem('Add rocks…', 'l10QuickAddRocks')
-        .addItem('Update scorecard…', 'l10QuickAddScorecard')
+        .addItem('Add priorities…', 'l10QuickAddRocks')
+        .addItem('Update metrics…', 'l10QuickAddScorecard')
         .addSeparator()
         .addItem('New member guide', 'l10OpenGuide')
         .addItem('Data health check', 'l10MenuDataHealth')
@@ -278,15 +278,15 @@ function l10OpenDashboard() {
   var t = HtmlService.createTemplateFromFile('L10Index');
   t.webAppUrl = '';
   t.bootJson = l10BootJson_();
-  var html = t.evaluate().setWidth(1400).setHeight(850).setTitle('Level 10 Huddle');
-  SpreadsheetApp.getUi().showModalDialog(html, 'Level 10 Huddle');
+  var html = t.evaluate().setWidth(1400).setHeight(850).setTitle('Momentum Huddle');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Momentum Huddle');
 }
 
 // Visual onboarding one-pager, shown in a modal (static HTML, no templating).
 function l10OpenGuide() {
   var html = HtmlService.createHtmlOutputFromFile('L10Guide')
       .setWidth(1000).setHeight(820);
-  SpreadsheetApp.getUi().showModalDialog(html, 'L10 Huddle — New Member Guide');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Momentum Huddle — New Member Guide');
 }
 
 function doGet() {
@@ -296,7 +296,7 @@ function doGet() {
   t.webAppUrl = l10WebAppUrl_();
   t.bootJson = l10BootJson_();
   return t.evaluate()
-      .setTitle('Level 10 Huddle')
+      .setTitle('Momentum Huddle')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -345,7 +345,7 @@ function l10Setup() {
   // HEADERS loop above creates the empty tab and each analyst adds their own rules
   // from Settings → Custom digests. Zero rows is the valid default state.
   try {
-    SpreadsheetApp.getActive().toast('L10 Huddle tabs ready.', 'Setup', 8);
+    SpreadsheetApp.getActive().toast('Momentum Huddle tabs ready.', 'Setup', 8);
   } catch (e) {}
 }
 
@@ -365,7 +365,7 @@ function l10ApplyValidations_(ss) {
   var td = ss.getSheetByName(L10.TABS.TODOS);
   l10ListValidation_(td, 5, rows, L10.TODO_STATUSES);
   l10ListValidation_(td, 13, rows, ['WEEKLY']);
-  // WORKING borrows the rocks' on-track green-blue and BLOCKED the off-track red,
+  // WORKING borrows the priorities' on-track green-blue and BLOCKED the off-track red,
   // so a glance down the tab reads the same way it does in the app.
   l10StatusColors_(td, 5, {
     'OPEN': '#fce8b2', 'WORKING': '#c9daf8', 'BLOCKED': '#f4c7c3',
@@ -454,7 +454,7 @@ function l10SeedConfig_(ss) {
 // verified against the live dashboard before the first real huddle.
 // ---------------------------------------------------------------------------
 
-// Canonical scorecard display order — the single source of truth for the Sort
+// Canonical metrics display order — the single source of truth for the Sort
 // column, which is what every render path sorts by (the tab's physical row order
 // is irrelevant). Grouped by metric family so like sits next to like, instead of
 // the chronological interleave that built up as rows were added over time:
@@ -462,7 +462,7 @@ function l10SeedConfig_(ss) {
 // Within a family the account order is Brady → Seton/Emedco → Amazon → PDC →
 // Awareness, and "added" comes before "$ saved". Both seed arrays below read their
 // Sort from this map, and l10ReorderScorecardRows_ re-applies it to an already-
-// populated scorecard — so fresh installs and repaired installs always agree.
+// populated metrics grid — so fresh installs and repaired installs always agree.
 var L10_SCORECARD_ORDER = {
   'SC-001': 1, 'SC-002': 2, 'SC-003': 3, 'SC-004': 4, 'SC-005': 5,  // budget utilization %
   'SC-011': 6, 'SC-012': 7, 'SC-015': 8,                            // A/S % (efficiency)
@@ -530,8 +530,8 @@ var L10_NB_REVIEW_SHEET_ID = '1HRb1oLicdgwi7LiF7hAWj9W0yNvbXA0euWvdtnP85oY';
 // SC-013/SC-014 managed rows below; same one-time "Allow access" click applies.
 var L10_NB_REVIEW_SETON_SHEET_ID = '1QU8eRh4GqjMQBoQKmC5SCH08Z4GCZuUxbGJMVKZGHsQ';
 
-// Scorecard rows kept in sync idempotently: appended only if their ID is missing,
-// so re-running setup on an already-populated scorecard adds them without
+// Metrics rows kept in sync idempotently: appended only if their ID is missing,
+// so re-running setup on an already-populated metrics grid adds them without
 // duplicating or disturbing existing rows.
 // • SC-011/SC-012/SC-015 — the A/S metrics: they read straight off the Financial
 //   Dashboard v2 A/S column (K7 = Brady exec row, K8 = Seton/Emedco, K10 = Amazon).
@@ -624,7 +624,7 @@ var L10_EXP_PULL_WIRING = {
 // they capture automatically. In-place + idempotent: only rewrites a row whose
 // Source Ref is still blank or already points at this tab, so a deliberate manual
 // override is never clobbered. Fresh installs get this from l10SeedScorecard_;
-// already-populated scorecards (the seed self-skips) get it here.
+// already-populated metrics grids (the seed self-skips) get it here.
 function l10WireExperimentScorecardRows_(ss) {
   var sheet = ss.getSheetByName(L10.TABS.SCORECARD);
   if (!sheet || sheet.getLastRow() < 2) return;
@@ -649,7 +649,7 @@ function l10WireExperimentScorecardRows_(ss) {
 
 // Re-apply the canonical grouped display order (L10_SCORECARD_ORDER) to the Sort
 // column. Fresh installs already get these values from the seed arrays; this pass
-// is for an ALREADY-populated scorecard, where the rows were added over time and
+// is for an ALREADY-populated metrics grid, where the rows were added over time and
 // their sequential Sort values interleave the families (Brady negatives at 6-7 but
 // Seton's at 13-14, A/S split across 11-12 and 15). In-place + idempotent: only
 // rows whose ID is in the map are touched, and only when the Sort actually differs,
@@ -679,7 +679,7 @@ function l10SeedRocks_(ss) {
   var sheet = ss.getSheetByName(L10.TABS.ROCKS);
   if (sheet.getLastRow() > 1) return;
   var today = l10Today_();
-  // Analyst rocks mirror the FY27 goal drafts — confirm with each owner before
+  // Analyst priorities mirror the FY27 goal drafts — confirm with each owner before
   // treating them as committed. Fiscal year starts Aug 1.
   var rows = [
     ['RK-001', 'FY27 budgets locked & deployed — all accounts × all months', 'Alex', '2026-08-01', '',
@@ -750,7 +750,7 @@ function l10SeedEvents_(ss) {
 
 // The analysis playbook the issue forms match against as you type: "this kind
 // of issue has a standing report — here's how to get it run." Appended by ID
-// (idempotent, like the managed scorecard rows) so endpoint upserts and hand
+// (idempotent, like the managed metrics rows) so endpoint upserts and hand
 // edits are never clobbered by a setup re-run. Keyword lists are matched as
 // case-insensitive substrings of the issue text.
 var L10_PLAYBOOK_SEED = [
@@ -782,7 +782,7 @@ var L10_PLAYBOOK_SEED = [
     'test, a/b, experiment, hypothesis, which is better, try',
     'Cross-account',
     'Whether the question should be a structured test instead of a debate.',
-    'From IDS use "Make it a test" — it lands in the Experiment Hub Ideas backlog with the hypothesis attached.',
+    'From Solve use "Make it a test" — it lands in the Experiment Hub Ideas backlog with the hypothesis attached.',
     'Hub live counts run hot until the junk-row hygiene pass is done.', '']
 ];
 
@@ -842,7 +842,7 @@ function l10MenuSetChatWebhook() {
   var cur = '';
   try { cur = String(l10Config_().CHAT_WEBHOOK_URL || ''); } catch (e) {}
   var resp = ui.prompt(
-    'L10 to-do chat notifications',
+    'Momentum Huddle to-do chat notifications',
     'Paste the incoming-webhook URL for the team chat space.\n' +
     '(In the space: Apps & integrations → Webhooks → Add, then copy the URL.)\n' +
     'Leave blank to turn the notifications OFF.' + (cur ? '\n\nCurrent: ' + cur : ''),

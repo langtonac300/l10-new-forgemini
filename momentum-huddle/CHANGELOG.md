@@ -573,7 +573,7 @@ zero rows and the sweep no-ops rather than half-counting.
 
 ### Data safety — verified against the live workbook (2026-07-27)
 
-Alex asked whether the existing to-dos, scorecard history etc. survive. Checked against an
+Alex asked whether the existing to-dos, metrics history etc. survive. Checked against an
 export of the live *Paid Media Team | Hub* workbook, not against the code's assumptions:
 
 - **`L10_Todos` (80 rows) — safe.** Its live headers are *exactly* the 13 the code expects,
@@ -586,7 +586,7 @@ export of the live *Paid Media Team | Hub* workbook, not against the code's assu
 - **Nothing else is written by this change.** `L10_Scorecard` (15 metrics),
   `L10_Scorecard_Data` (**74 captured weekly values — the whole 13-week trend history**),
   `L10_Rocks` (6), `L10_Rock_Milestones` (18), `L10_Issues` (38), `L10_Headlines` (12),
-  `L10_Meetings` (**20 concluded huddles — the completion-% history**), `L10_Events` (7),
+  `L10_Meetings` (**20 wrapped-up huddles — the completion-% history**), `L10_Events` (7),
   `L10_Playbook` (5), `L10_Notify` (4): no code path here writes to any of them.
 - **`L10_Config` (36 keys) — additive only.** `l10SeedConfig_` appends a default *only when
   the key is absent*, so every customized value (TEAM, SEGMENTS, webhook, Jira, calendar,
@@ -596,16 +596,16 @@ export of the live *Paid Media Team | Hub* workbook, not against the code's assu
 - **Two intentional changes to existing rows, both small and both expected:**
   1. The first boot's carry sweep adds **+1 to `Carried Over` on the 4 open, past-due
      to-dos**. That *is* the fix — three of those four currently read `carried = 0` despite
-     being days overdue, which is the conclude-only bug showing up in live data.
+     being days overdue, which is the wrap-up-only bug showing up in live data.
   2. `TODO_KEEP_DAYS = 60` limits what the **app loads**, never what the **sheet stores** —
      no row is ever deleted. As of this export **0 finished to-dos fall outside the
      window**, so nothing disappears from any view today.
 - **Cosmetic, pre-existing:** `l10StatusColors_` *pushes* conditional-format rules, so
   re-running Setup adds a duplicate set. Same colours, no data effect.
 
-## v2.6 (2026-07-20) — Scorecard metrics regrouped by family (Sort order)
+## v2.6 (2026-07-20) — Metrics regrouped by family (Sort order)
 
-The 13-week scorecard now groups its rows by metric family instead of the chronological
+The 13-week metrics grid now groups its rows by metric family instead of the chronological
 order they were added in, so like sits next to like when the room reads the grid:
 **budget utilization → A/S % → NB negatives → experiments**. Requested by Alex
 (2026-07-20): *"grouped in an order that makes more sense from a continuity standpoint —
@@ -622,7 +622,7 @@ negatives all next to each other, A/S all next to each other."*
 - **One source of truth:** a new `L10_SCORECARD_ORDER` map holds the canonical Sort; both
   seed arrays (`l10SeedScorecard_` and `L10_SCORECARD_MANAGED`) read their Sort from it, so
   a fresh install and a repaired install can't drift apart.
-- **Existing scorecards renumber in place:** a new idempotent `l10ReorderScorecardRows_`
+- **Existing metrics renumber in place:** a new idempotent `l10ReorderScorecardRows_`
   (called from `l10Setup`) rewrites the `Sort` column of the 15 known rows to the canonical
   values — only when they differ, and it never touches team-added custom metrics or their
   Sort. No metrics, goals, owners, source refs, or captured history change; only display order.
@@ -650,13 +650,13 @@ deep dive"*). **SC-015's source cell `K10` is unchanged**, but the number feedin
 `pullPpcRevenue` → `buildFinancialDashboardV2`; re-paste `L10Setup.gs` and run **Setup / repair
 tabs** to refresh the SC-015 caveat. Nothing else changes.
 
-## v2.4 (2026-07-20) — Amazon A/S scorecard row (SC-015)
+## v2.4 (2026-07-20) — Amazon A/S metrics row (SC-015)
 
-The scorecard now tracks **Amazon advertising A/S % (ACOS)**, alongside the Brady/Seton
+The metrics now track **Amazon advertising A/S % (ACOS)**, alongside the Brady/Seton
 paid-search A/S rows (SC-011/SC-012). Requested by Alex (2026-07-20).
 
 - **One managed row** appended to `L10_SCORECARD_MANAGED` (so `l10EnsureScorecardRows_` adds
-  it idempotently to the existing populated scorecard, no duplicates):
+  it idempotently to the existing populated metrics grid, no duplicates):
   - **`SC-015` Amazon — advertising A/S % (ACOS)** (pct, `<=`, goal **15**, owner CJ)
 - **Source** = `RANGE`, text ref `Financial Dashboard v2!K10` — the Amazon exec row's new A/S
   cell (Financial Dashboard v3.10). Text (not formula) ref on purpose: a blank K10 (no Amazon
@@ -672,14 +672,14 @@ and enter the advertised-only Amazon sales in `Manual Inputs!B2`, so K10 has a v
 → **Momentum Huddle → Setup / repair tabs** once (appends SC-015). Next weekly capture picks it up
 automatically. No web-app redeploy needed (no HTML/server changes).
 
-## v2.3 (2026-07-15) — Seton/Emedco NB-negatives scorecard rows (SC-013/SC-014)
+## v2.3 (2026-07-15) — Seton/Emedco NB-negatives metrics rows (SC-013/SC-014)
 
-The scorecard now auto-pulls the **Seton/Emedco** weekly negatives volume + value the
+The metrics now auto-pull the **Seton/Emedco** weekly negatives volume + value the
 same way it does Brady's (SC-006/SC-007). Requested by Alex (2026-07-15): the Seton/
-Emedco Keep/Kill loop went live Jul 2026 and its impact belongs on the huddle scorecard.
+Emedco Keep/Kill loop went live Jul 2026 and its impact belongs on the huddle metrics.
 
 - **Two managed rows** appended to `L10_SCORECARD_MANAGED` (so `l10EnsureScorecardRows_`
-  adds them idempotently to the existing populated scorecard, no duplicates):
+  adds them idempotently to the existing populated metrics grid, no duplicates):
   - **`SC-013` Seton/Emedco NB negatives added / week** (num, owner Scott)
   - **`SC-014` Seton/Emedco — negatives est. annualized $ saved / week** (usd, owner Scott)
 - **Source** = live `IMPORTRANGE` of the "MVP Search Terms SQR - Seton/Emed" sheet
@@ -735,7 +735,7 @@ of day** — and mixable ("only to-do's daily, the rest normal"). Requested by A
 - New hourly trigger **`l10RunDigests`**: each run sends the rules whose `(Frequency,
   Weekday, Hour)` match "now" **in the spreadsheet timezone** (`l10DigestNow_` /
   `l10DigestRuleMatches_` — never `Date.getHours()`), deduped by a visible **`Last Sent`**
-  stamp. Content reuses the recap/heads-up mail kit (the to-do list + rock cards were
+  stamp. Content reuses the recap/heads-up mail kit (the to-do list + priority cards were
   extracted to `l10MailTodoListHtml_` / `l10MailRockListHtml_` and are now shared with the
   heads-up — one source of truth); an **empty digest is not sent**.
 - Settings gains a **Custom digests** card beside Notifications (the Notifications card is
@@ -758,7 +758,7 @@ member, off-roster surfaced, Weekly reveals the weekday select) with zero consol
 
 Each analyst now chooses how much and how often they're emailed, from **Settings →
 Notifications** — no more one-size-fits-all sends. Two levers per person:
-- **Heads-up** (the day-before personal email of their own to-dos + rocks due): on / off.
+- **Heads-up** (the day-before personal email of their own to-dos + priorities due): on / off.
 - **Recap** (the after-huddle team summary): **Every huddle / Every other / First huddle
   each month / Off** — a per-person cadence.
 
@@ -770,7 +770,7 @@ Notifications** — no more one-size-fits-all sends. Two levers per person:
 - `l10SendMondayHeadsup` skips anyone with Heads-up = NO. `l10SendTuesdayRecap` builds its
   recipient list from whoever's recap cadence fires that huddle — cadence is a pure function
   of the huddle date + meeting history (`l10RecapDueFor_`: EVERY always, BIWEEKLY on even
-  week-of-epoch huddles, MONTHLY on the first concluded huddle of the month), so there's no
+  week-of-epoch huddles, MONTHLY on the first wrapped-up huddle of the month), so there's no
   per-person "already sent" bookkeeping. **`RECAP_TO` addresses still always send**, regardless
   of cadence — that list is for people like the manager.
 - The Settings **Notifications** card (a small table with a toggle + a cadence dropdown per
@@ -788,26 +788,26 @@ in the SPA harness with zero console errors.
 
 ## v2.0 (2026-07-10) — rebased onto the Momentum Huddle codebase
 
-Alex rebuilt and rebranded the L10 app as a standalone product ("Momentum Huddle") in a
+Alex rebuilt and rebranded the Momentum Huddle app as a standalone product ("Momentum Huddle") in a
 separate repo, adding a large batch of improvements. This version **ports that improved
-codebase back into the Brady L10 app** — the one the paid-media team runs weekly — while
-keeping the L10 vocabulary the team knows, the `L10_*` tabs (so all existing data carries
+codebase back into the Brady Momentum Huddle app** — the one the paid-media team runs weekly — while
+keeping the Momentum Huddle vocabulary the team knows, the `L10_*` tabs (so all existing data carries
 over untouched), and **every** Brady-specific feature.
 
 **Gained from the Momentum codebase (all preserved here):**
-- **GA4 scorecard connector** (`L10Ga4.gs`, new file) — a scorecard metric can pull
+- **GA4 metrics connector** (`L10Ga4.gs`, new file) — a metric can pull
   sessions/users/revenue/… straight from Google Analytics with each viewer's own sign-in
   (no tokens). New `GA4` source alongside `MANUAL`/`RANGE`/`HUB_RUNNING`/`HUB_DECISIONS`.
-- **In-app metric builder** — create/edit scorecard metrics from the app (plain-language
+- **In-app metric builder** — create/edit metrics from the app (plain-language
   kind/goal/source, a live "test it" ref check, template packs, retire/revive).
-- **Calm Issue-Solving (IDS) pass** — one-step accordion (only the lit step is a
-  workspace), hover/hold peek, an evidence rail, and three solve doors: to-dos, a promoted
-  rock, or a "bring the data" assignment that resurfaces the issue when the homework to-do
+- **Calm Issue-Solving (Solve) pass** — one-step accordion (only the lit step is a
+  workspace), hover/hold peek, an evidence rail, and three decide doors: to-dos, a promoted
+  priority, or a "bring the data" assignment that resurfaces the issue when the homework to-do
   lands (`Waiting On`). The **🧪 Make it a test** door (→ Experiment Hub Ideas) is restored
   on top.
-- **Rocks upgrades** — definition-of-done, metric-linked cards showing the linked number's
-  13-week trend, a two-way Rock↔Issue `Source` link, milestone-reality nudges,
-  milestone-delete undo, and a rock-context modal. (`L10_Rocks` gains `Metric ID` + `Source`.)
+- **Priorities upgrades** — definition-of-done, metric-linked cards showing the linked number's
+  13-week trend, a two-way Priority↔Issue `Source` link, milestone-reality nudges,
+  milestone-delete undo, and a priority-context modal. (`L10_Rocks` gains `Metric ID` + `Source`.)
 - **To-dos P1–P3** — date-driven sorting (overdue floats, undated sinks), a quiet "Done this
   week" card, to-do notes, the Jira key/`ERR:` marker on the line, one `weekTodos_` split
   feeding every surface, and the visible/​endable weekly-repeat chain (`L10_Todos` gains
@@ -816,13 +816,13 @@ over untouched), and **every** Brady-specific feature.
   token, GA4) + team access link, so nobody edits the config tab for day-to-day changes.
 - **Parallel four-slice boot** + local-splice re-renders (faster first paint).
 
-**Brady layer, re-injected and intact:** L10 vocabulary (Segue / Rocks / Rock review / IDS /
+**Brady layer, re-injected and intact:** Momentum Huddle vocabulary (Check-in / Priorities / Priority review / Solve /
 Cascade); the `L10_*` tabs; the roster (Alex, Courtney, Scott, CJ + Stuart) and 1:1 schedule;
 Brady account tags, issue categories, Aug-1 fiscal (`FISCAL_START_MONTH=8`); **all** seeds
-(scorecard SC-001…012 with Financial Dashboard v2 auto-pull, NB-negatives IMPORTRANGE,
-experiment-count + A/S wiring; rocks RK-001…011; issues IS-001…006; events; playbook
+(metrics SC-001…012 with Financial Dashboard v2 auto-pull, NB-negatives IMPORTRANGE,
+experiment-count + A/S wiring; priorities RK-001…011; issues IS-001…006; events; playbook
 PB-001…005); the **Meta Monday cascade** generator (revenue-first, Stuart's lens, hub
-automation line); Financial Dashboard scorecard **auto-pull** + the HUB capture branch;
+automation line); Financial Dashboard metrics **auto-pull** + the HUB capture branch;
 **Experiment Hub** read (header chip + auto counts) and write ("Make it a test"); the
 **pre-huddle brief intake** (`doPost` + `L10_Brief` + docket card + promote); **Gmail
 reply-ingest**; the full **email suite** (heads-up, team/manager recaps, Stuart's Monday ask,

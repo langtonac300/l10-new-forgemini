@@ -3768,13 +3768,13 @@ function wireSegment(body) {
         if (!res || !res.ok) {
           conc.disabled = false;
           conc.textContent = concLabel;
-          errToast(res || 'Conclude failed');
+          errToast(res || 'Wrap-up failed');
           return;
         }
         clearInterval(state.timerH);
-        notify('Concluded — ' + (res.ratingAvg !== '' ? res.ratingAvg + '/10' : 'logged') + '. See you next week.', 'ok', 6000);
+        notify('Wrapped up — ' + (res.ratingAvg !== '' ? res.ratingAvg + '/10' : 'logged') + '. See you next week.', 'ok', 6000);
         // Splice: flip the local meeting row, move it into history, and paint
-        // the start screen NOW — no 4-execution reboot between "Conclude" and
+        // the start screen NOW — no 4-execution reboot between "Wrap-up" and
         // seeing the app again. The background refresh reconciles the carry
         // sweep and teammates' changes (safe: the meeting is over).
         var m = state.boot.openMeeting;
@@ -3803,10 +3803,10 @@ function wireSegment(body) {
         errToast(e);
       });
     };
-    // Conclude is irreversible (it locks the meeting + clears this session), so
+    // Wrap-up is irreversible (it locks the meeting + clears this session), so
     // it gets the shared two-click arm with a pre-flight summary.
     conc.addEventListener('click', function () {
-      var fired = armedConfirm(conc, { label: '✔ Click again to conclude', ttl: 6000 }, doConclude);
+      var fired = armedConfirm(conc, { label: '✔ Click again to wrap up', ttl: 6000 }, doConclude);
       if (fired) return;
       var today = localToday();
       var newTd = (state.boot.todos || []).filter(function (t) { return d10(t['Created']) === today; }).length;
@@ -3816,7 +3816,7 @@ function wireSegment(body) {
       var recapEmpty = !String(body.querySelector('.js-recap').value || '').trim();
       var bits = newTd + ' new to-do' + (newTd === 1 ? '' : 's') + (avg != null ? ' · avg ' + avg.toFixed(1) + '/10' : '');
       if (recapEmpty) bits += ' · ⚠ recap empty';
-      notify('Concluding locks the meeting + clears this session — ' + bits + '. Click Conclude again to confirm.', recapEmpty ? 'warn' : 'info', 6000);
+      notify('Wrapping up locks the meeting + clears this session — ' + bits + '. Click Wrap up again to confirm.', recapEmpty ? 'warn' : 'info', 6000);
     });
   }
   // Discard: the same shared two-click confirm.
@@ -4058,7 +4058,7 @@ function promoteStaleTodo_(id, kind) {
     if (kind === 'rock' && res.row) state.boot.rocks.push(res.row);
     if (kind !== 'rock' && res.row) state.boot.issues.push(res.row);
     serverSync(setTodoStatus_(id, 'DROPPED'));
-    notify('Moved to ' + (kind === 'rock' ? 'a rock' : 'the issues list') + ' as ' + res.id + ' — the to-do is dropped.', 'ok', 7000);
+    notify('Moved to ' + (kind === 'rock' ? 'a priority' : 'the issues list') + ' as ' + res.id + ' — the to-do is dropped.', 'ok', 7000);
   }).catch(errToast);
 }
 
@@ -4088,14 +4088,14 @@ function wireShared(scope) {
       if (r) { r['Status'] = parts[1]; rerenderLists(); }
       serverSync(gs('l10_setRockStatus', parts[0], parts[1]), undefined, rockRevert(prev));
       if (r && prev && prev !== parts[1]) {
-        notifyUndo('Rock → ' + parts[1].toLowerCase(), function () {
+        notifyUndo('Priority → ' + parts[1].toLowerCase(), function () {
           var rr = findRow(state.boot.rocks, 'ID', parts[0]);
           if (rr) { rr['Status'] = prev; rerenderLists(); }
           serverSync(gs('l10_setRockStatus', parts[0], prev), undefined, rockRevert(parts[1]));
           notify('Undone', 'ok');
         });
       } else {
-        notify('Rock → ' + parts[1].toLowerCase(), 'ok');
+        notify('Priority → ' + parts[1].toLowerCase(), 'ok');
       }
     });
   });
@@ -4142,12 +4142,12 @@ function wireShared(scope) {
       if (!rock) return;
       btn.disabled = true;
       gs('l10_addIssue', {
-        text: 'Rock off track: ' + rock['Rock'], by: rock['Owner'],
+        text: 'Priority off track: ' + rock['Rock'], by: rock['Owner'],
         accounts: rock['Accounts'], category: 'Process', notes: 'from ' + rock['ID']
       }).then(function (res) {
         if (!res || res.ok === false) { errToast(res || 'Drop failed'); return; }
         if (res.row) state.boot.issues.push(res.row);
-        notify('Dropped to issues', 'ok');
+        notify('Sent to Issues', 'ok');
         rerenderLists();
       })
         .catch(function (e) { btn.disabled = false; errToast(e); });
@@ -4159,7 +4159,7 @@ function wireShared(scope) {
       if (!def) return;
       var v = (state.boot.scorecard.values[String(def['ID'])] || {})[state.boot.weekOf];
       var check = ruleCheck(def, v);
-      var text = 'Scorecard ' + (check === 'off' ? 'off track' : 'flag') + ': ' + def['Metric'] +
+      var text = 'Metrics ' + (check === 'off' ? 'off track' : 'flag') + ': ' + def['Metric'] +
           (v !== undefined ? ' at ' + fmtVal(v, def['Format']) : ' (no value captured)') +
           ' (goal ' + goalLabel(def) + ')';
       btn.disabled = true;
@@ -4169,7 +4169,7 @@ function wireShared(scope) {
       }).then(function (res) {
         if (!res || res.ok === false) { errToast(res || 'Drop failed'); return; }
         if (res.row) state.boot.issues.push(res.row);
-        notify('Dropped to issues', 'ok');
+        notify('Sent to Issues', 'ok');
         rerenderLists();
       })
         .catch(function (e) { btn.disabled = false; errToast(e); });
@@ -4503,7 +4503,7 @@ function wireShared(scope) {
       if (state.voting) votingCast_();
     });
   });
-  // Voting-round controls (rendered by votingCardHtml_ in the IDS segment).
+  // Voting-round controls (rendered by votingCardHtml_ in the Solve segment).
   var vStart = scope.querySelector('.js-vote-start');
   if (vStart) vStart.addEventListener('click', startVotingRound_);
   var vSkip = scope.querySelector('.js-vote-skip');
@@ -4530,7 +4530,7 @@ function wireShared(scope) {
   scope.querySelectorAll('[data-issueref]').forEach(function (btn) {
     btn.addEventListener('click', function () { openIssueContext(btn.dataset.issueref); });
   });
-  // Outcome verdicts on solved issues (Conclude's "did the fix hold?" card).
+  // Outcome verdicts on solved issues (Wrap-up's "did the fix hold?" card).
   scope.querySelectorAll('[data-outcome]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var parts = btn.dataset.outcome.split('|');
@@ -4614,7 +4614,7 @@ function wireShared(scope) {
         if (res.rockDone) {
           var r = findRow(state.boot.rocks, 'ID', res.rockDone);
           if (r) { r['Status'] = 'DONE'; rerenderLists(); }
-          notify('🪨 Last milestone done — rock marked DONE', 'ok', 6000);
+          notify('🪨 Last milestone done — priority marked DONE', 'ok', 6000);
         } else if (m && prev !== parts[1]) {
           notifyUndo(parts[1] === 'DONE' ? 'Milestone done' : 'Milestone reopened', function () {
             var mm = findRow(state.boot.milestones || [], 'ID', parts[0]);
@@ -4652,7 +4652,7 @@ function wireShared(scope) {
           if (r) { rockPrev = String(r['Status']); r['Status'] = 'DONE'; rerenderLists(); }
         }
         var doneMsg = res.rockDone ?
-            '🪨 Milestone deleted — the rest were done, so the rock is marked DONE' : 'Milestone deleted';
+            '🪨 Milestone deleted — the rest were done, so the priority is marked DONE' : 'Milestone deleted';
         if (!m) { notify(doneMsg, 'ok', res.rockDone ? 6000 : undefined); return; }
         notifyUndo(doneMsg, function () {
           var rockId = String(m['Rock ID']);

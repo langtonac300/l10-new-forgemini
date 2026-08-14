@@ -195,7 +195,7 @@ table.data tr:last-child td { border-bottom: 0; }
 .t-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-deep)); transition: width 1s linear; }
 .t-fill.over { background: var(--bad); }
 
-/* Scorecard grid */
+/* Metrics grid */
 .scwrap { overflow-x: auto; }
 /* Health roll-up strip — aggregate on/off/not-captured counts atop the grid. */
 .sc-roll { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
@@ -365,7 +365,7 @@ body.present .td-bulk,
 body.present .td-check,
 body.present .td-nudge { display: none; }
 
-/* Rock rows: the flex line + an optional milestone timeline beneath it. */
+/* Priority rows: the flex line + an optional milestone timeline beneath it. */
 .rockline { border-bottom: 1px solid var(--line); }
 .rockline:last-child { border-bottom: 0; }
 .rockline > .itemline { border-bottom: 0; }
@@ -374,7 +374,7 @@ body.present .td-nudge { display: none; }
 .ms-addlink { color: var(--accent); font-size: var(--text-3); font-weight: 700; cursor: pointer; white-space: nowrap; }
 .ms-addlink:hover { text-decoration: underline; }
 
-/* Milestone timeline: to-scale plot of the rock's life. Height + label lanes
+/* Milestone timeline: to-scale plot of the priority's life. Height + label lanes
    are set by layoutTimelines() after render (labels need real pixel widths). */
 .ms-tl { position: relative; margin: 2px 2px 12px; height: 64px; }
 .ms-track { position: absolute; left: 0; right: 0; top: 12px; height: 4px; background: var(--line); border-radius: 99px; }
@@ -430,7 +430,7 @@ button.pill-status { border: 0; cursor: pointer; font-family: inherit; }
 .votebtn:hover { border-color: var(--accent); }
 .top3 { background: var(--warn-soft); border: 1px solid #fedf89; border-radius: var(--radius-md); padding: 2px 9px; font-size: 11px; font-weight: 800; color: #93580c; }
 
-/* IDS voting round — the turn banner + the whose-turn chips. */
+/* Solve voting round — the turn banner + the whose-turn chips. */
 .vote-card.live { border: 1.5px solid var(--accent); background: var(--accent-soft); }
 .vote-card .vote-left { font-weight: 800; color: var(--accent-deep); }
 .vote-turnrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
@@ -439,8 +439,8 @@ button.pill-status { border: 0; cursor: pointer; font-family: inherit; }
 .vote-chip.done { color: var(--good); border-color: #abefc6; background: var(--good-soft); }
 .vote-ctl { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 
-/* Rock extras — all conditional, none persistent chrome:
-   the definition-of-done disclosure reuses the scorecard caveat pieces (its
+/* Priority extras — all conditional, none persistent chrome:
+   the definition-of-done disclosure reuses the metrics caveat pieces (its
    line just isn't width-capped here), the linked-metric line reuses the
    issue card's evidence rail, and the milestone-reality nudge is one muted
    amber line of tension (decision support; it flips nothing). */
@@ -461,7 +461,7 @@ button.pill-status { border: 0; cursor: pointer; font-family: inherit; }
 /* Same pill used as a real link (the to-do's Jira ticket) — no resting underline; the :hover rule above still underlines. */
 a.srcref { text-decoration: none; }
 
-/* Issue-context modal (read-only view behind a to-do). Reuses the IDS card shell. */
+/* Issue-context modal (read-only view behind a to-do). Reuses the Solve card shell. */
 .ctx-card { max-width: 680px; }
 .ctx-sect { margin-top: 6px; }
 .ctx-notes { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 9px 12px; font-size: var(--text-4); line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word; }
@@ -505,9 +505,9 @@ pre.copybox, textarea.copybox { width: 100%; background: #0f172a; color: #e2e8f0
 /* Skip link — first tab stop, visible only on focus. */
 .skip-link { position: absolute; left: -9999px; top: 0; z-index: 300; background: var(--card); color: var(--accent-deep); padding: 10px 16px; border-radius: 0 0 var(--radius-md) 0; font-weight: 700; text-decoration: none; box-shadow: var(--shadow); }
 .skip-link:focus { left: 0; }
-/* IDS focus mode */
+/* Solve focus mode */
 /* The issue-context + metric-builder overlays are the same fixed sheet the
-   IDS card uses — without this their cards sit in document flow below the
+   Solve card uses — without this their cards sit in document flow below the
    fold while the backdrop dims the page. */
 #ids-overlay, #ctx-overlay, #rkctx-overlay, #mb-overlay, #guide-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); overflow-y: auto; }
 /* In-app new-member guide: the standalone document mounts in an iframe so its
@@ -541,7 +541,7 @@ nav #btn-guide:hover { border-color: var(--accent); color: var(--accent-deep); b
 .ids-altpanel { background: var(--bg); border-radius: 14px; padding: 14px 16px; margin-top: 10px; }
 .ids-made { margin: 8px 0 2px; }
 .ids-made .mline { font-size: var(--text-3); color: #15803d; font-weight: 600; padding: 2px 0; }
-/* IDS accordion — the card renders the current minute of the meeting, not the
+/* Solve accordion — the card renders the current minute of the meeting, not the
    whole meeting: each step is ONE row, and only the lit row is a workspace.
    Step switching is a .is-on class swap (focus-driven) — every field stays
    mounted (collapse is CSS-only), so the notes read/save path never sees an
@@ -572,7 +572,7 @@ nav #btn-guide:hover { border-color: var(--accent); color: var(--accent-deep); b
 .ids-peek { position: absolute; left: -1px; right: -1px; top: calc(100% + 6px); z-index: 6; background: var(--card); border: 1.5px solid #d0d5dd; border-radius: var(--radius-lg); padding: 11px 15px 12px; box-shadow: 0 18px 44px rgba(16, 24, 40, .28); pointer-events: none; }
 .ids-peek .pk-kick { font-size: var(--text-1); font-weight: 800; color: var(--faint); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 5px; }
 .ids-peek .pk-body { font-size: var(--text-5); color: var(--ink); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow: hidden; }
-/* Evidence rail — the metric behind a scorecard-dropped issue, decision
+/* Evidence rail — the metric behind an issue sent from Metrics, decision
    memory, and any waiting-on-data state. One line each, ellipsized. */
 .ids-evid { margin: 10px 0 0; padding: 8px 12px; background: #f2f6fd; border: 1px solid #dbe6f6; border-radius: var(--radius-sm); }
 /* Live type-time suggestion box under the issue form — same evidence palette.
@@ -581,7 +581,7 @@ nav #btn-guide:hover { border-color: var(--accent); color: var(--accent-deep); b
 .ids-evid .m { margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ids-evid .m:first-child { margin-top: 0; }
 .ids-evid .spark { vertical-align: -8px; margin: 0 6px; }
-/* "The fix becomes" — three doors inside Solve; only one is ever open. */
+/* "The fix becomes" — three doors inside Decide; only one is ever open. */
 .ids-fixrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 2px 0 4px; }
 .ids-fixrow .lbl { font-size: var(--text-3); font-weight: 700; color: var(--faint); }
 .ids-fixrow .js-fix.picked { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--accent-soft); }
