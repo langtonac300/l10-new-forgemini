@@ -34,9 +34,9 @@ async function clickNav(page, target) {
   page.on('pageerror', (err) => errors.push('pageerror: ' + err.message));
   // NOTE: browser.newPage() creates an ISOLATED context per page — localStorage
   // never leaks between the preview variants, so each starts snapshot-free.
-  // Skip the once-per-session brand intro in the functional flows (it has its own
-  // test below); otherwise its overlay would intercept the early nav clicks.
-  await page.addInitScript(() => { try { sessionStorage.setItem('mh_intro_played', '1'); } catch (e) {} });
+  // Skip the brand intro in the functional flows (it has its own test below);
+  // it now plays on EVERY open, so suppress it via reduced-motion (its only gate).
+  await page.emulateMedia({ reducedMotion: 'reduce' });
 
   await page.goto('file://' + path.join(HERE, 'preview.html'));
   // Boot: all four slices resolve → the huddle start screen replaces the spinner.
@@ -225,8 +225,8 @@ async function clickNav(page, target) {
   // Record snapshot reads so the reload below can PROVE the snapshot path ran
   // (a fresh page in a fresh context would silently skip it — that made the
   // first version of this test vacuous).
+  await pageE.emulateMedia({ reducedMotion: 'reduce' });   // suppress the every-open brand intro
   await pageE.addInitScript(() => {
-    try { sessionStorage.setItem('mh_intro_played', '1'); } catch (e) {}   // skip the brand intro
     window.__SNAP_READS = [];
     const orig = Storage.prototype.getItem;
     Storage.prototype.getItem = function (k) {
@@ -282,7 +282,7 @@ async function clickNav(page, target) {
   const page2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page2.on('console', (m) => { if (m.type() === 'error') errors.push('firstrun console.error: ' + m.text()); });
   page2.on('pageerror', (e) => errors.push('firstrun pageerror: ' + e.message));
-  await page2.addInitScript(() => { try { sessionStorage.setItem('mh_intro_played', '1'); } catch (e) {} });
+  await page2.emulateMedia({ reducedMotion: 'reduce' });
   await page2.goto('file://' + path.join(HERE, 'preview.html') + '#firstrun');
   await page2.waitForFunction(() => {
     const el = document.querySelector('#page-huddle');
@@ -296,13 +296,13 @@ async function clickNav(page, target) {
   await shot(page2, 'first-run');
   await page2.close();
 
-  // --- Brand intro: first load of a session plays the splash, then removes it ---
+  // --- Brand intro: plays on every open, and again after a reload ---
   const pageI = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   pageI.on('console', (m) => { if (m.type() === 'error') errors.push('intro console.error: ' + m.text()); });
   pageI.on('pageerror', (e) => errors.push('intro pageerror: ' + e.message));
   await pageI.goto('file://' + path.join(HERE, 'preview.html'));
   await pageI.waitForTimeout(200);
-  if (!(await pageI.$('#mh-intro'))) errors.push('brand intro overlay did not mount on first session load');
+  if (!(await pageI.$('#mh-intro'))) errors.push('brand intro overlay did not mount on open');
   const introPlaying = await pageI.evaluate(() => document.documentElement.className.indexOf('mh-intro-play') !== -1);
   if (!introPlaying) errors.push('brand intro did not enter its play state');
   const introParts = await pageI.$$eval('#mh-intro .mh-particle', (els) => els.length).catch(() => 0);
@@ -315,13 +315,12 @@ async function clickNav(page, target) {
   // …and the overlay removes itself once the reveal has settled.
   await pageI.waitForTimeout(4200);
   if (await pageI.$('#mh-intro')) errors.push('brand intro overlay did not dismiss after playing');
-  const introFlag = await pageI.evaluate(() => { try { return sessionStorage.getItem('mh_intro_played'); } catch (e) { return null; } });
-  if (introFlag !== '1') errors.push('brand intro did not set the once-per-session flag');
-  // A reload in the SAME context (session) must NOT replay it.
+  // A reload plays it AGAIN (every open now, not once-per-session).
   await pageI.reload();
-  await pageI.waitForTimeout(300);
-  const introAgain = await pageI.evaluate(() => document.documentElement.className.indexOf('mh-intro-on') !== -1);
-  if (introAgain) errors.push('brand intro replayed on a same-session reload (should be once per session)');
+  await pageI.waitForTimeout(200);
+  if (!(await pageI.evaluate(() => document.documentElement.className.indexOf('mh-intro-on') !== -1)))
+    errors.push('brand intro did not replay on reload (should play on every open)');
+  if (!(await pageI.$('#mh-intro'))) errors.push('brand intro overlay missing on reload');
   await pageI.close();
 
   await browser.close();

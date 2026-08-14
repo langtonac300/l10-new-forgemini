@@ -29,17 +29,15 @@ the `#sublabel` span.
 
 ### Where it's used in the app
 This file is the standalone reference (mirrors the handoff's own `reference.html`).
-The same animation is **wired into the app as a once-per-session brand intro**:
+The same animation is **wired into the app as a brand intro that plays on every open**:
 
 - `L10Index.html` — a head gate sets `<html class="mh-intro-on">` *before first
-  paint* (only when the session hasn't seen it and reduced-motion is off), plus the
-  overlay markup and the DM Sans font link.
+  paint* (on every open; skipped only when the viewer prefers reduced motion), plus
+  the overlay markup and the DM Sans font link.
 - `L10Css.html` — the `.mh-intro*` overlay styles + keyframes.
 - `L10Js.html` — the self-contained physics module (wrapped so it can never break
-  boot); it plays over the boot fetch, then removes the overlay and sets a
-  `sessionStorage` flag so later loads in the same session are instant.
+  boot); it plays over the boot fetch, then removes the overlay.
 
 It never taxes the fast four-slice boot: the splash overlays the boot fetch rather
-than delaying it, and only shows on the first load of a session. Regression-tested
-by `harness/run.js` (the intro mounts, plays, dismisses, and does **not** replay on
-a same-session reload).
+than delaying it. Regression-tested by `harness/run.js` (the intro mounts, plays,
+dismisses, and replays on the next open).
