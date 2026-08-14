@@ -1581,7 +1581,7 @@ function segSegue() {
   return html;
 }
 
-// --- Scorecard segment (capture + read) ---
+// --- Metrics segment (capture + read) ---
 function captureGrid() {
   var b = state.boot;
   var defs = b.scorecard.defs.filter(function (d) { return String(d['Active']).toUpperCase() === 'YES'; })
@@ -1606,7 +1606,7 @@ function captureGrid() {
             (existing !== undefined ? fmtVal(existing, d['Format']) : 'auto on capture') + '</span>' :
             '<input data-cap="' + esc(id) + '" class="cap-in" value="' + (existing !== undefined ? esc(existing) : '') + '" placeholder="—">') + '</td>' +
         '<td><button class="btn mini ' + (check === 'off' ? 'ghost' : 'subtle') + '" data-dropmetric="' + esc(id) + '">' +
-            (check === 'off' ? 'Drop to issues ↓' : '↓ issue') + '</button></td></tr>';
+            (check === 'off' ? 'Send to Issues ↓' : '↓ issue') + '</button></td></tr>';
   });
   html += '</table><div class="row row--mid mt-3">' +
       '<div class="field field--tight f-fix"><select class="js-cap-week" title="Pick a past week to backfill a missed capture">' +
@@ -1621,12 +1621,12 @@ function captureGrid() {
   return html;
 }
 function segScorecard() {
-  return '<div class="banner info"><b>Rule:</b> each number is on track or off track — nothing else. Off track? "Drop it down." No discussing, no solving here.</div>' +
-      '<div class="card"><h3>Scorecard — week of ' + esc(state.boot.weekOf) + '</h3>' + captureGrid() + '</div>';
+  return '<div class="banner info"><b>Rule:</b> each number is on track or off track — nothing else. Off track? "Send it to Issues." No discussing, no solving here.</div>' +
+      '<div class="card"><h3>Metrics — week of ' + esc(state.boot.weekOf) + '</h3>' + captureGrid() + '</div>';
 }
 
-// --- Rock review segment ---
-// The scorecard metric a rock points at (its optional Metric ID column) —
+// --- Priority review segment ---
+// The metric a priority points at (its optional Metric ID column) —
 // the same evidence-in-the-room line the issue card renders. Nothing when the
 // link, the metric, or its data is missing: the rail only exists when there's
 // evidence.
@@ -1660,7 +1660,7 @@ function rockRealityHtml_(r, ms) {
   }
   return '';
 }
-// Zero-milestone nudge: a rock several weeks old with no plan under it
+// Zero-milestone nudge: a priority several weeks old with no plan under it
 // gets one quiet prompt. Fainter than the reality nudge on purpose — there's
 // no deadline being missed yet, just a plan that hasn't been named.
 function rockPlanHintHtml_(r, ms) {
@@ -1672,7 +1672,7 @@ function rockPlanHintHtml_(r, ms) {
   if (ageDays < 21) return '';
   return '<div class="rock-hint">No milestones yet — what’s the first thing that must be true?</div>';
 }
-// Owner options carrying each person's open-rock count ("Ana · 4") — the
+// Owner options carrying each person's open-priority count ("Ana · 4") — the
 // load is visible at the exact moment the room is about to add to it. Option
 // VALUES stay the bare name; only the label wears the count.
 function rockOwnerOpts_(selName) {
@@ -1700,7 +1700,7 @@ function fiscalQuarterEnd_() {
   var offset = (now.getMonth() - (s - 1) + 12) % 12;
   return fmtLocal(new Date(now.getFullYear(), now.getMonth() - (offset % 3) + 3, 0));
 }
-// Quarter-turn ritual card: rocks dated to a PAST fiscal quarter and
+// Quarter-turn ritual card: priorities dated to a PAST fiscal quarter and
 // still open. Exists only while the condition is true; every exit is a human
 // call — carry re-dates into this quarter, split prefills the add form with
 // the piece that's left, drop is the ordinary status flip (row stays, Undo).
@@ -1713,7 +1713,7 @@ function quarterHygieneHtml_(active) {
   if (!stale.length) return '';
   var html = '<div class="card qturn"><h3>Quarter turn</h3>' +
       '<p class="page-sub page-sub--tight">' + stale.length +
-      (stale.length === 1 ? ' rock' : ' rocks') +
+      (stale.length === 1 ? ' priority' : ' priorities') +
       ' from a past quarter still open — carry it into this quarter, split off what\'s left, or drop it.</p>';
   stale.forEach(function (r) {
     html += '<div class="itemline"><div class="td-owner-col">' + who(r['Owner']) + '</div>' +
@@ -1740,7 +1740,7 @@ function rockLine(r, inMeeting) {
       '<div class="itemline"><div class="td-owner-col">' + who(r['Owner']) + '</div>' +
       '<div class="grow"><div class="t">' + esc(r['Rock']) +
       // The definition of done rides behind the same ⓘ disclosure the
-      // scorecard caveats use — quiet until asked for, forced open in the room.
+      // metrics caveats use — quiet until asked for, forced open in the room.
       caveatTip(dod, 'Show how this will be judged done') +
       caveatLine(dod ? 'Done means: ' + dod : '') + '</div>' +
       '<div class="m">' + (due ? 'due ' + esc(due) + (r.fq ? ' (' + esc(r.fq) + ')' : '') : 'no due date') +
@@ -1752,7 +1752,7 @@ function rockLine(r, inMeeting) {
       (r['Notes'] ? ' · ' + linkify(r['Notes']) : '') + '</div>' +
       rockRealityHtml_(r, ms) + rockPlanHintHtml_(r, ms) + rockMetricHtml_(r) + '</div>' +
       // The pill is the single control: the verb buttons (edit / on / off /
-      // done / drop-to-issues) stay hidden until the pill is tapped — the
+      // done / send-to-issues) stay hidden until the pill is tapped — the
       // same de-clutter move as the issue card's footnote links. A status
       // change re-renders the row, which folds the cluster back up.
       (interactive ?
@@ -1773,10 +1773,10 @@ function segRocks() {
   var rocks = state.boot.rocks.filter(function (r) {
     return ['DONE', 'DROPPED'].indexOf(String(r['Status'])) === -1;
   });
-  return '<div class="banner info"><b>Rule:</b> owner says "on track" or "off track". Off track drops to the issues list — discussion happens in IDS.</div>' +
-      '<div class="card"><h3>Rocks (' + rocks.length + ')</h3>' +
+  return '<div class="banner info"><b>Rule:</b> owner says "on track" or "off track". Off track sends it to Issues — discussion happens in Solve.</div>' +
+      '<div class="card"><h3>Priorities (' + rocks.length + ')</h3>' +
       (rocks.length ? rocks.map(function (r) { return rockLine(r, true); }).join('') :
-        '<div class="empty"><div class="e">🪨</div>No active rocks — add them on the Rocks page.</div>') + '</div>';
+        '<div class="empty"><div class="e">🪨</div>No active priorities — add them on the Priorities page.</div>') + '</div>';
 }
 
 // --- Headlines (shared by the in-meeting Headlines segment, the standalone
@@ -1795,7 +1795,7 @@ function headlineAddCardHtml(heading) {
       '<div class="field field--tight"><select class="js-hl-by">' + b.team.map(function (p) { return '<option>' + esc(p) + '</option>'; }).join('') + '</select></div>' +
       '<label class="ck-lbl"><input type="checkbox" class="js-hl-cascade"> summary ↗</label>' +
       '<button class="btn js-hl-add">Add</button></div>' +
-      '<div class="help">“Summary” = carry it into the leadership summary built in the Conclude segment.</div></div>';
+      '<div class="help">“Summary” = carry it into the leadership summary built in the Wrap-up segment.</div></div>';
 }
 function recentHeadlinesCardHtml() {
   var recent = state.boot.headlines.filter(function (h) { return h['Type'] !== 'Kudos' && !hlKilled_(h); });
@@ -1863,7 +1863,7 @@ function edSelectHtml_(cls, options, current, blankLabel) {
 function cfgList_(key) {
   return String(state.boot.config[key] || '').split(',').map(function (s) { return s.trim(); }).filter(String);
 }
-// Optional scorecard-metric link ("the number this should move") — active
+// Optional metric link ("the number this should move") — active
 // defs only, "none" first and default; a stored id whose metric was retired
 // stays selectable so an untouched select round-trips it.
 function metricSelectHtml_(cls, current) {
@@ -1872,7 +1872,7 @@ function metricSelectHtml_(cls, current) {
   }).sort(function (a, b) { return (Number(a['Sort']) || 99) - (Number(b['Sort']) || 99); });
   var cur = String(current || '').trim();
   var h = '<div class="field field--tight"><select class="' + cls +
-      '" title="The scorecard number this rock should move (optional) — its 13-week trend shows on the card">' +
+      '" title="The metric this priority should move (optional) — its 13-week trend shows on the card">' +
       '<option value="">metric it moves…</option>';
   if (cur && !defs.some(function (d) { return String(d['ID']) === cur; })) {
     h += '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>';
@@ -1898,8 +1898,8 @@ function editRowHtml(kind, id, f) {
   }
   h += '<button class="btn mini" data-edsave="' + esc(kind + '|' + id) + '">✓ Save</button>' +
       '<button class="btn mini subtle" data-edcancel="1">cancel</button></div>';
-  // Rock extras (only rocks pass these): the definition of done + the
-  // linked scorecard metric on a second line — both optional, never required.
+  // Priority extras (only priorities pass these): the definition of done + the
+  // linked metric on a second line — both optional, never required.
   if (f.done !== undefined || f.metricId !== undefined) {
     h += '<div class="itemline">';
     if (f.done !== undefined) {
@@ -1922,7 +1922,7 @@ function editBtnHtml(kind, id) {
 
 // A Source that points at a real issue becomes a tappable reference — the fix
 // for "assigned it in 30 seconds during issue solving, zero context a week
-// later." One convention across tabs: to-dos and promoted rocks both
+// later." One convention across tabs: to-dos and promoted priorities both
 // carry it. Anything else (e.g. EMAIL, a metric id) stays the old plain text.
 function sourceRefHtml_(src) {
   var s = String(src || '').trim();
@@ -2049,7 +2049,7 @@ function focusAfterTodo_(node) {
 }
 
 // --- Tiny anchored popovers -------------------------------------------------
-// window.confirm/prompt are blocked inside the Sheets iframe (see the Conclude
+// window.confirm/prompt are blocked inside the Sheets iframe (see the Wrap-up
 // two-click arm), so pickers are built in the DOM. One at a time, closed by
 // Escape, a click outside, or a choice — and focus goes into the popover so the
 // keyboard can drive it.
@@ -2187,7 +2187,7 @@ function todoJiraHtml_(t) {
 // never drift between views: review = OPEN and due by today (the huddle asks
 // done-or-not-done), upcoming = OPEN but undated or due later, done =
 // completed in the trailing 7 days (newest first). Server twin:
-// l10_concludeMeeting (Code.gs) runs the same review/done math at conclude
+// l10_concludeMeeting (Code.gs) runs the same review/done math at wrap-up
 // time — change one, change both. Deliberate quirk, kept: an early completion
 // counts as done this week even when it was due later — generosity beats
 // litigation.
@@ -2303,15 +2303,15 @@ function todoLine(t, withActions, doneReview, opts) {
 }
 // A to-do that has survived N huddles isn't a lazy owner — it's usually work
 // that was never a seven-day commitment. Say that once, at the threshold, and
-// offer the two places it actually belongs. EOS-correct and blame-free.
+// offer the two places it actually belongs. Momentum-correct and blame-free.
 function staleNudgeHtml_(t, carried) {
   // One line. The first version used two full buttons and a full sentence, which
   // wrapped onto three lines and made the stalest row the loudest thing on the
   // page — the opposite of a nudge.
   return '<div class="td-nudge">Carried ' + carried + ' weeks — probably not a to-do: ' +
-      '<button type="button" class="td-nudge-a" data-tdpromote="' + esc(t['ID']) + '|rock">make it a rock</button>' +
+      '<button type="button" class="td-nudge-a" data-tdpromote="' + esc(t['ID']) + '|rock">make it a priority</button>' +
       '<span class="td-nudge-sep">·</span>' +
-      '<button type="button" class="td-nudge-a" data-tdpromote="' + esc(t['ID']) + '|issue">take it to IDS</button></div>';
+      '<button type="button" class="td-nudge-a" data-tdpromote="' + esc(t['ID']) + '|issue">take it to Solve</button></div>';
 }
 // The status control. Three explicit states behind one button — a menu rather
 // than a cycle, so nobody has to click twice through "blocked" to say "working".
@@ -2436,7 +2436,7 @@ function addTodoCard(sourceId) {
       '<div class="help td-more">One to-do per person tapped. Blank date = next Monday. Owner, date and ↻ stay set, so a burst is just text + Enter.</div></div>';
 }
 
-// --- IDS segment ---
+// --- Solve segment ---
 function issueLine(iss, inMeeting) {
   var id = String(iss['ID']);
   if (editingIs('issue', id)) {
@@ -2449,7 +2449,7 @@ function issueLine(iss, inMeeting) {
       '<div class="grow"><div class="t">' + esc(iss['Issue']) + '</div>' +
       '<div class="m">' + esc(iss['Raised By'] || '—') + ' · ' + esc(d10(iss['Raised'])) + ' ' +
       tagList(iss['Accounts'], 'acct') + tagList(iss['Category'], 'cat') + issueWaitTag_(iss) +
-      // Notes carry the "from RK-###" breadcrumb on dropped-rock issues —
+      // Notes carry the "from RK-###" breadcrumb on dropped-priority issues —
       // rockRefsHtml_ makes that half of the loop tappable too.
       (iss['Notes'] ? ' · ' + rockRefsHtml_(iss['Notes']) : '') + '</div></div>' +
       (inMeeting ? editBtnHtml('issue', id) : '') +
@@ -2466,11 +2466,11 @@ function schedBtnHtml(kind, id) {
 }
 // --- Issue-solving focus mode ----------------------------------------------
 // One issue at a time, full-screen, in step order: ① Identify (the owner names
-// the root cause) → ② Discuss (notes) → ③ Solve (resolution + to-dos). The
+// the root cause) → ② Discuss (notes) → ③ Decide (resolution + to-dos). The
 // non-solve outcomes (park / kill) live BELOW as the exception path — the
 // module should never invite skipping the conversation.
 // Per-step quick-insert scaffolds (snippet chips). Each step gets its own set so
-// Identify/Discuss can be scaffolded too, not just Solve. Inserted at the cursor.
+// Identify/Discuss can be scaffolded too, not just Decide. Inserted at the cursor.
 var IDS_SNIPPETS = {
   idn: [['Symptom → root cause', 'Symptom: \nRoot cause: ']],
   dsc: [['Options / constraints', 'Options:\n- \nConstraint: \nDisagreement: ']],
@@ -2596,7 +2596,7 @@ function idsPeekText_(o, iss, step) {
 function idsShowPeek_(o, row, iss) {
   idsHidePeek_(row);
   var step = row.getAttribute('data-step');
-  var names = { idn: '① Identify', dsc: '② Discuss', sol: '③ Solve' };
+  var names = { idn: '① Identify', dsc: '② Discuss', sol: '③ Decide' };
   var div = document.createElement('div');
   div.className = 'ids-peek';
   div.setAttribute('aria-hidden', 'true');
@@ -2637,7 +2637,7 @@ function issueWaitTag_(iss) {
 }
 // One quiet metric-trend line: the goal-aware sparkline + last value + goal +
 // below-goal streak. Shared by the issue card's evidence rail and the
-// metric-linked rock line; '' when the metric or its data isn't there
+// metric-linked priority line; '' when the metric or its data isn't there
 // (degrade silently — never a broken chart).
 function metricEvidenceLine_(def) {
   var sc = state.boot.scorecard;
@@ -2663,7 +2663,7 @@ function metricEvidenceLine_(def) {
       (goalLabel(def) !== '—' ? ' · goal ' + esc(goalLabel(def)) : '') +
       (status === 'off' && streak > 1 ? ' · below goal ' + streak + ' wks' : '') + '</div>';
 }
-// Evidence rail: the metric behind a scorecard-dropped issue (the 'from
+// Evidence rail: the metric behind an issue sent from Metrics (the 'from
 // SC-xxx' breadcrumb → its 13-week trend), any waiting-on-data state, then
 // the playbook / seen-before matches. Empty string when there is nothing.
 function idsEvidenceHtml_(iss, id) {
@@ -2759,15 +2759,15 @@ function renderIdsOverlay() {
   var fixPanel;
   if (fix === 'rock') {
     fixPanel = '<div class="ids-sub">' +
-        '<p class="help m-0 mb-2">Quarter-sized. It becomes a <b>rock</b> named by the decision line above (or the issue text if blank); this issue closes as promoted, linked both ways.</p>' +
+        '<p class="help m-0 mb-2">Quarter-sized. It becomes a <b>priority</b> named by the decision line above (or the issue text if blank); this issue closes as promoted, linked both ways.</p>' +
         '<div class="row row--mid">' +
         // Owner load rides along here too — promoting is the other place a
-        // rock gets committed to someone.
-        '<div class="field field--tight f-160"><select class="js-promo-owner" title="Each name shows how many rocks that person already owns">' + rockOwnerOpts_(draft.promoOwner || String(iss['Raised By'] || '')) + '</select></div>' +
+        // priority gets committed to someone.
+        '<div class="field field--tight f-160"><select class="js-promo-owner" title="Each name shows how many priorities that person already owns">' + rockOwnerOpts_(draft.promoOwner || String(iss['Raised By'] || '')) + '</select></div>' +
         '<div class="field field--tight f-170"><input class="js-promo-due" type="date" title="due date (optional)" value="' + esc(draft.promoDue || '') + '"></div>' +
         '</div>' +
         '<div class="row row--mid mt-3">' +
-        '<button class="btn big" data-promote="' + esc(id) + '">★ Make it a rock</button></div></div>';
+        '<button class="btn big" data-promote="' + esc(id) + '">★ Make it a priority</button></div></div>';
   } else if (fix === 'data') {
     fixPanel = '<div class="ids-sub">' +
         '<p class="help m-0 mb-2">No numbers in the room. One person brings them — the issue stays open, marked waiting, and sorts back to the top once the homework lands.</p>' +
@@ -2795,18 +2795,18 @@ function renderIdsOverlay() {
       '<div class="snips">' + idsSnipsHtml_('sol') + '</div>' +
       '<textarea class="js-sol autosize" data-draft="' + esc(id) + '|sol" placeholder="the decision…">' + esc(draft.sol || '') + '</textarea></div>' +
       '<div class="ids-fixrow"><span class="lbl">The fix becomes</span>' +
-      fixChip_('todos', '→ to-dos') + fixChip_('rock', '★ a rock') + fixChip_('data', '⏳ data first') +
+      fixChip_('todos', '→ to-dos') + fixChip_('rock', '★ a priority') + fixChip_('data', '⏳ data first') +
       '</div>' + fixPanel;
   var solveHint = made.length ? (made.length + ' to-do' + (made.length === 1 ? '' : 's') + ' created so far') : 'decision + to-dos';
   var html = '<div class="ids-backdrop" id="ids-backdrop"></div><div class="ids-card" role="dialog" aria-modal="true" aria-labelledby="ids-title-h">' +
       '<div class="ids-head"><div class="grow">' +
-      '<div class="ids-kicker">IDS — one issue at a time</div>' +
+      '<div class="ids-kicker">Solve — one issue at a time</div>' +
       '<div class="ids-title" id="ids-title-h">' + esc(iss['Issue']) + '</div>' +
       '<div class="m">' + esc(iss['Raised By'] || '—') + ' · ' + esc(d10(iss['Raised'])) + ' ' +
       tagList(iss['Accounts'], 'acct') + tagList(iss['Category'], 'cat') + '</div></div>' +
       '<button class="btn subtle" id="ids-sched" title="Schedule a follow-up meeting for this issue" aria-label="Schedule a follow-up meeting">📅</button>' +
       '<button class="btn subtle" id="ids-close">✕ back to the list</button></div>' +
-      // Evidence rail: the metric behind a scorecard drop (13-week trend), any
+      // Evidence rail: the metric behind an issue sent from Metrics (13-week trend), any
       // waiting-on-data state, and the standing report + prior rounds with this
       // same problem — Identify starts from the record instead of memory.
       idsEvidenceHtml_(iss, id) +
@@ -2818,7 +2818,7 @@ function renderIdsOverlay() {
       idsRow_('dsc', '②', 'Discuss', 'once, no re-runs; capture the points that matter',
           'options weighed', dsc,
           noteBody_('dsc', 'js-dsc', 'dsc', 'options weighed, constraints, disagreements worth remembering…', dsc), dscHas) +
-      idsRow_('sol', '③', 'Solve', 'what we decided, one line', solveHint, draft.sol || '', solveBody, false) +
+      idsRow_('sol', '③', 'Decide', 'what we decided, one line', solveHint, draft.sol || '', solveBody, false) +
       '</div>' +
       // The exception path: everything that is NOT solving, demoted to one quiet footnote.
       '<div class="ids-alt"><span class="lbl">Didn\'t solve it?</span>' +

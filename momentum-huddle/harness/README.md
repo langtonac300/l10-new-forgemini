@@ -1,12 +1,12 @@
 ---
-title: L10 Huddle rendering harness
-summary: Assembles the real L10 web app with a stubbed google.script.run and drives it in headless Chromium — the regression gate for any front-end change.
+title: Momentum Huddle rendering harness
+summary: Assembles the real Momentum Huddle web app with a stubbed google.script.run and drives it in headless Chromium — the regression gate for any front-end change.
 status: live
 domain: scripts
 source_of_truth: false
 ---
 
-# L10 Huddle — headless rendering harness
+# Momentum Huddle — headless rendering harness
 
 There is no Apps Script runtime here, so this harness does what `doGet()` does:
 it splices `L10Index.html` + `L10Css.html` + `L10Js.html` into one standalone
@@ -38,7 +38,7 @@ any Chrome). It fails on any console error, page error, or broken flow.
 - To-dos: composer expands on focus and survives a filter re-render; the steps
   drawer opens; select-mode shows checkboxes + the bulk bar; a ✓ done click
   persists through `l10_setTodoStatus` (the Jira-sync contract).
-- Scorecard sparklines draw; the guide overlay mounts its iframe;
+- Metrics sparklines draw; the guide overlay mounts its iframe;
   a meeting starts.
 - `#firstrun` (empty-workspace fixtures): the setup checklist renders with its
   three doors.
@@ -46,8 +46,8 @@ any Chrome). It fails on any console error, page error, or broken flow.
 ## Editing fixtures
 
 `fixtures.js` holds one realistic mid-quarter dataset (WORKING/BLOCKED and
-carried to-dos, steps + trail, IDS-linked issues, a killed headline, brief
-docket, milestones, all scorecard source types). The stub **throws on any
+carried to-dos, steps + trail, Solve-linked issues, a killed headline, brief
+docket, milestones, all metrics source types). The stub **throws on any
 server function without a fixture** — that's deliberate: a renamed endpoint
 fails the run instead of passing silently. Add the fixture, don't loosen the
 stub. Keep shapes in lockstep with the boot builders in `L10Code.gs`.

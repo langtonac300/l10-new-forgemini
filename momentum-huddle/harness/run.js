@@ -1,4 +1,4 @@
-// Headless smoke run of the assembled L10 app. Boots preview.html, walks every
+// Headless smoke run of the assembled Momentum Huddle app. Boots preview.html, walks every
 // page, exercises the load-bearing flows, and fails on any console error,
 // pageerror, or unhandled gs() rejection. Screenshots land in ./shots/.
 // Usage: node run.js [--shots]
@@ -99,20 +99,20 @@ async function clickNav(page, target) {
   } else errors.push('no ✓ done button found on To-dos page');
   await shot(page, 'todos-after-flows');
 
-  // --- Scorecard: capture grid opens; sparklines drew ---
+  // --- Metrics: capture grid opens; sparklines drew ---
   await clickNav(page, 'scorecard');
   const svgs = await page.$$('#page-scorecard svg');
-  if (svgs.length < 3) errors.push('scorecard sparklines missing (' + svgs.length + ' svg)');
+  if (svgs.length < 3) errors.push('metrics sparklines missing (' + svgs.length + ' svg)');
   // Data health: strip shows the stale sources; the mapped metric is flagged.
   await page.waitForTimeout(300); // health fetch is deliberately post-boot
   const hlth = await page.$('#page-scorecard .hlth-strip');
-  if (!hlth) errors.push('data-health strip missing on scorecard');
+  if (!hlth) errors.push('data-health strip missing on metrics');
   const hlthTxt = hlth ? await hlth.textContent() : '';
   if (hlth && !/Leads lifecycle/.test(hlthTxt)) errors.push('health strip does not surface the stale leads source');
   const srcWarns = await page.$$('#page-scorecard .sc-src-warn');
   if (!srcWarns.length) errors.push('no metric carries the source-stale warning line (HEALTH_MAP flag path dead)');
 
-  // --- Issues: IDS overlay opens (dialog semantics land in the a11y wave) ---
+  // --- Issues: Solve overlay opens (dialog semantics land in the a11y wave) ---
   await clickNav(page, 'issues');
   await shot(page, 'issues');
 
@@ -163,7 +163,7 @@ async function clickNav(page, target) {
     if (!flipped) errors.push('promoted docket card did not flip to its issue id');
   }
 
-  // --- Meeting: start splice → segment rail; conclude + discard splices ---
+  // --- Meeting: start splice → segment rail; wrap-up + discard splices ---
   await clickNav(page, 'huddle');
   const startBtn = await page.$('#btn-start');
   if (!startBtn) errors.push('start screen missing #btn-start');
@@ -177,20 +177,20 @@ async function clickNav(page, target) {
     if (!(await page.$('.segrail'))) errors.push('start splice did not paint the segment rail');
     await shot(page, 'meeting-started');
 
-    // Conclude: jump to the last segment, two clicks through the armed confirm,
+    // Wrap-up: jump to the last segment, two clicks through the armed confirm,
     // and the start screen must come back via the local splice.
     await page.click('#btn-jump-conclude');
     await page.waitForTimeout(250);
     const conc = await page.$('.js-conclude');
-    if (!conc) errors.push('Conclude segment missing its conclude button');
+    if (!conc) errors.push('Wrap-up segment missing its wrap-up button');
     else {
       await conc.click();
       await page.waitForTimeout(150);
       await conc.click();
       await page.waitForTimeout(600);
       const concCalls = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
-      if (!concCalls.includes('l10_concludeMeeting')) errors.push('conclude never called l10_concludeMeeting');
-      if (!(await page.$('#btn-start'))) errors.push('conclude splice did not return to the start screen');
+      if (!concCalls.includes('l10_concludeMeeting')) errors.push('wrap-up never called l10_concludeMeeting');
+      if (!(await page.$('#btn-start'))) errors.push('wrap-up splice did not return to the start screen');
       await shot(page, 'after-conclude');
     }
 
@@ -202,7 +202,7 @@ async function clickNav(page, target) {
       await page.click('#btn-jump-conclude');
       await page.waitForTimeout(250);
       const disc = await page.$('.js-discard');
-      if (!disc) errors.push('discard button missing in the Conclude segment');
+      if (!disc) errors.push('discard button missing in the Wrap-up segment');
       else {
         await disc.click();
         await page.waitForTimeout(150);

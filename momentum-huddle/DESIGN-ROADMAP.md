@@ -1,6 +1,6 @@
-# L10 Huddle — design roadmap to corporation-grade
+# Momentum Huddle — design roadmap to corporation-grade
 
-> **A UX + graphic-design review of the L10 Huddle app** (the `apps-script/` web app,
+> **A UX + graphic-design review of the Momentum Huddle app** (the `apps-script/` web app,
 > the new-member guide, and the recap emails). It answers one question: *what are the
 > highest-leverage next steps to make this look and feel like real corporation-level
 > software* — the bar of Linear / Notion / Asana / Monday.com — *rather than a competent
@@ -18,7 +18,7 @@
 > component/render refactor (inline styles 176→17 dynamic-only, one `.pill` base for the
 > ~16 chip species, `btnH_`/`pillH_`/`fieldH_`/`cardH_` render helpers), #7 (in-app guide
 > + first-run checklist), #10 (quiet toasts, Loading/Saving chip, timer reset,
-> `armedConfirm()`, surgical error reverts), plus the honorable-mention IDS dialog
+> `armedConfirm()`, surgical error reverts), plus the honorable-mention Solve dialog
 > semantics + focus restore, the `.ms-tl` ResizeObserver fix, loading skeletons, and the
 > skip link. The verdict below describes the *pre-#1–3* state and stays as the baseline
 > the roadmap was written against.
@@ -28,7 +28,7 @@
 ## Verdict — where it sits today
 
 This is a **genuinely competent internal tool** with real flashes of product instinct: the
-to-scale rock-milestone timeline, optimistic UI, the two-click "armed confirm" pattern, a
+to-scale priority-milestone timeline, optimistic UI, the two-click "armed confirm" pattern, a
 255-line onboarding guide. But it sits **firmly on the internal-tool side of the line**, and
 the single thing holding it back most is that **there is no shared source of truth for
 anything**:
@@ -63,7 +63,7 @@ mid-meeting mistake be undone in one click.*
 |----|----------------|--------|
 | **#1 Single token source** (color/space/type defined once, consumed by app + guide + email) | The keystone — every other visual fix depends on it, and it's what kills the "three near-misses of the same blue" read. | **M** |
 | **#2 Focus ring + keyboard-operable controls** | The cheapest *highest-credibility* win on the board. Crisp focus rings are a direct tell of real software, and this is the floor of every procurement/VPAT check. | **S** |
-| **#3 Undo-on-toast + Conclude confirm** | The defining safety pattern of Linear/Superhuman/Gmail. Its absence is the clearest "internal tool" tell, and a mis-click in a *live* meeting is currently only fixable by hand-editing a sheet row. | **M** |
+| **#3 Undo-on-toast + Wrap-up confirm** | The defining safety pattern of Linear/Superhuman/Gmail. Its absence is the clearest "internal tool" tell, and a mis-click in a *live* meeting is currently only fixable by hand-editing a sheet row. | **M** |
 
 These three are mostly foundation + cheap polish, deliver outsized perceived-quality, and
 unblock the rest. **#1 should land before the visual/email work; #2 and #3 can go in parallel.**
@@ -72,7 +72,7 @@ unblock the rest. **#1 should land before the visual/email work; #2 and #3 can g
 
 ## ⚠ Don't break the Jira sync (merged 2026-06-30)
 
-After this review was written, a one-way **L10 → Jira** to-do sync shipped
+After this review was written, a one-way **Momentum Huddle → Jira** to-do sync shipped
 ([`apps-script/L10Jira.gs`](./apps-script/L10Jira.gs); see the README's *Jira sync*
 section). It's **server-side and headless** — a 10-minute time trigger (and a *Jira → Sync
 now* menu item) reads the `L10_Todos` tab directly, creates a Jira issue for each **OPEN**
@@ -85,14 +85,14 @@ items touch surfaces it reads — implement them Jira-safe:
   sheet** — the sync reads it on its own schedule, not from the client. An optimistic-only update
   that never writes the cell would make Jira silently miss the completion.
 - **`L10_Todos` columns are append-only.** The sync's `Jira Key` / `Jira Done` bookkeeping
-  columns live at the **end** of the header (same convention as the IDS `Identified`/`Discussed`
+  columns live at the **end** of the header (same convention as the Solve `Identified`/`Discussed`
   columns). Render/edit refactors (**#5** component layer, **#10**) read rows by header name, so
   reordering won't crash — but never drop or relocate those two columns, and keep new columns
   appended at the end.
 - **Preserve the Jira submenu in any menu refactor.** **#7** touches `L10Setup.gs`; its
   `l10BuildMenu` now carries a **Jira** submenu (Set API token / Test connection / Sync now /
   auto-sync on·off). Keep it intact.
-- **The sync is one-way (L10 → Jira).** An **undo** (#3) of a to-do completion flips it back to
+- **The sync is one-way (Momentum Huddle → Jira).** An **undo** (#3) of a to-do completion flips it back to
   OPEN in the sheet, but if the 10-min sync already closed the Jira issue, that issue stays Done.
   Word the undo so it doesn't promise to reopen Jira — or have undo also clear the `Jira Done`
   stamp so the next sync's idempotency is clean (a reopened OPEN to-do already has a `Jira Key`,
@@ -141,24 +141,24 @@ reusing `.btn.mini` so the visuals don't change. Size them ≥24px (folds in the
 - **Why corp-grade:** Focus Visible (WCAG 2.4.7 AA) and Keyboard (2.1.1 A) are the lowest
   non-negotiable bars in every VPAT — the first checkbox a buyer's accessibility team ticks.
 - **User value:** the timeboxed huddle can be driven cleanly from the keyboard against the
-  clock, and a screen-reader teammate can participate in rock/milestone tracking instead of
+  clock, and a screen-reader teammate can participate in priority/milestone tracking instead of
   being locked out.
 
-### 3 · Undo-on-toast + a Conclude confirm/summary  ·  impact 5 · effort M  ·  ✅ shipped v1.14
+### 3 · Undo-on-toast + a Wrap-up confirm/summary  ·  impact 5 · effort M  ·  ✅ shipped v1.14
 **Theme:** trust & reversibility · **Files:** `L10Js.html` · **Depends on:** none
 
-Add an inline **Undo** on the success toast for reversible mutations (solve, kill, park,
-todo-done, rock-status, drop-to-issue) that calls the paired reverse server fn
+Add an inline **Undo** on the success toast for reversible mutations (decide, kill, park,
+todo-done, priority-status, send-to-issue) that calls the paired reverse server fn
 (`reopenIssue`/`voteIssue`/`setTodoStatus` already exist — mostly wiring); keep that toast
 alive ~8s and raise the 5-item cap so an undoable action can't scroll off. For reset-votes,
-snapshot the prior vote map and restore. Separately, gate the **one-click Conclude** (which
+snapshot the prior vote map and restore. Separately, gate the **one-click Wrap-up** (which
 wipes `state.segue`/ratings/drafts) behind a lightweight confirm that doubles as a pre-flight
-summary: *"Concluding — N to-dos created, ratings X/10 from M people, recap copied?"*
+summary: *"Wrapping up — N to-dos created, ratings X/10 from M people, recap copied?"*
 
 - **Why corp-grade:** undo-on-toast is the defining safety pattern of Linear/Superhuman/Gmail
   (act first, undo cheaply). Today the trivial **Discard** is two-click-armed while the
-  *irreversible* **Conclude** is one click — backwards.
-- **User value:** a mis-click during the live meeting (wrong issue solved, votes wiped
+  *irreversible* **Wrap-up** is one click — backwards.
+- **User value:** a mis-click during the live meeting (wrong issue decided, votes wiped
   mid-prioritization) is recoverable in one click instead of hand-repairing an `L10_` row.
 - **⚠ Jira-safe:** undo of a to-do completion must still persist `Status` to the sheet, and
   should clear the `Jira Done` stamp (the sync is one-way — it won't auto-reopen a Jira issue).
@@ -170,15 +170,15 @@ summary: *"Concluding — N to-dos created, ratings X/10 from M people, recap co
 Add a **Present** control on the meeting view that opens the app at its own `doGet` URL in a
 full browser tab (escaping the cramped Sheets iframe), calls `requestFullscreen()`, and toggles
 a `body.present` class. Under that class: hide header/nav; scale the timer to a ~96–120px hero
-with a **non-color over-time pulse**; segment-rail names ~22px; scorecard cells ~20px; widen the
-IDS card and raise its title to ~30–34px; render data caveats **inline** under each metric
+with a **non-color over-time pulse**; segment-rail names ~22px; metrics cells ~20px; widen the
+Solve card and raise its title to ~30–34px; render data caveats **inline** under each metric
 instead of behind the hover icon. Weekly edits stay in the embed.
 
 - **Why corp-grade:** Linear/Superhuman-tier tools own the context they run in. A meeting app
   with no room mode reads as a personal utility someone happened to screen-share. The layout is
   already flex/grid, so this is mostly one CSS class plus a pop-out — and it folds four findings
-  (room mode, hero timer, IDS scaling, inline caveats) into one epic.
-- **User value:** the whole team reads the scorecard, countdown, and current IDS issue from
+  (room mode, hero timer, Solve scaling, inline caveats) into one epic.
+- **User value:** the whole team reads the metrics, countdown, and current Solve issue from
   across the table — and the GTM caveats the team cares about are finally visible *in the room*.
 
 ### 5 · Extract a render-helper component layer + the missing token scales  ·  impact 5 · effort L  ·  ✅ scales v1.15 · render-helper/pill refactor v2.8
@@ -204,7 +204,7 @@ variants into one `.pill` with tone+size modifiers, and the three input radii in
   *vocabulary* of components (cards/pills/buttons) but none of the encapsulation, so a restyle
   leaves half the screens on the old look. A 4pt grid + a fixed type ramp are the literal
   substrate of Linear/Asana polish.
-- **User value:** status reads identically on a scorecard row, a rock, a to-do, and the email;
+- **User value:** status reads identically on a metrics row, a priority, a to-do, and the email;
   every input looks the same mid-huddle; future Brady-theme/dark-mode work ships uniformly.
 - **⚠ Jira-safe:** the to-do render/edit refactor must keep the appended `Jira Key`/`Jira Done`
   columns intact (read rows by header name, append-only). See *Don't break the Jira sync* above.
@@ -224,8 +224,8 @@ are never drawn.
   metric's own status color or hides above/below target — Tufte's whole point about sparklines is
   the reference line. Right now the app's signature data-viz **actively misinforms** in a meeting
   whose only verb is "on/off track."
-- **User value:** in the 5-minute scorecard read the team sees direction-vs-goal at a glance
-  instead of a row of identical squiggles, so "drop it down" calls get faster and more honest.
+- **User value:** in the 5-minute metrics read the team sees direction-vs-goal at a glance
+  instead of a row of identical squiggles, so "send it to Issues" calls get faster and more honest.
 
 ### 7 · Surface the orphaned guide in-app + design the empty / first-run state  ·  impact 4 · effort M  ·  ✅ shipped v2.8
 **Theme:** states & onboarding · **Files:** `L10Index.html`, `L10Js.html`, `L10Css.html`, `L10Setup.gs` · **Depends on:** none
@@ -233,8 +233,8 @@ are never drawn.
 Wire the already-built 255-line `L10Guide` (today reachable **only** from the host Sheets menu,
 `L10Setup.gs:89`) into the SPA: add a **Guide / ?** button to the header nav that opens its
 content in the existing `.ids-overlay`/`.ids-card` modal. Then design one cohesive first-run:
-when there's no history and no rocks/issues, replace the bare start-screen tiles with a short
-**"Set up your huddle" checklist** (add scorecard metrics → add this quarter's rocks → run your
+when there's no history and no priorities/issues, replace the bare start-screen tiles with a short
+**"Set up your huddle" checklist** (add metrics → add this quarter's priorities → run your
 first huddle), and make the scattered per-page emoji empties use **consistent, action-oriented**
 copy. Fold in the manager-safe rewrite of the placeholder copy while you're here.
 
@@ -251,13 +251,13 @@ copy. Fold in the manager-safe rewrite of the placeholder copy while you're here
 **Theme:** single source of truth · **Files:** `L10Mail.gs` · **Depends on:** #1 (reconciled tokens/pill colors)
 
 Wrap every `htmlBody` in a minimal document shell (`DOCTYPE` + head + charset + viewport meta)
-with a hidden **preheader** span (*"Scorecard 7/9 on track, 2 rocks off track"*), routed through
+with a hidden **preheader** span (*"Metrics 7/9 on track, 2 priorities off track"*), routed through
 one shared `l10MailHeader_`/wrapper helper. Rebuild each email on a 600px
 `role=presentation` table with `bgcolor` fallbacks and an **MSO conditional** for the gradient
 header so Outlook desktop (Stuart's likely client) renders the brand band. Add one
-`@media(max-width:480px)` block that stacks the scorecard's Goal/Status, plus a bulletproof
+`@media(max-width:480px)` block that stacks the metrics' Goal/Status, plus a bulletproof
 "Open the huddle" footer button. Lead with **movement** — a "vs last week" delta arrow on the
-scorecard and a milestone progress bar on rocks.
+metrics and a milestone progress bar on priorities.
 
 - **Why corp-grade:** the weekly recap is the **most-seen surface** of this product and the one
   the manager judges it by. `div`-only mail with no preheader, no viewport, and no Outlook
@@ -267,10 +267,10 @@ scorecard and a milestone progress bar on rocks.
   the week's headline in the inbox preview and trajectory on every metric, instead of a
   flattened, sideways-panning dump.
 
-### 9 · Scorecard health roll-up · always-visible caveats · screen-reader plumbing  ·  impact 4 · effort M  ·  ✅ shipped v1.17
+### 9 · Metrics health roll-up · always-visible caveats · screen-reader plumbing  ·  impact 4 · effort M  ·  ✅ shipped v1.17
 **Theme:** honest data display · **Files:** `L10Js.html`, `L10Css.html` · **Depends on:** #1 (status tokens), #4 (shares inline-caveat pattern)
 
-Add a summary strip atop the Scorecard — *"On track X · Off track Y · Not captured Z"* as
+Add a summary strip atop the Metrics — *"On track X · Off track Y · Not captured Z"* as
 colored count chips (a trivial reduce over the `ruleCheck` data the page already computes) — plus
 a one-click **"off track first"** sort and a bolded current week. Replace the hover-only `title=`
 caveat icon with a **focus-reachable disclosure** (or always-on muted text, as the email already
@@ -279,33 +279,33 @@ status into the grid (▲/▼ or an on/off token, not hue alone); distinguish ca
 not-captured (hatched cell); add `role`/`aria-live` to the toast stack and the timer (one-shot at
 0:00, never per tick).
 
-- **Why corp-grade:** every corp-grade scorecard leads with the **aggregate health number**
+- **Why corp-grade:** every corp-grade metrics dashboard leads with the **aggregate health number**
   rather than making humans count red cells, and surfaces data-quality flags as first-class
   visible annotations (Looker/Mode known-issue banners). Use of Color (1.4.1 A), Content on
   Hover/Focus (1.4.13 AA) and Status Messages (4.1.3 AA) are among the most-cited VPAT failures —
   and the email already does the text-pill + inline-caveat right, making the grid a self-inconsistency.
-- **User value:** the team opens Scorecard and instantly knows the week's health; nobody calls a
+- **User value:** the team opens Metrics and instantly knows the week's health; nobody calls a
   polluted conversion number "on track" because the warning was one un-hoverable pixel away.
 
 ### 10 · Quiet the feedback layer · real timer controls · retire blanket `refresh()`  ·  impact 4 · effort M  ·  ✅ shipped v2.8
 **Theme:** trust & reversibility · **Files:** `L10Js.html`, `L10Index.html` · **Depends on:** #3 (shares toast-Undo plumbing)
 
 Drop *"Successfully"* from all **27** toast strings and reserve the green toast for consequential
-events (solve+todos, rock auto-DONE, hub send, conclude); let optimistic UI carry high-frequency
+events (decide+todos, priority auto-DONE, hub send, wrap-up); let optimistic UI carry high-frequency
 flips (vote, on/off-track, todo-done) **silently**. Fix the sync chip to say *"Loading…"* for
 reads vs *"Saving…"* for writes (it hard-codes `saving…` even during bootstrap). Give the segment
 timer **pause/resume + reset + "segment done"** (tracking paused time so elapsed stays truthful).
 Make error revert **surgical** — roll back the single mutated row instead of `refresh()`→`boot(true)`
-repainting the app out from under an open editor/IDS. Extract one `armedConfirm()` helper so every
+repainting the app out from under an open editor/Solve. Extract one `armedConfirm()` helper so every
 destructive confirm behaves identically.
 
 - **Why corp-grade:** Linear's hallmark is **near-silent success** — a toast per click is the
   signature of a tool that doesn't trust its own optimistic rendering. A timed-meeting product
   whose central timer can't be paused reads as a prototype, and corp-grade SPAs reconcile a single
   record on conflict rather than repainting the whole app and losing your place.
-- **User value:** during the rapid scorecard/rock pass the team isn't fighting a stream of green
+- **User value:** during the rapid metrics/priority pass the team isn't fighting a stream of green
   popups; the facilitator keeps an honest clock through interruptions; a stray background save
-  failure no longer interrupts whoever is mid-edit or mid-IDS.
+  failure no longer interrupts whoever is mid-edit or mid-Solve.
 - **⚠ Jira-safe:** surgical to-do revert must still write `Status` to the sheet (the Jira sync
   reads it server-side on a 10-min trigger, not from the client). See *Don't break the Jira sync* above.
 
@@ -326,33 +326,33 @@ moves the tier.
    4.5:1 contrast on muted text.
 4. **In-room / projection mode** — a deliberate present mode so the meeting lives on the shared
    screen, not in the driver's narration.
-5. **Trust & reversibility** — undo-on-toast, a confirm before the state-wiping Conclude, draft
+5. **Trust & reversibility** — undo-on-toast, a confirm before the state-wiping Wrap-up, draft
    persistence, surgical reconciliation instead of blanket repaint.
 6. **Honest data display** — sparklines that show magnitude-vs-goal, always-visible caveats, a
-   scorecard health roll-up, trend/delta carried into the exec email.
+   metrics health roll-up, trend/delta carried into the exec email.
 
 ---
 
 ## Honorable mentions (strong, didn't make the 10)
 
-- **Real product mark.** Replace the typed-string "L10" logo with an inline-SVG mark reused across
+- **Real product mark.** Replace the typed-string "Momentum Huddle" logo with an inline-SVG mark reused across
   app, guide, and email header — cheap every-screen polish.
-- **One icon set.** Replace functional emoji (rock/test/delete/info/sync/vote glyphs) with a
+- **One icon set.** Replace functional emoji (priority/test/delete/info/sync/vote glyphs) with a
   lightweight `currentColor` inline-SVG set matching the Experiment Hub; keep one decorative emoji
   for kudos.
-- **IDS dialog semantics.** Give the IDS overlay `role=dialog` + `aria-modal` +
+- **Solve dialog semantics.** Give the Solve overlay `role=dialog` + `aria-modal` +
   `aria-labelledby=.ids-title`, a Tab trap, and focus restore — a 508 reviewer reproduces the
   focus leak in 30 seconds.
 - **Persistent meeting in the IA.** A sticky-header chip showing current segment + remaining time
-  so the clock survives navigating to a reference tab mid-IDS.
+  so the clock survives navigating to a reference tab mid-Solve.
 - **Content skeletons.** Replace the lone boot spinner with skeletons shaped like the
-  tiles/segment-rail/scorecard rows so the room takes shape instead of blank-then-jump.
+  tiles/segment-rail/metrics rows so the room takes shape instead of blank-then-jump.
 - **Cheap VPAT line items.** Add a skip link, `nav aria-label`, and `aria-current=page` on the
   active nav button (active state is color-only today).
-- **Persist the Solve draft** on incidental Esc/backdrop close — notes autosave, but the
+- **Persist the Decide draft** on incidental Esc/backdrop close — notes autosave, but the
   hardest-won resolution wording is silently dropped.
 - **`ResizeObserver` on `.ms-tl`** instead of the global window-resize listener, so the to-scale
-  rock timeline relays out when the Sheets embed width changes (the one real correctness bug).
+  priority timeline relays out when the Sheets embed width changes (the one real correctness bug).
 - **Mirror the gold kudos card in the email** Headlines section (the kudos-detection regex already
   exists) so shout-outs land with the same warmth in the recap.
 - **Surface the Jira link in-app** (new — from the 2026-06-30 sync). A to-do that's been pushed to
@@ -368,8 +368,8 @@ moves the tier.
 ```
 Wave 1 (foundation + cheap wins) ✅ shipped v1.14   #1 tokens → #2 focus/keyboard → #3 undo/confirm
 Wave 2 (the system + the room)   ✅ v1.15 + v2.8    #5 token scales (v1.15) + render-helper/pill refactor (v2.8) + #4 present mode + #6 sparklines
-Wave 3 (the edges + the exec surface) ✅            #8 email v1.16 · #9 scorecard roll-up/a11y v1.17 · #7 guide/empty + #10 feedback/timer v2.8
-Post-roadmap (v2.8): IDS dialog semantics + focus restore · .ms-tl ResizeObserver · skeletons · skip link
+Wave 3 (the edges + the exec surface) ✅            #8 email v1.16 · #9 metrics roll-up/a11y v1.17 · #7 guide/empty + #10 feedback/timer v2.8
+Post-roadmap (v2.8): Solve dialog semantics + focus restore · .ms-tl ResizeObserver · skeletons · skip link
 ```
 
 `#1` gates the visual/email work; `#5` gates consistent restyling; `#2` and `#3` are independent

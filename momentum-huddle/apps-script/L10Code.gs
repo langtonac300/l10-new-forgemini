@@ -1,4 +1,4 @@
-// L10 Huddle — server API for the web app (called via google.script.run).
+// Momentum Huddle — server API for the web app (called via google.script.run).
 // All globals carry the l10 prefix so nothing collides in the global namespace.
 
 // The add-on always operates on the active spreadsheet (currentonly scope).
@@ -303,7 +303,7 @@ function l10ResolveRef_(cell) {
 }
 
 // Experiment Hub pulls (read-only). Cached 5 minutes — openByUrl on another
-// workbook costs seconds, and these two counts feed two scorecard tiles.
+// workbook costs seconds, and these two counts feed two metrics tiles.
 // Failure returns {error} — never throws. Errors are cached briefly too, so a
 // misconfigured hub URL can't make every boot pay the full openByUrl failure.
 // cacheOnly: return the cached value or {pending:true} — NEVER openByUrl. The
@@ -364,7 +364,7 @@ function l10_hubCounts() {
   return l10HubCounts_(l10Config_(), false);
 }
 
-// Outcome review on a SOLVED issue ("did the fix hold?"), asked by the Conclude
+// Outcome review on a SOLVED issue ("did the fix hold?"), asked by the Wrap-up
 // segment once Review On comes due. LATER pushes the review out two weeks and
 // stores nothing — an outcome is only ever a deliberate verdict.
 function l10_setIssueOutcome(id, verdict) {
@@ -390,9 +390,9 @@ function l10_setIssueOutcome(id, verdict) {
 // ---------------------------------------------------------------------------
 // Pre-huddle brief intake (doPost) + promote plumbing.
 //
-// The brief is pushed in from outside as JSON — ranked IDS candidates with the
+// The brief is pushed in from outside as JSON — ranked Solve candidates with the
 // evidence and caveats already attached — and rendered on the start screen and
-// in IDS. This is the ONLY doPost in the shared project (doGet lives in
+// in Solve. This is the ONLY doPost in the shared project (doGet lives in
 // L10Setup.gs); if another module ever needs POST, multiplex inside this one.
 //
 // Contract (POST to the /exec web-app URL, JSON body):
@@ -424,7 +424,7 @@ function doPost(e) {
     catch (pe) { return out({ ok: false, error: 'Body is not valid JSON.' }); }
     var want = '';
     try { want = PropertiesService.getScriptProperties().getProperty('L10_BRIEF_TOKEN') || ''; } catch (te) {}
-    if (!want) return out({ ok: false, error: 'Intake is not enabled — set the token first (L10 Huddle → Brief → Set intake token).' });
+    if (!want) return out({ ok: false, error: 'Intake is not enabled — set the token first (Momentum Huddle → Brief → Set intake token).' });
     if (String(body.token || '') !== want) return out({ ok: false, error: 'Bad token.' });
 
     var weekOf = /^\d{4}-\d{2}-\d{2}$/.test(String(body.weekOf || '')) ? String(body.weekOf) : l10WeekOf_();
@@ -527,7 +527,7 @@ function l10BriefFor_(weekOf) {
 }
 
 // One tap on a docket item makes it a real issue, evidence pre-filled into the
-// IDS Identify notes. Idempotent: a docket row already promoted returns the
+// Solve Identify notes. Idempotent: a docket row already promoted returns the
 // existing issue instead of minting a duplicate.
 function l10_promoteBriefItem(weekOf, rank) {
   var tab = l10ReadTab_(L10.TABS.BRIEF);
@@ -632,7 +632,7 @@ function l10BriefSelfTest() {
   if (!url) return { ok: false, error: 'No web app URL — deploy first, then Brief → Set web app URL… and paste the /exec link.' };
   var tok = '';
   try { tok = PropertiesService.getScriptProperties().getProperty('L10_BRIEF_TOKEN') || ''; } catch (e) {}
-  if (!tok) return { ok: false, error: 'No intake token set — L10 Huddle → Brief → Set intake token… first.' };
+  if (!tok) return { ok: false, error: 'No intake token set — Momentum Huddle → Brief → Set intake token… first.' };
   var payload = {
     token: tok,
     brief: [
@@ -716,7 +716,7 @@ function l10MenuBriefStatus() {
 // ---------------------------------------------------------------------------
 
 // Core: everything the first paint needs — config/team/segments, the meeting
-// state, the events strip, scorecard packs + GA4 catalog, the (cached) hub
+// state, the events strip, metric packs + GA4 catalog, the (cached) hub
 // counts, and this week's pre-huddle brief. Three tab reads; the Settings-only
 // notify/digests tables moved to l10_settingsData (fetched when that page is
 // actually opened), and the hub pull is cache-only here.
@@ -725,7 +725,7 @@ function l10BootCore_() {
   var team = String(config.TEAM || '').split(',').map(function (s) { return s.trim(); }).filter(String);
   var segments;
   try { segments = JSON.parse(config.SEGMENTS); } catch (e) {
-    segments = [['Segue', 5], ['Scorecard', 5], ['Rock review', 5], ['Headlines', 5], ['To-do list', 5], ['IDS', 60], ['Conclude', 5]];
+    segments = [['Check-in', 5], ['Metrics', 5], ['Priority review', 5], ['Headlines', 5], ['To-do list', 5], ['IDS', 60], ['Wrap-up', 5]];
   }
   var meetings = l10ReadTab_(L10.TABS.MEETINGS).rows.map(l10Sanitize_);
   var open = meetings.filter(function (m) { return String(m['Status']) === 'OPEN'; });
@@ -847,7 +847,7 @@ function l10BootPlan_() {
   };
 }
 
-// Scorecard: definitions + the visible window of weekly values. History
+// Metrics: definitions + the visible window of weekly values. History
 // outside the trailing window stays in the tab (the payload stays flat no
 // matter how many years a team captures). Two tab reads.
 function l10BootScorecard_() {
@@ -914,7 +914,7 @@ function l10_startMeeting(attendees) {
       l10SetCells_(L10.TABS.MEETINGS, String(m['ID']), {
         'Status': 'CONCLUDED',
         'Concluded At': l10Now_(),
-        'Notes': (String(m['Notes'] || '') + ' [auto-closed — never concluded]').trim()
+        'Notes': (String(m['Notes'] || '') + ' [auto-closed — never wrapped up]').trim()
       });
     }
   });
@@ -960,16 +960,16 @@ function l10_concludeMeeting(meetingId, payload) {
     if (String(m['ID']).trim() === String(meetingId).trim()) meeting = m;
   });
   if (!meeting) return { ok: false, error: 'Meeting ' + meetingId + ' not found in ' + L10.TABS.MEETINGS + ' — reload and try again.' };
-  if (String(meeting['Status']) !== 'OPEN') return { ok: false, error: 'This meeting is already concluded.' };
+  if (String(meeting['Status']) !== 'OPEN') return { ok: false, error: 'This meeting is already wrapped up.' };
 
   var meetingDate = l10Today_();
   var weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   var weekAgoStr = l10Fmt_(weekAgo, 'yyyy-MM-dd');
-  // Advance the carry counters before reading the list, so a huddle concluded
+  // Advance the carry counters before reading the list, so a huddle wrapped up
   // in a week the sweep hadn't reached yet still shows the true carry count.
-  // The sweep owns the increment now (l10SweepCarries_) — concluding no longer
-  // does it inline, so skipping Conclude no longer freezes the staleness signal.
+  // The sweep owns the increment now (l10SweepCarries_) — wrapping up no longer
+  // does it inline, so skipping Wrap-up no longer freezes the staleness signal.
   l10SweepCarriesIfDue_();
   var todos = l10ReadTab_(L10.TABS.TODOS);
   var done = 0, openOverdue = 0;
@@ -1014,11 +1014,11 @@ function l10_concludeMeeting(meetingId, payload) {
 }
 
 // ---------------------------------------------------------------------------
-// Scorecard
+// Metrics
 // ---------------------------------------------------------------------------
 
 // Captures one week's column: auto-pulls RANGE metrics, takes manual values
-// from the client, upserts into the scorecard data tab. Returns what was
+// from the client, upserts into the metrics data tab. Returns what was
 // written plus notes for anything that could not be read or parsed.
 function l10_captureWeek(weekOf, manual) {
   manual = manual || {};
@@ -1156,7 +1156,7 @@ function l10_captureWeek(weekOf, manual) {
 }
 
 // ---------------------------------------------------------------------------
-// Scorecard builder — metrics are created/edited from the app, never by hand
+// Metrics builder — metrics are created/edited from the app, never by hand
 // in the tab. Columns: ID, Metric, Owner, Format, Rule, Goal, Goal 2, Source,
 // Source Ref, Caveat, Active, Sort.
 // ---------------------------------------------------------------------------
@@ -1236,8 +1236,8 @@ function l10_testRangeRef(ref) {
   return res.value === null ? { ok: false, why: res.why } : { ok: true, value: res.value };
 }
 
-// Starter metric packs — one click on an empty scorecard (or from the setup
-// wizard) seeds a working scorecard; owners round-robin the roster.
+// Starter metric packs — one click on an empty Metrics page (or from the setup
+// wizard) seeds a working set of metrics; owners round-robin the roster.
 var L10_METRIC_PACKS = [
   { id: 'sales', name: 'Sales', icon: '💼', metrics: [
     ['Pipeline created ($)', 'usd', '>=', 50000, ''],
@@ -1303,13 +1303,13 @@ function l10_addMetricPack(packId) {
 }
 
 // ---------------------------------------------------------------------------
-// Rocks
+// Priorities
 // ---------------------------------------------------------------------------
 
 function l10_setRockStatus(id, status) {
   if (L10.ROCK_STATUSES.indexOf(status) === -1) return { ok: false, error: 'Bad status' };
   var wrote = l10SetCells_(L10.TABS.ROCKS, id, { 'Status': status, 'Status Updated': l10Today_() });
-  return wrote ? { ok: true, status: status } : { ok: false, error: 'Rock ' + id + ' not found.' };
+  return wrote ? { ok: true, status: status } : { ok: false, error: 'Priority ' + id + ' not found.' };
 }
 
 // ---------------------------------------------------------------------------
@@ -1342,7 +1342,7 @@ function l10_editTodo(id, p) {
 
 function l10_editRock(id, p) {
   p = p || {};
-  if (!String(p.text || '').trim()) return { ok: false, error: 'Rock needs a title.' };
+  if (!String(p.text || '').trim()) return { ok: false, error: 'Priority needs a title.' };
   if (!l10DueOk_(p.due)) return { ok: false, error: 'Bad due date.' };
   var updates = { 'Rock': p.text, 'Owner': p.owner || '', 'Due': p.due || '' };
   // Only fields the client sent are written — an older edit form must never
@@ -1353,10 +1353,10 @@ function l10_editRock(id, p) {
     // l10SetCells_ skips headers the sheet doesn't have, which would make
     // linking a metric a silent no-op on a pre-repair tab — fail loudly instead.
     if (metricId && l10ReadTab_(L10.TABS.ROCKS).headers.indexOf('Metric ID') === -1) {
-      return { ok: false, error: 'L10_Rocks has no Metric ID column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+      return { ok: false, error: 'L10_Rocks has no Metric ID column yet — run Momentum Huddle → Setup / repair tabs once, then retry.' };
     }
     if (metricId && !l10RockMetricOk_(metricId)) {
-      return { ok: false, error: 'Metric ' + metricId + ' is not on the scorecard.' };
+      return { ok: false, error: 'Metric ' + metricId + ' is not on the metrics list.' };
     }
     updates['Metric ID'] = metricId;
   }
@@ -1384,7 +1384,7 @@ function l10_editIssue(id, p) {
   });
 }
 
-// The Metric ID a rock points at must be a real scorecard row — a typo'd link
+// The Metric ID a priority points at must be a real metrics row — a typo'd link
 // would just render nothing forever, so it's rejected at write time.
 function l10RockMetricOk_(metricId) {
   return l10ReadTab_(L10.TABS.SCORECARD).rows.some(function (d) {
@@ -1393,7 +1393,7 @@ function l10RockMetricOk_(metricId) {
 }
 
 function l10_addRock(p) {
-  if (!p || !p.title) return { ok: false, error: 'Rock needs a title.' };
+  if (!p || !p.title) return { ok: false, error: 'Priority needs a title.' };
   var headers = l10ReadTab_(L10.TABS.ROCKS).headers;
   var metricId = String(p.metricId || '').trim();
   var source = String(p.source || '').trim();
@@ -1401,17 +1401,17 @@ function l10_addRock(p) {
   // needs the repaired tab — fail loudly, never a silent drop (rule: see
   // l10_issueNeedsData).
   if (metricId && headers.indexOf('Metric ID') === -1) {
-    return { ok: false, error: 'L10_Rocks has no Metric ID column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+    return { ok: false, error: 'L10_Rocks has no Metric ID column yet — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   }
   if (source && headers.indexOf('Source') === -1) {
-    return { ok: false, error: 'L10_Rocks has no Source column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+    return { ok: false, error: 'L10_Rocks has no Source column yet — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   }
   if (metricId && !l10RockMetricOk_(metricId)) {
-    return { ok: false, error: 'Metric ' + metricId + ' is not on the scorecard.' };
+    return { ok: false, error: 'Metric ' + metricId + ' is not on the metrics list.' };
   }
   var id = l10NextId_(L10.TABS.ROCKS, 'RK');
-  // p.shift is the four-shift strategic tag from the add-rock form (Shift 1–4);
-  // it writes into the Shift column and renders as a tag on the rock card.
+  // p.shift is the four-shift strategic tag from the add-priority form (Shift 1–4);
+  // it writes into the Shift column and renders as a tag on the priority card.
   var arr = [
     id, p.title, p.owner || '', p.due || '', p.shift || '', p.accounts || '',
     'ON TRACK', p.done || '', p.notes || '', l10Today_(), l10Today_()
@@ -1427,30 +1427,30 @@ function l10_addRock(p) {
 }
 
 // ---------------------------------------------------------------------------
-// Rock milestones
+// Priority milestones
 // ---------------------------------------------------------------------------
 
-// Add a milestone to a rock. Due is required — the timeline places each
+// Add a milestone to a priority. Due is required — the timeline places each
 // milestone by date, so an undated milestone has nowhere to live.
 function l10_addMilestone(p) {
-  if (!p || !p.rockId) return { ok: false, error: 'Milestone needs a rock.' };
+  if (!p || !p.rockId) return { ok: false, error: 'Milestone needs a priority.' };
   if (!p.text) return { ok: false, error: 'Milestone needs a name.' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(p.due || ''))) return { ok: false, error: 'Milestone needs a due date.' };
   var found = l10ReadTab_(L10.TABS.ROCKS).rows.some(function (r) {
     return String(r['ID']).trim() === String(p.rockId).trim();
   });
-  if (!found) return { ok: false, error: 'Rock ' + p.rockId + ' not found.' };
+  if (!found) return { ok: false, error: 'Priority ' + p.rockId + ' not found.' };
   var sheet = l10Ss_().getSheetByName(L10.TABS.MILESTONES);
-  if (!sheet) return { ok: false, error: 'No L10_Rock_Milestones tab — run L10 Huddle → Setup / repair tabs first.' };
+  if (!sheet) return { ok: false, error: 'No L10_Rock_Milestones tab — run Momentum Huddle → Setup / repair tabs first.' };
   var id = l10NextId_(L10.TABS.MILESTONES, 'MS');
   var row = l10Append_(L10.TABS.MILESTONES, [id, String(p.rockId), p.text, p.due, 'OPEN', '', l10Today_(), p.notes || '']);
   return { ok: true, id: id, row: row };
 }
 
 // Flip a milestone OPEN/DONE. Completing the LAST open milestone marks the
-// rock itself DONE (the rock is the sum of its milestones). Reopening one
-// does NOT silently reopen a DONE rock — that stays a deliberate call on
-// the rock's own buttons.
+// priority itself DONE (the priority is the sum of its milestones). Reopening one
+// does NOT silently reopen a DONE priority — that stays a deliberate call on
+// the priority's own buttons.
 function l10_setMilestoneStatus(id, status) {
   if (L10.MILESTONE_STATUSES.indexOf(status) === -1) return { ok: false, error: 'Bad status' };
   var wrote = l10SetCells_(L10.TABS.MILESTONES, id, {
@@ -1482,10 +1482,10 @@ function l10_setMilestoneStatus(id, status) {
   return out;
 }
 
-// Delete re-evaluates the parent rock the same way completing does
+// Delete re-evaluates the parent priority the same way completing does
 // (l10_setMilestoneStatus): removing the LAST open milestone leaves the plan
-// fully done, so the rock flips DONE too — but only when milestones remain;
-// a rock whose only milestone was deleted is unplanned, not done.
+// fully done, so the priority flips DONE too — but only when milestones remain;
+// a priority whose only milestone was deleted is unplanned, not done.
 function l10_deleteMilestone(id) {
   var tab = l10ReadTab_(L10.TABS.MILESTONES);
   for (var i = 0; i < tab.rows.length; i++) {
@@ -1562,12 +1562,12 @@ function l10PrettyDate_(ymd) {
 }
 
 // One consistent chat line for a to-do event, e.g.
-//   ✅ *L10 To-Do - Complete* - Ana - Fix the weekly report
-//   📝 *L10 To-Do - Added* - Ben - Draft the survey questions  _(due Jun 30)_
+//   ✅ *Momentum Huddle To-Do - Complete* - Ana - Fix the weekly report
+//   📝 *Momentum Huddle To-Do - Added* - Ben - Draft the survey questions  _(due Jun 30)_
 function l10TodoChatLine_(action, owner, task, due) {
   var icon = action === 'Complete' ? '✅' : action === 'Blocked' ? '⛔' : '📝';
   var who = String(owner || '').trim() || 'Unassigned';
-  var line = icon + ' *L10 To-Do - ' + action + '* - ' + who + ' - ' + String(task || '').trim();
+  var line = icon + ' *Momentum Huddle To-Do - ' + action + '* - ' + who + ' - ' + String(task || '').trim();
   if (action === 'Added' && due) line += '  _(due ' + l10PrettyDate_(due) + ')_';
   return line;
 }
@@ -1579,7 +1579,7 @@ function l10SendTodoChatTest_() {
     return { ok: false, error: 'No webhook URL set — add CHAT_WEBHOOK_URL in L10_Config (or the L10_CHAT_WEBHOOK_URL script property).' };
   }
   return l10NotifyChat_(
-      l10TodoChatLine_('Complete', 'Test', 'Webhook test from the L10 Huddle — safe to ignore.'),
+      l10TodoChatLine_('Complete', 'Test', 'Webhook test from Momentum Huddle — safe to ignore.'),
       config);
 }
 
@@ -1636,9 +1636,9 @@ function l10NotifyPrefFor_(name, prefs) {
   return prefs[String(name || '').trim().toLowerCase()] || l10NotifyDefaults_();
 }
 
-// Should this person get the recap for a huddle concluded on huddleDate?
+// Should this person get the recap for a huddle wrapped up on huddleDate?
 // EVERY always; OFF never; BIWEEKLY on even week-of-epoch huddles; MONTHLY only on
-// the first concluded huddle of that calendar month. A pure function of the date +
+// the first wrapped-up huddle of that calendar month. A pure function of the date +
 // the meeting history — no per-person "already sent" bookkeeping needed.
 function l10RecapDueFor_(recap, huddleDate, meetings) {
   recap = String(recap || 'EVERY').toUpperCase();
@@ -1690,7 +1690,7 @@ function l10_getNotifyPrefs() {
 function l10_saveNotifyPrefs(rows) {
   if (!Array.isArray(rows)) return { ok: false, error: 'Bad payload.' };
   var sheet = l10Ss_().getSheetByName(L10.TABS.NOTIFY);
-  if (!sheet) return { ok: false, error: 'No L10_Notify tab — run L10 Huddle → Setup / repair tabs once, then retry.' };
+  if (!sheet) return { ok: false, error: 'No L10_Notify tab — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   var tab = l10ReadTab_(L10.TABS.NOTIFY);
   var rowByName = {};
   tab.rows.forEach(function (r) { rowByName[String(r['Person']).trim().toLowerCase()] = r._row; });
@@ -1806,7 +1806,7 @@ function l10_getDigests() {
 function l10_saveDigests(rules) {
   if (!Array.isArray(rules)) return { ok: false, error: 'Bad payload.' };
   var sheet = l10Ss_().getSheetByName(L10.TABS.DIGESTS);
-  if (!sheet) return { ok: false, error: 'No L10_Digests tab — run L10 Huddle → Setup / repair tabs once, then retry.' };
+  if (!sheet) return { ok: false, error: 'No L10_Digests tab — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   var headers = L10.HEADERS.L10_Digests, nCols = headers.length;
 
   // Preserve Last Sent for kept ids; track the max existing D-### to mint new ones.
@@ -1904,7 +1904,7 @@ function l10TodoDupes_(text, owner) {
 }
 
 // Carry counting used to live inside l10_concludeMeeting, so a week where nobody
-// pressed Conclude never advanced it — the staleness signal the To-dos page leans
+// pressed Wrap-up never advanced it — the staleness signal the To-dos page leans
 // on silently under-reported. It's now an idempotent weekly sweep: each still-owed,
 // past-due to-do advances at most once per calendar week, stamped in
 // 'Last Carried Week'. Re-running in the same week is a no-op.
@@ -1984,7 +1984,7 @@ function l10SweepCarriesIfDue_() {
 function l10_addTodo(p) {
   if (!p || !p.text) return { ok: false, error: 'To-do needs text.' };
   // Duplicate warning is opt-in per call site: the composer and the quick-add
-  // dialogs ask for it, the machine-driven paths (IDS solve, weekly respawn,
+  // dialogs ask for it, the machine-driven paths (Solve, weekly respawn,
   // "bring the data") never do — a prompt there would stall a save mid-huddle.
   if (p.checkDupe && !p.allowDupe) {
     var dupes = l10TodoDupes_(p.text, p.owner);
@@ -2244,7 +2244,7 @@ function l10_addTodoLog(p) {
   if (!p.note) return { ok: false, error: 'Note needs text.' };
   if (!l10TodoExists_(p.todoId)) return { ok: false, error: 'To-do ' + p.todoId + ' not found.' };
   var row = l10TodoLogAppend_(p.todoId, p.note, p.who);
-  if (!row) return { ok: false, error: 'No L10_Todo_Log tab — run L10 Huddle → Setup / repair tabs first.' };
+  if (!row) return { ok: false, error: 'No L10_Todo_Log tab — run Momentum Huddle → Setup / repair tabs first.' };
   return { ok: true, row: row };
 }
 
@@ -2253,7 +2253,7 @@ function l10_addTodoStep(p) {
   if (!p.text) return { ok: false, error: 'Step needs a name.' };
   if (!l10TodoExists_(p.todoId)) return { ok: false, error: 'To-do ' + p.todoId + ' not found.' };
   var sheet = l10Ss_().getSheetByName(L10.TABS.TODO_STEPS);
-  if (!sheet) return { ok: false, error: 'No L10_Todo_Steps tab — run L10 Huddle → Setup / repair tabs first.' };
+  if (!sheet) return { ok: false, error: 'No L10_Todo_Steps tab — run Momentum Huddle → Setup / repair tabs first.' };
   var id = l10NextId_(L10.TABS.TODO_STEPS, 'TS');
   var row = l10Append_(L10.TABS.TODO_STEPS, [
     id, String(p.todoId), String(p.text).slice(0, 300), 'OPEN', '', l10Today_()
@@ -2262,7 +2262,7 @@ function l10_addTodoStep(p) {
 }
 
 // Completing the LAST open step marks the to-do DONE — the same roll-up
-// l10_setMilestoneStatus applies to a rock. Reopening a step does NOT reopen a
+// l10_setMilestoneStatus applies to a priority. Reopening a step does NOT reopen a
 // DONE to-do; that stays a deliberate call on the to-do's own buttons.
 function l10_setTodoStepStatus(id, status) {
   if (L10.TODO_STEP_STATUSES.indexOf(status) === -1) return { ok: false, error: 'Bad status' };
@@ -2336,7 +2336,7 @@ function l10_deleteTodoStep(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Issues (IDS)
+// Issues (Solve)
 // ---------------------------------------------------------------------------
 
 function l10_addIssue(p) {
@@ -2395,7 +2395,7 @@ function l10_resetVotes() {
 }
 
 // Solve: record the resolution (+ solving notes), optionally spawn to-dos from it.
-// Also stamps Review On (today + OUTCOME_REVIEW_WEEKS) so the Conclude segment
+// Also stamps Review On (today + OUTCOME_REVIEW_WEEKS) so the Wrap-up segment
 // circles back and asks whether the fix actually held — l10SetCells_ skips the
 // header on a pre-upgrade tab, so this degrades gracefully.
 function l10_solveIssue(id, meetingId, solution, todos, notes) {
@@ -2446,7 +2446,7 @@ function l10_promoteIssue(id, p) {
   // Validate the Source column BEFORE any side effects — otherwise the issue
   // could close as promoted while the priority loses its back-link.
   if (l10ReadTab_(L10.TABS.ROCKS).headers.indexOf('Source') === -1) {
-    return { ok: false, error: 'L10_Rocks has no Source column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+    return { ok: false, error: 'L10_Rocks has no Source column yet — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   }
   var issue = null;
   l10ReadTab_(L10.TABS.ISSUES).rows.forEach(function (r) {
@@ -2479,7 +2479,7 @@ function l10_issueNeedsData(id, p) {
   if (!text) return { ok: false, error: 'Say what data is needed.' };
   var tab = l10ReadTab_(L10.TABS.ISSUES);
   if (tab.headers.indexOf('Waiting On') === -1) {
-    return { ok: false, error: 'L10_Issues has no Waiting On column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+    return { ok: false, error: 'L10_Issues has no Waiting On column yet — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   }
   var issue = null;
   tab.rows.forEach(function (r) {
@@ -2561,7 +2561,7 @@ function l10HeadlineLive_(h) {
 // never a silent no-op — when the Status column hasn't been added yet.
 function l10SetHeadlineStatus_(id, status) {
   if (l10ReadTab_(L10.TABS.HEADLINES).headers.indexOf('Status') === -1) {
-    return { ok: false, error: 'L10_Headlines has no Status column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+    return { ok: false, error: 'L10_Headlines has no Status column yet — run Momentum Huddle → Setup / repair tabs once, then retry.' };
   }
   var wrote = l10SetCell_(L10.TABS.HEADLINES, id, 'Status', status);
   return wrote ? { ok: true, status: status } : { ok: false, error: 'Headline ' + id + ' not found.' };
@@ -2571,8 +2571,8 @@ function l10_killHeadline(id) { return l10SetHeadlineStatus_(id, 'KILLED'); }
 function l10_reviveHeadline(id) { return l10SetHeadlineStatus_(id, ''); }
 
 // ---------------------------------------------------------------------------
-// Quick add (menu dialogs) — add headlines / issues / to-dos / rocks, or
-// capture the scorecard week, straight from the L10 Huddle menu without
+// Quick add (menu dialogs) — add headlines / issues / to-dos / priorities, or
+// capture the metrics week, straight from the Momentum Huddle menu without
 // opening the full app. One templated dialog (QuickAdd.html) per mode;
 // every row funnels through the SAME single-add functions the app uses
 // (l10_addHeadline / l10_addIssue / l10_addTodoMulti / l10_addRock /
@@ -2584,8 +2584,8 @@ var L10_QUICK_TITLES = {
   headline: 'Add headlines',
   issue: 'Add issues',
   todo: 'Add to-dos',
-  rock: 'Add rocks',
-  scorecard: 'Update scorecard'
+  rock: 'Add priorities',
+  scorecard: 'Update metrics'
 };
 
 function l10QuickAddHeadlines() { l10QuickAddDialog_('headline'); }
@@ -2601,7 +2601,7 @@ function l10QuickAddDialog_(mode) {
   t.modeJson = JSON.stringify(String(mode));
   t.bootJson = JSON.stringify(l10QuickBoot_(mode)).replace(/</g, '\\u003c');
   var html = t.evaluate().setWidth(900).setHeight(620);
-  SpreadsheetApp.getUi().showModalDialog(html, L10_QUICK_TITLES[mode] || 'L10 quick add');
+  SpreadsheetApp.getUi().showModalDialog(html, L10_QUICK_TITLES[mode] || 'Quick add');
 }
 
 // The little the dialog needs: roster + tag lists, and for scorecard mode the

@@ -27,7 +27,7 @@
 
   const CONFIG = {
     TEAM: TEAM.join(', '),
-    SEGMENTS: JSON.stringify([['Segue', 5], ['Scorecard', 5], ['Rock review', 5], ['Headlines', 5], ['To-do list', 5], ['IDS', 60], ['Conclude', 5]]),
+    SEGMENTS: JSON.stringify([['Check-in', 5], ['Metrics', 5], ['Priority review', 5], ['Headlines', 5], ['To-do list', 5], ['IDS', 60], ['Wrap-up', 5]]),
     SCORECARD_WEEKS: '13',
     TODO_DONE_TARGET: '90',
     RATING_BAR: '8',
@@ -51,7 +51,7 @@
     bday: { n: 19, total: 23 },
     fiscal: { fy: 'FY26', q: 'Q4' },
     events: [
-      { 'Start Date': fmt(shiftDays(NOW, 4)), 'End Date': fmt(shiftDays(NOW, 4)), 'Event': 'FY27 starts', 'Notes': 'Rock reset' },
+      { 'Start Date': fmt(shiftDays(NOW, 4)), 'End Date': fmt(shiftDays(NOW, 4)), 'Event': 'FY27 starts', 'Notes': 'Priority reset' },
       { 'Start Date': fmt(shiftDays(NOW, 27)), 'End Date': fmt(shiftDays(NOW, 30)), 'Event': 'Grand Geneva sales meeting', 'Notes': '' }
     ],
     openMeeting: null,
@@ -172,7 +172,7 @@
     return out;
   }
 
-  // #firstrun: an empty workspace — no history, rocks, or metrics — so the
+  // #firstrun: an empty workspace — no history, priorities, or metrics — so the
   // start screen's setup checklist path can be exercised.
   if (location.hash === '#firstrun') {
     CORE.history = [];
@@ -231,7 +231,7 @@
     l10_deleteTodoStep: ok,
     l10_addTodoLog: function (todoId, note) { idSeq++; return { ok: true, entry: { 'ID': 'TL-' + idSeq, 'Todo ID': todoId, 'At': TODAY + ' 10:00', 'Who': 'Alex', 'Note': note } }; },
 
-    // Issues / IDS
+    // Issues / Solve
     l10_addIssue: function (payload) { idSeq++; return { ok: true, issue: { 'ID': 'IS-' + idSeq, 'Issue': (payload && payload.text) || 'New issue', 'Raised By': 'Alex', 'Raised': TODAY, 'Accounts': '', 'Category': '', 'Votes': 0, 'Status': 'OPEN', 'Park With': '', 'Resolution': '', 'Solved In': '', 'Notes': '', 'Identified': '', 'Discussed': '', 'Outcome': '', 'Outcome At': '', 'Review On': '', 'Waiting On': '' } }; },
     l10_editIssue: ok,
     l10_voteIssue: function (id, n) { return { ok: true, id: id, votes: n }; },
@@ -265,12 +265,12 @@
       };
     })(),
 
-    // Headlines / rocks / milestones
+    // Headlines / priorities / milestones
     l10_addHeadline: function (payload) { idSeq++; return { ok: true, headline: { 'ID': 'HL-' + idSeq, 'Date': TODAY, 'Type': (payload && payload.type) || 'FYI', 'Headline': (payload && payload.text) || 'New', 'By': 'Alex', 'Cascade': '', 'Meeting ID': '', 'Status': '' } }; },
     l10_killHeadline: ok,
     l10_reviveHeadline: ok,
     l10_toggleCascade: ok,
-    l10_addRock: function (payload) { idSeq++; return { ok: true, rock: { 'ID': 'RK-' + idSeq, 'Rock': (payload && payload.text) || 'New rock', 'Owner': 'Alex', 'Due': '', 'Shift': '', 'Accounts': '', 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': '', fq: '' } }; },
+    l10_addRock: function (payload) { idSeq++; return { ok: true, rock: { 'ID': 'RK-' + idSeq, 'Rock': (payload && payload.text) || 'New priority', 'Owner': 'Alex', 'Due': '', 'Shift': '', 'Accounts': '', 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': '', fq: '' } }; },
     l10_setRockStatus: ok,
     l10_editRock: ok,
     l10_addMilestone: function (rockId, text, due) { idSeq++; return { ok: true, milestone: { 'ID': 'MS-' + idSeq, 'Rock ID': rockId, 'Milestone': text, 'Due': due || '', 'Status': 'OPEN', 'Done At': '', 'Created': TODAY, 'Notes': '' }, rockDone: false }; },
@@ -278,7 +278,7 @@
     l10_editMilestone: ok,
     l10_deleteMilestone: ok,
 
-    // Scorecard
+    // Metrics
     l10_captureWeek: { ok: true, captured: 3, skipped: [] },
     l10_addMetric: function (payload) { idSeq++; return { ok: true, metric: { 'ID': 'SC-' + idSeq, 'Metric': (payload && payload.name) || 'New metric', 'Owner': 'Alex', 'Format': '#', 'Rule': '>=', 'Goal': 0, 'Goal 2': '', 'Source': 'MANUAL', 'Source Ref': '', 'Caveat': '', 'Active': 'YES', 'Sort': 99 } }; },
     l10_addMetricPack: { ok: true, added: 3 },

@@ -407,12 +407,12 @@ footer{padding:var(--s-8) 0 var(--s-10);color:var(--faint);font-size:var(--t-12)
     <ul class="mentions">
       <li><b>Real product mark.</b> Replace the typed-string “Momentum Huddle” logo with an inline-SVG mark reused across app, guide and email.</li>
       <li><b>One icon set.</b> Swap functional emoji for a lightweight <code>currentColor</code> inline-SVG set matching the Experiment Hub.</li>
-      <li><b>IDS dialog semantics.</b> <code>role=dialog</code> + <code>aria-modal</code> + Tab trap + focus restore — a 508 reviewer reproduces the focus leak in 30s.</li>
+      <li><b>Solve dialog semantics.</b> <code>role=dialog</code> + <code>aria-modal</code> + Tab trap + focus restore — a 508 reviewer reproduces the focus leak in 30s.</li>
       <li><b>Persistent meeting in the IA.</b> A sticky-header chip with current segment + remaining time so the clock survives navigating away.</li>
       <li><b>Content skeletons</b> shaped like the tiles/rail/rows instead of the lone boot spinner.</li>
       <li><b>Cheap VPAT line items:</b> skip link, <code>nav aria-label</code>, <code>aria-current=page</code> on the active nav button.</li>
-      <li><b>Persist the Solve draft</b> on incidental Esc/backdrop close — the hardest-won resolution wording is silently dropped today.</li>
-      <li><b>ResizeObserver on <code>.ms-tl</code></b> so the rock timeline relays out on embed-width change (the one real correctness bug).</li>
+      <li><b>Persist the Decide draft</b> on incidental Esc/backdrop close — the hardest-won resolution wording is silently dropped today.</li>
+      <li><b>ResizeObserver on <code>.ms-tl</code></b> so the priority timeline relays out on embed-width change (the one real correctness bug).</li>
       <li><b>Mirror the gold kudos card in the email</b> Headlines section — the detection regex already exists.</li>
       <li><b>Surface the Jira link in-app</b> <i>(new — from the 2026-06-30 sync).</i> A synced to-do now carries a <code>Jira Key</code> but the app shows nothing — render a <code>BNADM-398 ↗</code> chip (links to the issue) + a muted “syncing…” state, so the room sees a commitment is tracked on the board.</li>
     </ul>
@@ -421,7 +421,7 @@ footer{padding:var(--s-8) 0 var(--s-10);color:var(--faint);font-size:var(--t-12)
 
 <footer>
   <div class="wrap">
-    Structured multi-lens design review of the L10 Huddle front end (<span class="files">L10Css · L10Index · L10Js · L10Guide</span> and the <span class="files">L10Mail</span> HTML builders), against the polish bar of best-in-class SaaS. 78 grounded findings scored and de-duplicated into the ranked 10 above. Every cited count was read from the code — re-confirm against the current paste before acting. This page itself models step #1: one token set, a visible focus ring, a reduced-motion guard, and semantic markup throughout.
+    Structured multi-lens design review of the Momentum Huddle front end (<span class="files">L10Css · L10Index · L10Js · L10Guide</span> and the <span class="files">L10Mail</span> HTML builders), against the polish bar of best-in-class SaaS. 78 grounded findings scored and de-duplicated into the ranked 10 above. Every cited count was read from the code — re-confirm against the current paste before acting. This page itself models step #1: one token set, a visible focus ring, a reduced-motion guard, and semantic markup throughout.
   </div>
 </footer>
 

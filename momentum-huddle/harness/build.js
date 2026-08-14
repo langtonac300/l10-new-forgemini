@@ -1,4 +1,4 @@
-// Assemble the L10 app the way doGet()/l10Include() would, with google.script.run
+// Assemble the Momentum Huddle app the way doGet()/l10Include() would, with google.script.run
 // stubbed, so the real front end renders in headless Chromium against fixtures.
 // Usage: node build.js  → writes preview.html next to this script.
 const fs = require('fs');
