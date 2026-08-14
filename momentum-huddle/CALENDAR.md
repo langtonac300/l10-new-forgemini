@@ -1,12 +1,12 @@
 ---
-title: "L10 calendar scheduling"
+title: "Momentum Huddle calendar scheduling"
 summary: "Book a Google Calendar meeting from any issue/headline, with a day-view free/busy picker."
 status: live
 domain: scripts
 source_of_truth: false
 ---
 
-# L10 → Google Calendar scheduling
+# Momentum Huddle → Google Calendar scheduling
 
 Books a Google Calendar meeting straight from the huddle — no context switch. From
 any issue, headline, or the header **📅 Schedule** button, a modal opens with the
@@ -32,7 +32,7 @@ on" note (the rest of the app keeps working):
    Keep the default identifier **`Calendar`**.
 4. Reload the app, press **📅 Schedule**, and approve the calendar permission once.
 
-> Shared-project note: this workbook's script project is shared (FY27 Goals + L10).
+> Shared-project note: this workbook's script project is shared (FY27 Goals + Momentum Huddle).
 > Adding the service via the **Services** panel edits the project manifest safely —
 > don't paste a hand-written `appsscript.json` over the existing one.
 
@@ -74,7 +74,7 @@ huddle case). The executing user's `Alex` entry falls back to their own address.
 
 - **Entry points** — every issue line, every headline line, **every to-do line and
   the New-to-do form**, the **📅 Schedule** header button (blank title), and a
-  **📅 Schedule** button inside the IDS overlay (schedule a follow-up for the issue
+  **📅 Schedule** button inside the Solve overlay (schedule a follow-up for the issue
   you're solving). So it's reachable at every point of the huddle. The item's text
   prefills the event title; on the New-to-do form it uses whatever you've typed so
   far (the to-do doesn't need to be saved first).

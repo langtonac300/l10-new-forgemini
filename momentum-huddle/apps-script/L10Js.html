@@ -930,8 +930,8 @@ function bootFail_(e) {
 // in the same server execution that built the HTML), so the header and start
 // screen paint the moment the page parses instead of after a full extra
 // google.script.run round trip. Consumed exactly ONCE: the post-action boot()
-// calls (conclude / discard fallbacks) must never re-apply the page-load-stale
-// payload — after a conclude that would resurrect the meeting as open.
+// calls (wrap-up / discard fallbacks) must never re-apply the page-load-stale
+// payload — after a wrap-up that would resurrect the meeting as open.
 function bootEmbed_() {
   var pre = window.__L10_BOOT || null;
   window.__L10_BOOT = null;
@@ -1012,7 +1012,7 @@ function boot(keepSeg) {
   state.hydrated = { core: false, work: false, plan: false, scorecard: false };
   var embed = bootEmbed_();
   // The snapshot is an initial-page-load affordance only: a mid-session boot()
-  // (post-conclude fallback) already has fresher data in flight.
+  // (post-wrap-up fallback) already has fresher data in flight.
   var snap = null;
   if (embed && L10_FIRST_BOOT_) {
     if (embed.sid) state.snapSid = embed.sid;
@@ -1136,7 +1136,7 @@ document.addEventListener('visibilitychange', function () {
 // from cross-slice-skewed state.
 function applyFull_(data) {
   // A refresh that started BEFORE a meeting did must not un-render the room:
-  // the post-conclude background reconcile can land after the next huddle has
+  // the post-wrap-up background reconcile can land after the next huddle has
   // already been started (its row appended after the refresh's reads). Carry
   // the local open meeting forward — the next natural reconcile picks up the
   // server truth once the room isn't live.
@@ -1241,7 +1241,7 @@ function renderHeader() {
 // ---------------------------------------------------------------------------
 
 function renderHuddle() {
-  // Opening the app must not auto-launch a meeting — updating to-dos / rocks /
+  // Opening the app must not auto-launch a meeting — updating to-dos / priorities /
   // issues from the tabs shouldn't start the timed agenda. The meeting view is
   // shown only after an explicit Start/Resume this session; a fresh load (or a
   // reload) lands on the start screen even when a meeting row is still OPEN, and
@@ -1260,15 +1260,15 @@ function renderStartScreen() {
 
   // No meeting runs on this screen — kill any stray timer from a prior view
   // (e.g. after concluding or discarding) so it can't tick in the background,
-  // and drop any voting round left over from a concluded/discarded huddle.
+  // and drop any voting round left over from a wrapped-up/discarded huddle.
   clearInterval(state.timerH);
   state.voting = null;
 
   var html = '<h2 class="page-title">Ready to huddle?</h2>' +
       '<p class="page-sub">Opening the app doesn\'t start a meeting — use the tabs above to update to-dos, ' +
-      'rocks or issues any time. The timed agenda only runs once you start it here.</p>';
+      'priorities or issues any time. The timed agenda only runs once you start it here.</p>';
 
-  // First run: until the first huddle has concluded, the start screen leads
+  // First run: until the first huddle has wrapped up, the start screen leads
   // with a short setup checklist instead of assuming the workspace is live.
   // Ticks derive from the data itself, so this card retires on its own.
   if (hyd('work') && hyd('plan') && hyd('scorecard') && !b.history.length && !openToday) {
@@ -1298,7 +1298,7 @@ function renderStartScreen() {
         '<div class="help">Resume picks up the timed agenda where it left off. Discard removes it (it won\'t appear in History).</div></div>';
   } else if (open) {
     html += '<div class="banner warn">A huddle from <b>' + esc(d10(open['Date'])) + '</b> was left open and never ' +
-        'concluded — it\'ll be archived automatically when you start a new one below.</div>';
+        'wrapped up — it\'ll be archived automatically when you start a new one below.</div>';
   }
 
   // Pre-huddle brief: the ranked docket + context strips, so the room walks in
@@ -1388,7 +1388,7 @@ function renderStartScreen() {
       // live segment out from under the room's typing).
       if (res && res.row && state.loadedAt && hyd('core') && hyd('work') && hyd('plan') && hyd('scorecard')) {
         state.boot.openMeeting = res.row;
-        // A resumed meeting brings its saved segue notes back with it.
+        // A resumed meeting brings its saved check-in notes back with it.
         if (res.resumed && res.row['Segue (JSON)']) {
           try { state.segue = JSON.parse(res.row['Segue (JSON)']) || {}; } catch (e) {}
         }
@@ -2258,7 +2258,7 @@ function todoLine(t, withActions, doneReview, opts) {
       // Seven buttons on every row is the page's loudest noise. The two that get
       // used constantly stay lit; the rest live in .td-acts, which is transparent
       // at rest and revealed on hover or keyboard focus (:focus-within) — the
-      // same reveal the rock rows and milestone ✕ already use. They keep their
+      // same reveal the priority rows and milestone ✕ already use. They keep their
       // layout space, so nothing jumps when it appears, and they stay in the tab
       // order the whole time.
       '<span class="td-acts">' +
@@ -3865,7 +3865,7 @@ function rerenderLists() {
 // nothing and let the optimistic row change speak. revert (optional) is a
 // surgical rollback for the one mutated row; without it the error path falls
 // back to the atomic refresh(), which repaints the whole app out from under
-// an open editor or IDS card — so supply one wherever it can be written.
+// an open editor or Solve card — so supply one wherever it can be written.
 function serverSync(promise, okMsg, revert) {
   return promise.then(function (res) {
     if (res && res.ok === false) {
@@ -4200,7 +4200,7 @@ function wireShared(scope) {
   // renders on FOUR surfaces (To-dos page, huddle segment, 1:1 page, spliced
   // row) and only the page ever called wireTodoControls. Bound there, ＋ Steps
   // and the stale-nudge promote links were dead in the room and on 1:1s — the
-  // "this has been carried 3 weeks, make it a rock" prompt did nothing at the
+  // "this has been carried 3 weeks, make it a priority" prompt did nothing at the
   // exact moment the huddle was looking at it. Every surface calls wireShared
   // exactly once per scope, so this binds everywhere without doubling up.
   scope.querySelectorAll('[data-tddrawer]').forEach(function (btn) {
@@ -4645,7 +4645,7 @@ function wireShared(scope) {
         // Removing the last open milestone completes the plan — the cascade is
         // deliberate (same as finishing it), but delete is destructive, so it
         // keeps the Undo. Capture the prior status BEFORE painting DONE so the
-        // Undo can put the rock back too.
+        // Undo can put the priority back too.
         var rockPrev = null;
         if (res.rockDone) {
           var r = findRow(state.boot.rocks, 'ID', res.rockDone);
@@ -4660,7 +4660,7 @@ function wireShared(scope) {
           // Pre-delete status: the cascade already painted local DONE, so the
           // captured value wins; otherwise the local row still holds it.
           var want = rockPrev !== null ? rockPrev : (rkNow ? String(rkNow['Status']) : '');
-          // Put the rock back only when something flipped it: the delete's
+          // Put the priority back only when something flipped it: the delete's
           // own cascade, or the re-DONE below re-firing it on the server.
           function restoreRock_(flippedNow) {
             if (!(res.rockDone || flippedNow) || !want || want === 'DONE') return;
@@ -4863,7 +4863,7 @@ function wireShared(scope) {
     renderScorecard();
     renderSegment();
   });
-  wireCaveats(scope); // ⓘ disclosures (definition of done on rock lines)
+  wireCaveats(scope); // ⓘ disclosures (definition of done on priority lines)
   layoutTimelines(scope); // label lanes need rendered widths
 }
 
@@ -6224,7 +6224,7 @@ function digestClone_(r) {
 function digestDefault_(person) {
   return { id: '', person: person, label: '', content: ['TODOS'], freq: 'DAILY', weekday: '', hour: 8, enabled: true };
 }
-var DIGEST_CONTENT_LABELS = { TODOS: 'To-dos', ROCKS: 'Rocks', SCORECARD: 'Scorecard', HEADLINES: 'Headlines' };
+var DIGEST_CONTENT_LABELS = { TODOS: 'To-dos', ROCKS: 'Priorities', SCORECARD: 'Metrics', HEADLINES: 'Headlines' };
 function digestHourLabel_(h) {
   var ap = h < 12 ? 'AM' : 'PM', hr = h % 12; if (hr === 0) hr = 12;
   return hr + ':00 ' + ap;
@@ -6303,7 +6303,7 @@ function digestCollect_() {
 function notifyCardInner_() {
   var sdat = state.settingsData;
   var head = '<h3>Notifications</h3>' +
-      '<p class="help mt-0">Each person picks how much email they get. The day-before <b>heads-up</b> is their own to-dos + rocks due; the <b>recap</b> is the after-huddle summary. (Chat pings stay a team-space broadcast for now.)</p>';
+      '<p class="help mt-0">Each person picks how much email they get. The day-before <b>heads-up</b> is their own to-dos + priorities due; the <b>recap</b> is the after-huddle summary. (Chat pings stay a team-space broadcast for now.)</p>';
   if (!sdat) return head + '<div class="help">Loading current preferences…</div>';
   var labels = { EVERY: 'Every huddle', BIWEEKLY: 'Every other huddle', MONTHLY: 'First huddle each month', OFF: 'Off' };
   return head + '<table class="data"><tr><th>Person</th><th>Heads-up email</th><th>Recap email</th></tr>' +
@@ -6429,13 +6429,13 @@ function renderSettings() {
       '<div class="field"><label>Agenda — segments and minutes</label>' +
       '<div id="seg-editor">' + segRowsHtml_() + '</div>' +
       '<button class="btn mini subtle" id="seg-add" type="button">＋ Add segment</button>' +
-      '<div class="help">Renaming is safe — segments match their meeting screens by keywords (check-in, scorecard, rock, headline, to-do, issue), and anything else lands on Conclude.</div></div>' +
+      '<div class="help">Renaming is safe — segments match their meeting screens by keywords (check-in, metrics, priority, headline, to-do, issue), and anything else lands on Wrap-up.</div></div>' +
       '<button class="btn" id="set-save-meeting">Save meeting settings</button></div>';
 
   // Team
   html += '<div class="card"><h3>Team</h3><div class="row mb-3">' +
       (b.team || []).map(function (p) { return '<span class="person-chip on is-static">' + avatar(p) + esc(p) + '</span>'; }).join(' ') + '</div>' +
-      '<div class="help">Edit the <b>TEAM</b> row in L10_Config to change the roster — comma-separated names, matching the Owner column on rocks and to-dos.</div></div>';
+      '<div class="help">Edit the <b>TEAM</b> row in L10_Config to change the roster — comma-separated names, matching the Owner column on priorities and to-dos.</div></div>';
 
   // Notifications + custom digests — the inner content renders from the
   // lazily-fetched settingsData (see fetchSettingsData_ / notifyCardInner_).
@@ -6452,7 +6452,7 @@ function renderSettings() {
         '<div class="help mt-0">Status: <b id="set-mail-status">checking…</b> — heads-up the day before, recaps after, prep packs each morning.</div></div>' +
       '<button class="btn subtle mb-3" id="set-mail-install">Install / refresh email triggers</button></div>' +
       setFieldHtml_('set-chat', 'Google Chat webhook (to-do pings)', cfg.CHAT_WEBHOOK_URL, 'https://chat.googleapis.com/v1/spaces/…', 'In the space: Apps &amp; integrations → Webhooks → Add, then paste the URL. Blank = off.') +
-      setFieldHtml_('set-ga4', 'Google Analytics property ID (GA4 scorecard metrics)', cfg.GA4_PROPERTY_ID, 'e.g. 123456789', 'The digits from Google Analytics → Admin → Property settings (a pasted "properties/123456789" works too). Metrics with the Google Analytics source read the property with each viewer\'s own sign-in — read-only, no keys or tokens stored. Blank = off.') +
+      setFieldHtml_('set-ga4', 'Google Analytics property ID (GA4 metrics)', cfg.GA4_PROPERTY_ID, 'e.g. 123456789', 'The digits from Google Analytics → Admin → Property settings (a pasted "properties/123456789" works too). Metrics with the Google Analytics source read the property with each viewer\'s own sign-in — read-only, no keys or tokens stored. Blank = off.') +
       '<div class="row">' +
       setFieldHtml_('set-jira-domain', 'Jira domain', cfg.JIRA_DOMAIN, 'yourco.atlassian.net', '') +
       setFieldHtml_('set-jira-project', 'Jira project key', cfg.JIRA_PROJECT_KEY, 'OPS', '') +

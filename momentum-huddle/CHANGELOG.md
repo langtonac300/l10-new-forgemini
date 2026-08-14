@@ -1098,33 +1098,33 @@ self-prepping meeting, B: evidence + decision memory) plus the folded-in earlier
 voice call). **`L10Setup.gs` + `L10Code.gs` + `L10Index.html` + `L10Js.html` +
 `L10Mail.gs`** (`L10Css.html` untouched).
 - **Pre-huddle brief** — new `L10_Brief` tab + token-guarded `doPost` intake (contract
-  above). The start screen and the IDS segment render the week's ranked **docket**
-  ("what deserves IDS time", dollars-at-stake + caveat ⓘ per item) and context strips;
+  above). The start screen and the Solve segment render the week's ranked **docket**
+  ("what deserves Solve time", dollars-at-stake + caveat ⓘ per item) and context strips;
   **promote-to-issues** creates the `IS-###` with the evidence, caveat, and the
   playbook's how-to-run pre-filled into the Identify notes (idempotent — a promoted
   docket row shows `→ IS-###` and re-taps return the existing issue). Honesty rails:
-  the docket footer names the snapshot date and says the scorecard capture stays the
+  the docket footer names the snapshot date and says the metrics capture stays the
   number of record; `BRIEF_ENABLED` config kills the whole surface; the app's empty
   state (no brief) changes nothing about the meeting.
 - **Analysis playbook + "seen before"** — new `L10_Playbook` tab (seeded PB-001…005:
   NB pullback report, S-curve read, serving-URL audit, Keep/Kill loop, hub test; all
   sanitized business language) matched **live while typing an issue** (new-issue forms
-  + the IDS modal's evidence rail): "🧭 <report> answers this — how to run it" and
-  "🗂 Seen before: IS-014 (Mar) — solved: <resolution>" via keyword/token overlap,
+  + the Solve modal's evidence rail): "🧭 <report> answers this — how to run it" and
+  "🗂 Seen before: IS-014 (Mar) — decided: <resolution>" via keyword/token overlap,
   all client-side.
 - **Decision ledger + outcome loop** — `L10_Issues` gains `Outcome`/`Outcome At`/
-  `Review On` (appended at the END, same rule as the IDS-notes and Jira columns).
-  Solving stamps `Review On` = today + `OUTCOME_REVIEW_WEEKS` (config, default 4);
-  when it comes due the **Conclude segment asks "did the fix hold?"** (held / didn't /
+  `Review On` (appended at the END, same rule as the Solve-notes and Jira columns).
+  Deciding stamps `Review On` = today + `OUTCOME_REVIEW_WEEKS` (config, default 4);
+  when it comes due the **Wrap-up segment asks "did the fix hold?"** (held / didn't /
   too early → pushes 2 weeks). Verdicts badge the new **Decision ledger** on the
   History page — searchable past SOLVED/KILLED issues (keyword + account) so the
   room never re-litigates March's call.
 - **1:1 pages** (roadmap item, now built) — new **1:1s** nav page, one view per
   person: parked-for-their-1:1 issues (with "back to the team list"), their open
-  to-dos, their rocks, issues they raised. Deliberately no completion percentages
+  to-dos, their priorities, issues they raised. Deliberately no completion percentages
   (the team-level-only rule extends here).
 - **"My lens" chip** — header chip cycles the roster (per-browser, `localStorage`);
-  puts that person's groups first on To-dos/Rocks and pre-selects their 1:1 page.
+  puts that person's groups first on To-dos/Priorities and pre-selects their 1:1 page.
   Display-only by design: same data for everyone, no auth pretense.
 - **Monday cascade draft** (`L10Mail.gs`) — resolves open thread #3's timing tension:
   the huddle is Tuesday but the digital-team meeting the cascade feeds is Monday 1pm,
@@ -1146,23 +1146,23 @@ voice call). **`L10Setup.gs` + `L10Code.gs` + `L10Index.html` + `L10Js.html` +
   the meeting runs unchanged → POST the curl sample → reload: docket renders, ⓘ shows
   the caveat → promote #1 → `IS-###` appears with evidence in Identify → type
   "pullback" in a new-issue form → 🧭 playbook suggestion appears → solve a test issue
-  → its row gets `Review On` → set `Review On` to today in the tab → Conclude shows
+  → its row gets `Review On` → set `Review On` to today in the tab → Wrap-up shows
   the outcome card → verdict lands in `Outcome` → History → Decision ledger finds it →
-  1:1s page lists parked/to-dos/rocks per person → lens chip reorders To-dos → Email
+  1:1s page lists parked/to-dos/priorities per person → lens chip reorders To-dos → Email
   menu → cascade draft arrives with live pacing numbers and `___` where blank.
 
 ## v1.19 (2026-07-01) — analysts can add headlines before the meeting starts
-Alex: "update the L10 code so my analysts can add in headlines prior to starting the meeting."
+Alex: "update the Momentum Huddle code so my analysts can add in headlines prior to starting the meeting."
 Before this, the only way to log a headline was inside a running huddle (the **Headlines
-segment**, or Kudos in the Segue) — so nothing could be queued ahead of time from the
+segment**, or Kudos in the Check-in) — so nothing could be queued ahead of time from the
 "Ready to huddle?" start screen. Now headlines follow the same "edit any time, on their own
-tab" model that to-dos / rocks / issues already use. **`L10Index.html` + `L10Js.html` only**
+tab" model that to-dos / priorities / issues already use. **`L10Index.html` + `L10Js.html` only**
 (client) — re-paste both + redeploy the web app; **no schema change, no Setup/repair, no
 server (`L10Code.gs`) change.** The server `l10_addHeadline` already accepted a blank
 `Meeting ID`, so a pre-meeting headline simply lands unattached and shows up in the huddle's
 Headlines segment.
 - **New standalone Headlines nav page** (`renderHeadlines`, page `page-headlines`, nav button
-  between **Rocks** and **To-dos**) — mirrors the To-dos / Issues / Rocks pages: an "Add a
+  between **Priorities** and **To-dos**) — mirrors the To-dos / Issues / Priorities pages: an "Add a
   headline" card (type · text · by · cascade ↗) plus the recent-headlines list with the same
   in-place cascade toggle. Reachable any time without starting the clock.
 - **Add-headline card on the start screen** — the "Ready to huddle?" screen now carries the
@@ -1176,40 +1176,40 @@ Headlines segment.
 - **Upgrade:** re-paste `L10Index.html` + `L10Js.html` → Deploy → Manage deployments → ✏️ →
   New version. No Setup/repair, no trigger or schema change.
 
-## v1.18 (2026-06-30) — IDS focus modal redesign ("Quiet Rail")
-Alex (design critique with a screenshot): the IDS modal "looks crammed, crowded, overwhelming."
-Diagnosed as a **hierarchy bug** — Identify, Discuss and Solve were painted at identical weight all
-at once (~9 controls, no "you are here"), which fights the one-issue-at-a-time EOS sequencing.
+## v1.18 (2026-06-30) — Solve focus modal redesign ("Quiet Rail")
+Alex (design critique with a screenshot): the Solve modal "looks crammed, crowded, overwhelming."
+Diagnosed as a **hierarchy bug** — Identify, Discuss and Decide were painted at identical weight all
+at once (~9 controls, no "you are here"), which fights the one-issue-at-a-time sequencing.
 Redesigned via a multi-agent design judge-panel (4 directions → 3 lenses → synthesis); winner
 "Quiet Rail" (9/9/9). **`L10Js.html` + `L10Css.html` only** — re-paste both + redeploy; no schema
 change, no Setup/repair.
-- **Progress rail** under the header (Identify · Discuss · Solve) cloned from the segment rail —
+- **Progress rail** under the header (Identify · Discuss · Decide) cloned from the segment rail —
   current step filled, **done steps show a ✓ + a one-line summary of what was captured**, future
   plain. Doubles as click-to-jump nav.
 - **Only the lit step is loud.** Identify + Discuss sit in a recessed context zone; the active one
   expands (accent left bar, full field, filled badge), the others **shrink to a one-line peek but
   never hide** (so the root cause + options stay visible while you solve). The lit step travels
   with focus via a `.is-on` class swap — **every textarea stays mounted**, so the notes→sheet save
-  path is byte-for-byte unchanged (the design's key safety property). Solve becomes a **white
+  path is byte-for-byte unchanged (the design's key safety property). Decide becomes a **white
   raised "output" panel** (the to-do builder nested one tier down in a recessed inset), and
-  Park/Test/Kill collapse to one muted "Didn't solve it?" row.
+  Park/Test/Kill collapse to one muted "Didn't decide it?" row.
 - **Easier heavy typing** (lean, no rich-text engine — values stay plain-text strings): **Enter
   continues a `- ` bullet** (empty bullet ends the list), **Tab indents / Shift-Tab outdents**
   (Shift-Tab with nothing to outdent falls through, so no keyboard trap), **⌘/Ctrl-B wraps the
   selection in `**…**`** (a convention, not WYSIWYG), and **⌘/Ctrl-Enter advances**
-  Identify→Discuss→Solve (or fires Solve on Solve). Per-step snippet chips scaffold Identify/Discuss
+  Identify→Discuss→Decide (or fires Decide on Decide). Per-step snippet chips scaffold Identify/Discuss
   too. A shortcut hint shows under the active field only.
 - **Zero added clicks** on the happy path; escape hatches still one click; present-mode bumped so
   the rail + lit step read on a projector.
 - **Upgrade:** re-paste `L10Js.html` + `L10Css.html` → Deploy → Manage deployments → ✏️ → New
   version. No Setup/repair, no schema change.
 
-## v1.17 (2026-06-30) — design pass #9: scorecard health roll-up + accessibility
+## v1.17 (2026-06-30) — design pass #9: metrics health roll-up + accessibility
 Roadmap [`DESIGN-ROADMAP.md`](./DESIGN-ROADMAP.md) **#9** — honest data display + the
 accessibility floor. **`L10Js.html` + `L10Css.html` only** (client) — re-paste both + redeploy
 the web app; no schema change, no Setup/repair. Built on #4's inline-caveat pattern and #1's
 status tokens.
-- **Health roll-up strip** atop the Scorecard: **"On track X · Off track Y · Not captured Z"**
+- **Health roll-up strip** atop the Metrics: **"On track X · Off track Y · Not captured Z"**
   (+ "No goal N" when present) count chips — a reduce over `ruleCheck(d, currentWeekValue)`. The
   team reads the week's health at a glance instead of counting red cells. ("Captured" is tested
   on the raw value, so a metric with a value but no goal counts as *No goal*, not *Not captured*.)
@@ -1256,12 +1256,12 @@ Gmail clipping, `@media` support).
   fallback, so Outlook desktop (which drops the CSS gradient) shows a solid deep-blue band
   instead of white; modern clients layer the gradient on top. (Robust `bgcolor` fallbacks
   used throughout instead of fragile, untestable VML.)
-- **Lead with movement** — each scorecard row carries a **"vs last week" ▲/▼ delta** (read
+- **Lead with movement** — each metrics row carries a **"vs last week" ▲/▼ delta** (read
   from the prior captured week in the DATA tab), colored by the metric's *own* good/bad rule
   (`>=` up-good, `<=` down-good, `between` neutral), with the sign carrying the meaning and
-  the arrow `aria-hidden`. No prior week → no delta (never a guessed move). Each rock card
+  the arrow `aria-hidden`. No prior week → no delta (never a guessed move). Each priority card
   gets a **table-cell milestone progress bar** (bgcolor fill survives Outlook + dark-mode).
-- **Responsive** — one `@media(max-width:480px)` stacks the scorecard's Goal/Status; the
+- **Responsive** — one `@media(max-width:480px)` stacks the metrics' Goal/Status; the
   default no-media layout is already single-column-safe for clients that ignore `@media`.
 - **Upgrade:** re-paste `L10Mail.gs`. **Preview safely first** via **Email → Test team recap
   (to me)** and **Test manager recap (to me)** (send-to-self) — ideally forward one to an
@@ -1278,8 +1278,8 @@ Second wave of [`DESIGN-ROADMAP.md`](./DESIGN-ROADMAP.md) (#4 Present/Room mode,
   is blocked inside the cross-origin Sheets iframe); in that tab it calls `requestFullscreen()`
   and toggles a `body.present` class (driven by a `fullscreenchange` listener, so Esc/F11 exit
   cleanly). Under `body.present`: header/nav hide, the timer becomes a 96–120px hero with a
-  **non-color over-time pulse** (scale + ring, not red alone), the segment rail / scorecard
-  cells / IDS title scale up, and scorecard **caveats render inline** instead of behind the
+  **non-color over-time pulse** (scale + ring, not red alone), the segment rail / metrics
+  cells / Solve title scale up, and metrics **caveats render inline** instead of behind the
   hover ⓘ. `L10Setup.gs` `doGet` now templates the deployed web-app URL into the page
   (`ScriptApp.getService().getUrl()`, try/caught → '' in the modal); `l10OpenDashboard` sets it
   blank. **Jira-safe:** presentation-only — no to-do/Status write path, columns, or the Jira
@@ -1304,7 +1304,7 @@ Second wave of [`DESIGN-ROADMAP.md`](./DESIGN-ROADMAP.md) (#4 Present/Room mode,
 
 ## v1.14 (2026-06-30) — design pass #1–3 from the corporation-grade roadmap
 First wave of [`DESIGN-ROADMAP.md`](./DESIGN-ROADMAP.md) (#1 one token source, #2 focus
-ring + keyboard, #3 undo + Conclude confirm). `L10Css.html` + `L10Js.html` +
+ring + keyboard, #3 undo + Wrap-up confirm). `L10Css.html` + `L10Js.html` +
 `L10Guide.html` + `L10Mail.gs` (and the byte-identical
 [`../../processes/l10-new-member-guide.html`](../../processes/l10-new-member-guide.html)) —
 **client + email + guide only; no `L10Code.gs`/`L10Setup.gs` change, no schema change, no
@@ -1321,9 +1321,9 @@ Setup/repair.**
   Enter/Space delegate activates any custom `role=button`. `aria-pressed` on the
   attendee/owner chips.
 - **#3 Undo + confirm.** `notify()` takes an optional `{fn,label}` and renders an **Undo**
-  button (toast lingers 8s); wired to to-do done, rock on/off-track, milestone toggle,
+  button (toast lingers 8s); wired to to-do done, priority on/off-track, milestone toggle,
   issue kill/park, and reset-votes (each reverses via the existing server fns). The
-  irreversible **Conclude** now two-click-arms with a pre-flight summary (new to-dos · avg
+  irreversible **Wrap-up** now two-click-arms with a pre-flight summary (new to-dos · avg
   rating · recap-empty warning) — same armed pattern as Discard. **Jira-safe:** undo still
   persists `Status` (the sync's trigger); the to-do render keeps the appended `Jira Key`/
   `Jira Done` columns; the menu is untouched.
@@ -1341,10 +1341,10 @@ no schema change):
   (`l10MailScorecardHtml_`, `l10MailRocksHtml_`, `l10MailSolvedHtml_`,
   `l10MailOpenTodosHtml_`, `l10MailHeadlinesHtml_`, plus `l10MailRecapHeader_` and the
   badge/onoff/sect helpers). `l10MailStuartHtml_` now composes from them — **output
-  unchanged** (same styled scorecard table w/ ON/OFF-TRACK pills, rock cards, etc.).
+  unchanged** (same styled metrics table w/ ON/OFF-TRACK pills, priority cards, etc.).
 - **The team recap now uses the same builders** — gradient header + BDay/FY chips,
   an optional **Summary** block (the room's free-text recap, if any) on top, then the
-  full Scorecard / Rocks / What we solved / To-dos / Headlines sections. Removed the
+  full Metrics / Priorities / What we decided / To-dos / Headlines sections. Removed the
   old `l10MailRecapAuto_`.
 - **New safe preview:** `l10TestRecap` / menu **Email → Test team recap (to me)** sends
   the team recap to Alex only (mirrors the existing manager-recap test) so the layout
@@ -1352,12 +1352,12 @@ no schema change):
 - **Upgrade:** re-paste `L10Mail.gs` + `L10Setup.gs`, reload (the menu picks up the new
   item). Triggers/schema unchanged.
 
-## v1.12 (2026-06-25) — leaner scorecard: caveats → hover ⓘ, prominent owner
-Alex: the scorecard rows had a wall of caveat text under every metric — "lean it
+## v1.12 (2026-06-25) — leaner metrics: caveats → hover ⓘ, prominent owner
+Alex: the metrics rows had a wall of caveat text under every metric — "lean it
 out … and make the person responsible more prominent." `L10Js.html` + `L10Css.html`
 (client-only — **no schema change, no Setup/repair**; re-paste both files + redeploy
 the web app):
-- **Caveat off the row, onto a hover ⓘ.** Both scorecard renders (the 13-week grid
+- **Caveat off the row, onto a hover ⓘ.** Both metrics renders (the 13-week grid
   `renderScorecard` *and* the in-huddle `captureGrid`) drop the inline `.caveat`
   block; a small `ⓘ` (`caveatTip`, `title=` tooltip, only when a caveat exists)
   carries it on hover so the data-quality warnings aren't lost. Page-sub updated to
@@ -1365,7 +1365,7 @@ the web app):
 - **Owner promoted to a pill** (`whoChip`: bigger 26px avatar + bold name on a light
   `--bg` pill). In the grid it sits on its own line under the metric name (was a tiny
   muted "· CJ"); in the capture grid it fills the Owner column. `who()` is unchanged,
-  so rocks/to-dos keep their lighter style.
+  so priorities/to-dos keep their lighter style.
 - **Metric names are sheet content, not changed in code** — to shorten them (e.g.
   "Budget — Brady (US+CA)") edit the `Metric` column in `L10_Scorecard` directly; the
   render just prints whatever's there.
@@ -1376,7 +1376,7 @@ the web app):
 > **✅ Live — webhook set, deployed, and confirmed working by Alex 2026-06-24.**
 
 Alex: "whenever someone checks off a To-Do or adds a To-Do I'd like a chat message
-in *Paid Team & Stuart* — 'L10 To-Do - Complete - Name - Task'." Done with a Google
+in *Paid Team & Stuart* — 'Momentum Huddle To-Do - Complete - Name - Task'." Done with a Google
 Chat **incoming webhook** posted server-side from the existing to-do functions — no
 new tab, no new service, no credentials in code. `L10Code.gs` + `L10Setup.gs`:
 - **How it posts:** a new `l10NotifyChat_(text)` does a fire-and-forget
@@ -1386,8 +1386,8 @@ new tab, no new service, no credentials in code. `L10Code.gs` + `L10Setup.gs`:
   or the **`L10_CHAT_WEBHOOK_URL` script property** (which wins). **Blank = off** —
   the feature is opt-in and dormant until Alex pastes a webhook URL.
 - **Three hook points** (all already the only paths to create/complete a to-do):
-  `l10_addTodo` fires `📝 *L10 To-Do - Added* - {Owner} - {Task}  _(due …)_`;
-  `l10_setTodoStatus` fires `✅ *L10 To-Do - Complete* - {Owner} - {Task}` **only on
+  `l10_addTodo` fires `📝 *Momentum Huddle To-Do - Added* - {Owner} - {Task}  _(due …)_`;
+  `l10_setTodoStatus` fires `✅ *Momentum Huddle To-Do - Complete* - {Owner} - {Task}` **only on
   the OPEN→DONE transition** (re-confirming an already-DONE row, or un-checking back
   to OPEN, stays silent — it reads the row first to know the prior status and to get
   the Owner/Task for the line). `{Owner}` is the to-do's owner (the deployed web app
@@ -1395,15 +1395,15 @@ new tab, no new service, no credentials in code. `L10Code.gs` + `L10Setup.gs`:
   name); blank owner → "Unassigned".
 - **Multi-assign sends ONE grouped line, not N pings:** `l10_addTodoMulti` (the
   module's New-to-do card, even for one owner) suppresses the per-row pings
-  (`_silent`) and posts a single `… - Scott, CJ, Courtney - {Task}` line. IDS
-  solve-spawned to-dos and email-ingested to-dos go through `l10_addTodo` and each
+  (`_silent`) and posts a single `… - Scott, CJ, Courtney - {Task}` line. Solve-spawned
+  to-dos and email-ingested to-dos go through `l10_addTodo` and each
   announce individually (each is a discrete new commitment).
 - **Set it / test it:** new **Momentum Huddle → Chat** submenu — **Set to-do webhook
   URL…** (prompts, writes `CHAT_WEBHOOK_URL`) and **Send test message** (posts a
   sample line so Alex can confirm it lands in the right space). Menu wrappers live in
   `L10Setup.gs` so they don't depend on the optional `L10Mail.gs`.
 - **One-time setup (Alex):** in the *Paid Team & Stuart* space → **Apps &
-  integrations → Webhooks → Add** (name it e.g. "L10 To-Do Bot"), copy the URL, then
+  integrations → Webhooks → Add** (name it e.g. "Momentum Huddle To-Do Bot"), copy the URL, then
   **Momentum Huddle → Chat → Set to-do webhook URL…** and paste it. (Incoming webhooks are
   a Google **Workspace** feature — this works on the `@bradycorp.com` space, not a
   consumer Gmail.) Webhooks post under their own configured name/avatar, not as the
@@ -1424,57 +1424,57 @@ tap-to-toggle pattern as the "who's here?" attendee picker — solid blue + ✓ 
 Tap any number of people, hit **Add**, and one to-do is created **per person** in a
 single action. `L10Code.gs` + `L10Js.html` + `L10Css.html` — **no schema change, no
 Setup/repair run** (client + one new server function; web-app redeploy needed):
-- **Why N rows, not one row with N owners:** EOS to-dos have a single accountable
+- **Why N rows, not one row with N owners:** To-dos have a single accountable
   owner, the To-dos page groups by `Owner`, and the Monday heads-up email filters
   per person — so fanning out keeps the per-person lists, the team done-%, and the
   emails all correct. A single row holding `"A, B, C"` in Owner would break all three.
 - New server fn **`l10_addTodoMulti`** loops the existing `l10_addTodo` once per
   selected owner (so id minting + the next-Monday due default stay in one place) and
   returns the created items. The single-owner `l10_addTodo` is **unchanged**, so the
-  IDS Solve panel and the email reply-ingest path keep working as-is.
+  Solve Decide panel and the email reply-ingest path keep working as-is.
 - Applies on **both** the standalone **To-dos** page and the in-meeting **To-do list**
   segment — both render the same card and `wireSegment` delegates to `wireShared`, so
   the one handler covers both.
-- The IDS **Solve** panel still takes one owner per to-do row (it already supports
+- The Solve **Decide** panel still takes one owner per to-do row (it already supports
   multiple rows for distinct actions) — left unchanged on purpose.
 - **Upgrade:** re-paste `L10Code.gs`, `L10Js.html`, `L10Css.html`, then Deploy →
   Manage deployments → ✏️ → New version. No Setup/repair tabs run needed.
 
 ## v1.9 (2026-06-16) — opening the app no longer auto-starts the huddle
-Alex: "the L10 session starts automatically even when I just want to pop in and
+Alex: "the Momentum Huddle session starts automatically even when I just want to pop in and
 make some updates to to-dos … can we have a start button for actual meetings? I
 swear a previous version had that and then it disappeared." Root cause (in the
 code since v1, surfaced once a huddle got left OPEN): `renderHuddle()` dropped
 straight into the timed in-progress view whenever **any** meeting row was
 `Status=OPEN`, and the start screen only showed when there was *no* open meeting.
 A previous-day OPEN meeting is auto-closed only *inside* `l10_startMeeting` — which
-you reach by pressing Start — so a single un-concluded huddle hid the Start button
+you reach by pressing Start — so a single not-yet-wrapped-up huddle hid the Start button
 permanently and made the meeting "launch by itself" on every open. `L10Js.html` +
 `L10Css.html` only — **no schema change, no Setup/repair run** (web-app redeploy
 needed since it's client-side):
 - **Opening the app always lands on the "Ready to huddle?" start screen.** The
   timed meeting view is entered only after an explicit **Start** or **Resume**
   this session (new `state.inMeeting` flag); a reload returns to the start screen
-  even while a meeting row is OPEN. Updating to-dos / rocks / issues from the tabs
+  even while a meeting row is OPEN. Updating to-dos / priorities / issues from the tabs
   never starts the clock.
 - **Resume / discard card** when today's huddle is still open: ▶ Resume picks the
-  timed agenda back up (segue notes already rehydrated on boot); **discard it**
+  timed agenda back up (check-in notes already rehydrated on boot); **discard it**
   (two-click arm, calls `l10_cancelMeeting`) clears a stray/test huddle straight
-  from the start screen — no more "enter it → ⏭ Conclude → discard" dance. A
+  from the start screen — no more "enter it → ⏭ Wrap-up → discard" dance. A
   **previous-day** open huddle shows a one-line note that it'll be archived when
   you start the next one (unchanged auto-close on Start).
 - The start screen clears any stray timer (`clearInterval`) so nothing ticks in
-  the background; conclude/discard null out `openMeeting`, so `renderHuddle` resets
+  the background; wrap up/discard null out `openMeeting`, so `renderHuddle` resets
   `inMeeting` and self-heals back to the start screen.
 
-## v1.8 (2026-06-15) — scorecard auto-seeds the NB negatives metrics
+## v1.8 (2026-06-15) — the metrics grid auto-seeds the NB negatives metrics
 - `L10Setup.gs`: new `l10EnsureScorecardRows_` (called from `l10Setup`) appends two
-  managed scorecard rows **only if their ID is missing** — `SC-012` *NB negatives added /
+  managed metrics rows **only if their ID is missing** — `SC-012` *NB negatives added /
   week* (num) and `SC-013` *Negatives — est. annualized $ saved / week* (usd). Both are
   `RANGE` metrics whose `Source Ref` is a live `IMPORTRANGE` of the SQR review sheet's
   `Weekly Negatives Impact!B3`/`!B4`. Idempotent like `l10SeedConfig_`, so it lands on an
-  already-populated scorecard without duplicating or disturbing edits (unlike
-  `l10SeedScorecard_`, which only seeds an empty scorecard).
+  already-populated metrics grid without duplicating or disturbing edits (unlike
+  `l10SeedScorecard_`, which only seeds an empty metrics grid).
 - **Upgrade:** re-paste `L10Setup.gs`, run **Momentum Huddle → Setup / repair tabs** once
   (adds the two rows), then open `L10_Scorecard`, find the `SC-012`/`SC-013` Source Ref
   cells (col I), and click **Allow access** once each to authorize the IMPORTRANGE. Until
@@ -1498,19 +1498,19 @@ tabs and do that but I want to be able to do it in the module." Changes
 (`L10Code.gs`, `L10Js.html`, `L10Css.html` — no schema; the v1.4/v1.5
 Setup/repair run still covers everything):
 
-- **✎ on every editable line** — to-dos (text/owner/due), rocks
+- **✎ on every editable line** — to-dos (text/owner/due), priorities
   (title/owner/due), issues (text/raiser/account/category). Clicking flips
   the line into an inline edit row (highlighted blue) with Save / Cancel;
   Enter saves, Esc cancels. One line edits at a time.
 - **Milestones edit through the same form they're added with**: ✎ on a
-  timeline label prefills the rock's add form and flips its button to Save.
+  timeline label prefills the priority's add form and flips its button to Save.
 - **Selects never eat data**: an issue's multi-account CSV (e.g. "Brady US,
   Marking") or an ex-roster owner that isn't among the dropdown options is
   prepended as the selected option, so saving an untouched field round-trips
   the stored value instead of silently blanking it.
-- Rock edits trigger a refresh afterwards (the fiscal-quarter chip is
+- Priority edits trigger a refresh afterwards (the fiscal-quarter chip is
   computed server-side from the new due date). Server validates text
-  non-empty + date format; blank due is allowed on to-dos/rocks (clears it),
+  non-empty + date format; blank due is allowed on to-dos/priorities (clears it),
   required on milestones (the timeline places them by date).
 
 ## v1.5 (2026-06-12, evening) — IDS in EOS order: Identify → Discuss → Solve

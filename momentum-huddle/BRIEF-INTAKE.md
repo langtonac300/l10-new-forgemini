@@ -21,11 +21,11 @@ none** — the scheduled Tuesday-morning `tuesday-pre-brief` routine was retired
   (idempotent re-posts; rows older than 10 weeks are dropped in the same pass);
   `playbook[]` rows **upsert** `L10_Playbook` by ID. All-or-nothing under a script
   lock — a bad payload writes nothing and the response says which row and why.
-- **Sections:** `DOCKET` (ranked IDS candidates; the app renders these with a
+- **Sections:** `DOCKET` (ranked Solve candidates; the app renders these with a
   one-tap **promote to issues** that pre-fills the evidence + caveat + playbook
-  how-to-run into the IDS Identify notes) · `WATCHLIST` / `EXPERIMENTS` /
+  how-to-run into the Solve Identify notes) · `WATCHLIST` / `EXPERIMENTS` /
   `NEGATIVES` (context strips).
-- **Verify with one click (no terminal):** **L10 Huddle → Brief → Send test brief
+- **Verify with one click (no terminal):** **Momentum Huddle → Brief → Send test brief
   (sample rows)** — POSTs two clearly-marked TEST rows to the project's own `/exec`
   URL with the stored token and alerts pass/fail (a web-page-instead-of-JSON reply
   means the deployment needs a new version). The rows land in the current week and

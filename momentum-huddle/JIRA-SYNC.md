@@ -58,7 +58,7 @@ issues** (v2.9.1) retro-assigns keyed open to-dos without overwriting manual pic
 > Logic verified by 21 helper assertions (`node --check` + a stubbed harness,
 > 2026-06-30). **✅ Confirmed live end-to-end (2026-06-30):** Alex set the token,
 > `Test connection` returned "Connected as Alex Langton · BNADM ✓ found", and a real
-> to-do (TD-030) created **BNADM-429** with the right title, description (`L10 ref:
+> to-do (TD-030) created **BNADM-429** with the right title, description (`Momentum Huddle ref:
 > TD-030`), due date, and reporter (BNADM-429 came in **Unassigned** — see below).
 >
 > **Owner auto-assignment (2026-06-30):** assignment is now automatic with **zero
