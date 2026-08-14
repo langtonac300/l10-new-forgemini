@@ -3,6 +3,17 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
+  <!-- Brand intro gate: decide BEFORE first paint whether the once-per-session
+       splash plays, so a repeat load in the same session never flashes it. -->
+  <script>
+    (function () {
+      try {
+        var played = sessionStorage.getItem('mh_intro_played');
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!played && !reduce) document.documentElement.className += ' mh-intro-on';
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- media="print" + onload flip = non-render-blocking stylesheet: the app's
@@ -10,12 +21,32 @@
        and Inter swaps in when the font CSS lands (display=swap). -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+  <!-- DM Sans powers the brand-intro wordmark; it reveals ~2s in, so the font
+       has time to land, and falls back to Inter if it hasn't. -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <?!= l10Include('L10Css'); ?>
   <!-- The deployed web-app URL (blank in the embedded modal). Present uses it
        to pop the room view out into a full standalone tab. -->
   <script>window.__L10_WEBAPP_URL = '<?= (typeof webAppUrl !== "undefined" ? webAppUrl : "") ?>';</script>
 </head>
 <body>
+<!-- Brand intro overlay (once-per-session). Hidden unless <html> carries
+     .mh-intro-on (set by the head gate before paint); JS plays it, then removes it. -->
+<div id="mh-intro" class="mh-intro" aria-hidden="true">
+  <div class="mh-intro-group">
+    <div class="mh-mark" id="mh-mark">
+      <div class="mh-badge" id="mh-badge">
+        <div class="mh-bar" id="mh-bar1"></div>
+        <div class="mh-bar" id="mh-bar2"></div>
+        <div class="mh-bar" id="mh-bar3"></div>
+      </div>
+    </div>
+    <div class="mh-wordmark">
+      <span class="mh-name">Momentum Huddle</span>
+      <span class="mh-sublabel">Weekly meeting software</span>
+    </div>
+  </div>
+</div>
 <!-- target=_self is load-bearing: <base target="_top"> would otherwise make
      this navigate the TOP window (the whole Sheets tab) instead of jumping. -->
 <a class="skip-link" href="#l10-main" target="_self">Skip to content</a>

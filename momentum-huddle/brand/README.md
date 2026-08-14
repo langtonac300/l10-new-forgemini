@@ -27,11 +27,19 @@ The handoff's sub-label read `L10 MEETING SOFTWARE`; per the Momentum Huddle
 rebrand (EOS terms removed) it now reads **WEEKLY MEETING SOFTWARE**. Change it in
 the `#sublabel` span.
 
-### Using it inside the app
-This is a standalone reference asset (mirrors the handoff's own `reference.html`
-pattern). To make it the app's boot/splash or a brand-intro, port the `<style>`
-block and the physics `<script>` into the app's files (`L10Css.html` /
-`L10Js.html`) following their existing patterns — the physics loop has no
-dependencies. It is **not** wired into the app boot yet: a one-shot ~2.7s splash
-would sit in front of the deliberately-fast four-slice boot, so placement/trigger
-is a product call (see the PR description).
+### Where it's used in the app
+This file is the standalone reference (mirrors the handoff's own `reference.html`).
+The same animation is **wired into the app as a once-per-session brand intro**:
+
+- `L10Index.html` — a head gate sets `<html class="mh-intro-on">` *before first
+  paint* (only when the session hasn't seen it and reduced-motion is off), plus the
+  overlay markup and the DM Sans font link.
+- `L10Css.html` — the `.mh-intro*` overlay styles + keyframes.
+- `L10Js.html` — the self-contained physics module (wrapped so it can never break
+  boot); it plays over the boot fetch, then removes the overlay and sets a
+  `sessionStorage` flag so later loads in the same session are instant.
+
+It never taxes the fast four-slice boot: the splash overlays the boot fetch rather
+than delaying it, and only shows on the first load of a session. Regression-tested
+by `harness/run.js` (the intro mounts, plays, dismisses, and does **not** replay on
+a same-session reload).
