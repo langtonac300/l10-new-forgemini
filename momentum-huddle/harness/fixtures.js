@@ -27,7 +27,7 @@
 
   const CONFIG = {
     TEAM: TEAM.join(', '),
-    SEGMENTS: JSON.stringify([['Check-in', 5], ['Metrics', 5], ['Priority review', 5], ['Headlines', 5], ['To-do list', 5], ['IDS', 60], ['Wrap-up', 5]]),
+    SEGMENTS: JSON.stringify([['Check-in', 5], ['Metrics', 5], ['Priority review', 5], ['Headlines', 5], ['To-do list', 5], ['Solve', 60], ['Wrap-up', 5]]),
     SCORECARD_WEEKS: '13',
     TODO_DONE_TARGET: '90',
     RATING_BAR: '8',

@@ -3,7 +3,7 @@
 //      team member the day before the huddle: their open to-dos + priorities due, and
 //      an ask to reply with issues/headlines/priorities for the agenda.
 //   2. l10ProcessMailReplies() — scans Gmail for replies to that email and adds
-//      each labeled line to the huddle (Issue:/Headline:/Rock:, unlabeled reply
+//      each labeled line to the huddle (Issue:/Headline:/Priority:, unlabeled reply
 //      => one Issue), with the sender's name and a "via email" flag.
 //   3. l10SendTuesdayRecap()   — emails the team the recap after the huddle.
 //
@@ -21,8 +21,8 @@
 // Quotas: ~100 recipients/day on a consumer account, ~1,500/day on Workspace.
 
 var L10_MAIL = {
-  HEADSUP_SUBJECT: '[L10] Heads-up — reply with issues, headlines & priorities',
-  HEADSUP_SUBJECT_STUART: '[L10] Heads-up — anything you’d like the team to cover Tuesday?',
+  HEADSUP_SUBJECT: '[Momentum] Heads-up — reply with issues, headlines & priorities',
+  HEADSUP_SUBJECT_STUART: '[Momentum] Heads-up — anything you’d like the team to cover Tuesday?',
   HEADSUP_TAG: 'Heads-up',          // subject token the reply sweep matches on (both subjects carry it)
   PROCESSED_PROP: 'L10_MAIL_PROCESSED',   // CSV of Gmail message ids already ingested
   LAST_RECAP_PROP: 'L10_MAIL_LAST_RECAP', // meeting id of the last emailed team recap
@@ -235,7 +235,7 @@ function l10MailHeadsupHtml_(p, due, dayInfo, meetingName) {
       '<ul style="margin:4px 0 0;padding-left:18px;color:' + M.INK + ';font-size:13px;line-height:1.6;">' +
         '<li><b>Issue:</b> something for the team to solve</li>' +
         '<li><b>Headline:</b> a customer / employee / kudos FYI</li>' +
-        '<li><b>Rock:</b> a quarterly priority to propose</li>' +
+        '<li><b>Priority:</b> a quarterly priority to propose</li>' +
       '</ul>' +
       '<p style="margin:8px 0 0;color:' + M.MUTED + ';font-size:12px;">No label? Your whole reply is added as one issue. One line per item; add as many as you like.</p>' +
     '</div>';
@@ -268,7 +268,7 @@ function l10ProcessMailReplies() {
   var added = [];
 
   var threads = [];
-  try { threads = GmailApp.search('subject:L10 newer_than:8d', 0, 50); }
+  try { threads = GmailApp.search('subject:Momentum newer_than:8d', 0, 50); }
   catch (e) { return { ok: false, error: 'Gmail search failed: ' + String(e).slice(0, 120) }; }
 
   threads.forEach(function (thread) {
@@ -280,7 +280,7 @@ function l10ProcessMailReplies() {
       var isReply = /^\s*re:/i.test(String(msg.getSubject() || ''));
 
       // Skip our OWN outbound heads-up (it carries example "Issue:"/"Headline:"/
-      // "Rock:" lines that must NOT be ingested), identified as an owner-sent
+      // "Priority:" lines that must NOT be ingested), identified as an owner-sent
       // message that is not a "Re:". Mark it processed so we never look again.
       if (from.email && from.email === ownerEmail && !isReply) { processed[mid] = 1; return; }
 
@@ -317,8 +317,8 @@ function l10MailParseReply_(body) {
     var ln = raw.replace(/^\s*(?:[-*•·–]|\d+[.)])\s+/, '').trim();
     if (!ln) return;
     // Label may be wrapped in markdown bold and the colon may sit inside it:
-    // "*Issue:*", "*Issue: *", "**Rock** -", etc.
-    var m = ln.match(/^\*{0,2}\s*(issue|headline|rock|to-?do|todo)\s*\*{0,2}\s*[:\-–—]\s*(.+)$/i);
+    // "*Issue:*", "*Issue: *", "**Priority** -", etc.
+    var m = ln.match(/^\*{0,2}\s*(issue|headline|rock|priority|to-?do|todo)\s*\*{0,2}\s*[:\-–—]\s*(.+)$/i);
     if (m) {
       var t = m[2].replace(/^\*+|\*+$/g, '').trim();
       if (t) labeled.push({ kind: l10MailKind_(m[1]), text: t });
@@ -351,7 +351,7 @@ function l10MailStripQuote_(text) {
 function l10MailKind_(label) {
   var s = String(label).toLowerCase().replace(/[\s-]/g, '');
   if (s === 'headline') return 'headline';
-  if (s === 'rock') return 'rock';
+  if (s === 'rock' || s === 'priority') return 'rock';
   if (s === 'todo') return 'todo';
   return 'issue';
 }
@@ -404,7 +404,7 @@ function l10MailNotifyOwner_(config, added) {
   }).join('');
   MailApp.sendEmail({
     to: to,
-    subject: '[L10] ' + added.length + ' item(s) added from email replies',
+    subject: '[Momentum] ' + added.length + ' item(s) added from email replies',
     htmlBody: '<p>' + l10MailEsc_(summary) + ' added to the huddle from email replies (flagged “via email”). Review or trim before the huddle:</p><ul>' + li + '</ul>',
     name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
@@ -951,7 +951,7 @@ function l10MailStuartHeadsupHtml_(config) {
       '<ul style="margin:4px 0 0;padding-left:18px;color:' + M.INK + ';font-size:13px;line-height:1.6;">' +
         '<li><b>Issue:</b> something you’d like the team to work through</li>' +
         '<li><b>Headline:</b> a customer / people / FYI note to share</li>' +
-        '<li><b>Rock:</b> a priority you want on our radar</li>' +
+        '<li><b>Priority:</b> a priority you want on our radar</li>' +
       '</ul>' +
       '<p style="margin:8px 0 0;color:' + M.MUTED + ';font-size:12px;">No label? Your reply is added as one issue. No need to reply if there’s nothing this week.</p>' +
     '</div>';
@@ -1128,7 +1128,7 @@ function l10SendCascadeDraft(force) {
     '</div>';
   MailApp.sendEmail({
     to: me,
-    subject: '[L10] Cascade draft — ' + l10Today_(),
+    subject: '[Momentum] Cascade draft — ' + l10Today_(),
     htmlBody: l10MailDoc_(inner, { preheader: 'Fresh pacing pulls for the Monday meeting', title: 'Cascade draft' }),
     name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
@@ -1269,7 +1269,7 @@ function l10DigestContentLabel_(set) {
 function l10DigestSubject_(r, set, now) {
   var label = String((r && r.label) || '') || l10DigestContentLabel_(set);
   label = label.replace(/heads-?up/gi, 'update');
-  return '[L10] ' + label + ' — ' + now.dateLabel;
+  return '[Momentum] ' + label + ' — ' + now.dateLabel;
 }
 
 // Active-metric / in-window-headline presence — the "has content" test for the

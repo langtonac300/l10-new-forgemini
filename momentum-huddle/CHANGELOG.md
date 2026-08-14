@@ -355,7 +355,7 @@ headless Chromium: 5 selected → filter → bar 1, writes 1, state 1.
 **🟠 High — `＋ Steps` and the stale-nudge links were dead in the huddle and on 1:1s.**
 `[data-tddrawer]` and `[data-tdpromote]` were bound in `wireTodoControls`, which only
 `renderTodos()` and `spliceTodoRow_()` ever call. A to-do row renders on **four** surfaces.
-So in the room, clicking `＋ Steps` did nothing, and *"carried 3 weeks — make it a rock"*
+So in the room, clicking `＋ Steps` did nothing, and *"carried 3 weeks — make it a priority"*
 did nothing at the exact moment the huddle was looking at it. Moved into `wireShared`,
 which every surface calls exactly once per scope.
 
@@ -409,7 +409,7 @@ boot slices, then screenshot `#page-todos`).
 
 **Removed**
 - **The four stat tiles** (still owed · % done · blocked · carried over). The ≥90% number
-  still lives where it's actually read: the huddle's To-do segment and the Scorecard. The
+  still lives where it's actually read: the huddle's To-do segment and the Metrics. The
   page keeps its one-line subtitle. `todoTilesHtml_`/`refreshTodoTiles_` deleted.
 - **The per-row owner name.** The page groups *by owner* and every row underneath repeated
   the same name and avatar — pure noise under a header that already said it. `todoLine`
@@ -788,10 +788,10 @@ in the SPA harness with zero console errors.
 
 ## v2.0 (2026-07-10) — rebased onto the Momentum Huddle codebase
 
-Alex rebuilt and rebranded the Momentum Huddle app as a standalone product ("Momentum Huddle") in a
+Alex rebuilt the app as an improved standalone product in a
 separate repo, adding a large batch of improvements. This version **ports that improved
-codebase back into the Brady Momentum Huddle app** — the one the paid-media team runs weekly — while
-keeping the Momentum Huddle vocabulary the team knows, the `L10_*` tabs (so all existing data carries
+codebase back into the team's Momentum Huddle app** — the one the paid-media team runs weekly — while
+keeping the vocabulary the team knows, the `L10_*` tabs (so all existing data carries
 over untouched), and **every** Brady-specific feature.
 
 **Gained from the Momentum codebase (all preserved here):**
@@ -816,7 +816,7 @@ over untouched), and **every** Brady-specific feature.
   token, GA4) + team access link, so nobody edits the config tab for day-to-day changes.
 - **Parallel four-slice boot** + local-splice re-renders (faster first paint).
 
-**Brady layer, re-injected and intact:** Momentum Huddle vocabulary (Check-in / Priorities / Priority review / Solve /
+**Brady layer, re-injected and intact:** the team vocabulary (Check-in / Priorities / Priority review / Solve /
 Cascade); the `L10_*` tabs; the roster (Alex, Courtney, Scott, CJ + Stuart) and 1:1 schedule;
 Brady account tags, issue categories, Aug-1 fiscal (`FISCAL_START_MONTH=8`); **all** seeds
 (metrics SC-001…012 with Financial Dashboard v2 auto-pull, NB-negatives IMPORTRANGE,
@@ -888,7 +888,7 @@ Open threads, in order:
    then redeploy — now deployed & confirmed working (Alex, 2026-06-24)**)
    — if a reported bug matches something fixed below, check his paste is
    current FIRST. Web-app deployments also need Deploy → Manage deployments
-   → ✏️ → New version. **Separately (2026-06-24): the A/S scorecard rows
+   → ✏️ → New version. **Separately (2026-06-24): the A/S metrics rows
    SC-011/SC-012 need `L10Setup.gs` re-pasted + Setup / repair tabs run once;
    they read the new Financial Dashboard v2 A/S column (K7/K8), so that dashboard
    rebuild + the `Revenue Pull` BigQuery pull must be live too — see
@@ -1513,48 +1513,48 @@ Setup/repair run still covers everything):
   non-empty + date format; blank due is allowed on to-dos/priorities (clears it),
   required on milestones (the timeline places them by date).
 
-## v1.5 (2026-06-12, evening) — IDS in EOS order: Identify → Discuss → Solve
+## v1.5 (2026-06-12, evening) — Solve in order: Identify → Discuss → Decide
 
 Alex's critique of the v1.2 focus mode: opening an issue led with the four
 outcome buttons ("you immediately see buttons that let you say 'eh, let's not
 talk about this'"); Identify/Discuss had nowhere to take notes; to-dos were
-hostage to hitting Solved. Changes (`L10Setup.gs`, `L10Code.gs`, `L10Js.html`,
+hostage to hitting Decided. Changes (`L10Setup.gs`, `L10Code.gs`, `L10Js.html`,
 `L10Css.html`):
 
-- **The module now runs in EOS order**: ① Identify (the issue owner names the
-  real problem — its own notes field) → ② Discuss (notes) → ③ Solve (the
+- **The module now runs in order**: ① Identify (the issue owner names the
+  real problem — its own notes field) → ② Discuss (notes) → ③ Decide (the
   one-line decision + to-dos). The outcome picker is gone; the coach banner
   and the Ctrl+Enter/dictate hint line are gone (Ctrl+Enter still works in
-  the solve field, just unadvertised).
+  the decide field, just unadvertised).
 - **Identify/Discuss notes persist**: two new `L10_Issues` columns,
   `Identified` and `Discussed` — appended at the END of the header row so
   existing rows keep their column mapping (Setup/repair adds them; the same
   run v1.4 already requires). Notes save on blur and ride along on every
-  outcome (solve/park/kill/hub), so the thinking survives even when the
+  outcome (decide/park/kill/hub), so the thinking survives even when the
   issue gets no outcome this huddle.
-- **To-dos no longer need a solve**: every to-do row has "＋ Add now" which
+- **To-dos no longer need a decide**: every to-do row has "＋ Add now" which
   creates it immediately (`Source` = the issue id); already-created to-dos
-  list under the rows. Anything still filled in is swept up by "Solved —
+  list under the rows. Anything still filled in is swept up by "Decided —
   save it" exactly as before. Answer to "does the to-do save if you don't
-  hit Solved?" — before: no, it silently died; now: yes, if you hit its
+  hit Decided?" — before: no, it silently died; now: yes, if you hit its
   own Add now.
-- **Park / Make-it-a-test / Kill demoted** to a "Didn't solve it?" row below
-  the Solve panel — present, but no longer the first thing the room sees.
+- **Park / Make-it-a-test / Kill demoted** to a "Didn't decide it?" row below
+  the Decide panel — present, but no longer the first thing the room sees.
   Each expands its own controls inline (second click collapses).
 
-## v1.4 (2026-06-12, evening) — rock milestones on a to-scale timeline
+## v1.4 (2026-06-12, evening) — priority milestones on a to-scale timeline
 
-Alex's ask: "rocks should have mini milestones … under each rock title …
+Alex's ask: "priorities should have mini milestones … under each priority title …
 spread out for the quarter … the dates the milestones fall on are actually
 represented in that distance to scale … once the last milestone is done the
-rock is done." All five files changed; **one run of Setup / repair tabs is
+priority is done." All five files changed; **one run of Setup / repair tabs is
 required** (new `L10_Rock_Milestones` tab: ID, Rock ID, Milestone, Due,
 Status, Done At, Created, Notes — `MS-*` ids, OPEN/DONE validation).
 
-- **To-scale timeline under every rock** (huddle Rock review + Rocks page):
-  the track spans the rock's life — `Created` → `Due`, or a 90-day EOS window
+- **To-scale timeline under every priority** (huddle Priority review + Priorities page):
+  the track spans the priority's life — `Created` → `Due`, or a 90-day window
   when no due date is set (stretched if milestones run past it). A milestone
-  7 days into a 90-day rock sits at 7/90 of the width. Start/due date caps,
+  7 days into a 90-day priority sits at 7/90 of the width. Start/due date caps,
   elapsed-time fill, and a "today" line ride along.
 - **No overlaps, guaranteed**: labels (name + date) lane-pack greedily using
   real rendered pixel widths — close-together milestones stack into extra
@@ -1563,15 +1563,15 @@ Status, Done At, Created, Notes — `MS-*` ids, OPEN/DONE validation).
   window resize and on page switches (hidden pages have no measurable widths).
 - **Tick-off in place**: click a dot or label to toggle done (✓ green; open
   blue; past-due red). Completing the **last** open milestone auto-marks the
-  rock DONE — server-side, so the sheet agrees — with a "🪨 Last milestone
+  priority DONE — server-side, so the sheet agrees — with a "🪨 Last milestone
   done" notification. Reopening a milestone deliberately does NOT reopen the
-  rock (that stays a human call on the rock's buttons).
-- **Inline add** ("＋ milestone" on the rock's meta line — `window.prompt` is
+  priority (that stays a human call on the priority's buttons).
+- **Inline add** ("＋ milestone" on the priority's meta line — `window.prompt` is
   blocked in the Sheets iframe, so it's an inline name + date form; Enter
   submits). Delete is a two-click arm (✕ → "delete?") on label hover; the
   `n/m milestones` chip on the meta line goes green at n = m.
 - Milestones live in their own sheet rows (not JSON) so Alex can bulk-edit
-  them in the tab like everything else. No seeds — rocks start clean and the
+  them in the tab like everything else. No seeds — priorities start clean and the
   team adds milestones as they plan. A pre-setup workbook (tab missing) reads
   as zero milestones and the add API says to run Setup / repair tabs.
 
@@ -1608,39 +1608,39 @@ showed 7·6 while his Source Ref cells said 6·1. `L10Code.gs` only:
 - **Top-right notification stack** (#80): green "✓ Successfully …" on every
   confirmed server write (optimistic actions confirm on ack), amber validation,
   red errors. Replaces the bottom toast.
-- **Scribe QoL** (#78): multi to-do rows per solve, snippet chips, autofocus +
+- **Scribe QoL** (#78): multi to-do rows per decide, snippet chips, autofocus +
   autosize + Ctrl+Enter, OS-dictation hint.
-- **Conclude affordances** (#79): ⏭ Conclude jump button on every segment,
+- **Wrap-up affordances** (#79): ⏭ Wrap-up jump button on every segment,
   two-click "discard this huddle" (status `CANCELLED` — hidden from History and
   the open-meeting check), rail hover.
-- **IDS focus mode** (#81): "IDS →" opens a full-screen single-issue module —
-  coach line (talk first), then an explicit outcome picker (Solve / Park to a
+- **Solve focus mode** (#81): "Solve →" opens a full-screen single-issue module —
+  coach line (talk first), then an explicit outcome picker (Decide / Park to a
   1:1 / Make it a test / Kill), each path showing only its own controls; the
-  Solve panel labels where to-dos save. Replaced the everything-at-once inline
+  Decide panel labels where to-dos save. Replaced the everything-at-once inline
   panel after Alex's six-point critique.
-- Scorecard: drop-to-issue button on **every** metric row (accented when
+- Metrics: send-to-issue button on **every** metric row (accented when
   off-track), not just off-track rows.
 
 ## v1.1 (2026-06-12) — fix pass after Alex's first live session + full code review
 
-User-reported: rock buttons/"drop to issue" looked dead · Kill dead-or-slow ·
+User-reported: priority buttons/"send to issue" looked dead · Kill dead-or-slow ·
 hard-to-read text. Review found 10 issues; all fixed:
 
 - **Every server call now surfaces errors** (19 previously-silent failure paths
-  → error toasts; Start/Conclude buttons re-enable on failure instead of
+  → error toasts; Start/Wrap-up buttons re-enable on failure instead of
   bricking) and a **spinning "saving…" chip** shows whenever a call is in flight.
-- **Status changes are instant** (optimistic UI for rock/to-do status, kill,
-  park, solve, reopen, votes, cascade) and **hub counts are cached 5 min** —
-  the cross-spreadsheet fetch no longer rides on every click. Conclude went
+- **Status changes are instant** (optimistic UI for priority/to-do status, kill,
+  park, decide, reopen, votes, cascade) and **hub counts are cached 5 min** —
+  the cross-spreadsheet fetch no longer rides on every click. Wrap-up went
   from ~20 sheet operations to 3.
 - **"Send to Experiment Hub ideas" actually works now** — `window.prompt()` is
   blocked inside the Sheets iframe, so the hypothesis is an inline field.
 - **To-do done-% math fixed** (Date cells were being compared as strings —
-  the % was pinned ~100% and carry-over counts never incremented); conclude
+  the % was pinned ~100% and carry-over counts never incremented); wrap-up
   now validates the meeting row before any side effects.
 - **Stale meetings can't hijack Monday**: an OPEN meeting from a previous day
-  is auto-closed (`[auto-closed — never concluded]`) and a same-day resume
-  updates the attendee list; segue notes rehydrate after a reload instead of
+  is auto-closed (`[auto-closed — never wrapped up]`) and a same-day resume
+  updates the attendee list; check-in notes rehydrate after a reload instead of
   being wiped and overwritten.
 - **Timezone correctness**: client uses local dates (was UTC — evening huddles
   misfiled to-dos and dropped them from the recap); server formats everything
@@ -1652,8 +1652,8 @@ hard-to-read text. Review found 10 issues; all fixed:
   caveats bumped to the safety tier, selected attendee chips are now solid blue
   with a ✓, gray mini-buttons no longer styled like disabled buttons, events
   strip text enlarged.
-- Misc: "Finish" no-op button removed (rail + Conclude are the exits), typed
-  IDS resolutions survive re-renders (drafts), copy-to-clipboard never claims
+- Misc: "Finish" no-op button removed (rail + Wrap-up are the exits), typed
+  Decide resolutions survive re-renders (drafts), copy-to-clipboard never claims
   success on failure, ID minting survives >999 rows, concurrent captures can't
   overwrite each other, setup repairs narrow sheets.
 

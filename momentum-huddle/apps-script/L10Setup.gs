@@ -148,7 +148,7 @@ var L10 = {
 var L10_CONFIG_DEFAULTS = [
   ['MEETING_NAME', 'Paid Media Momentum Huddle', 'Shown in the app header and recaps.'],
   ['TEAM', 'Alex, Courtney, Scott, CJ', 'Attendee + owner roster (comma-separated). Edit freely.'],
-  ['SEGMENTS', '[["Check-in",5],["Metrics",5],["Priority review",5],["Headlines",5],["To-do list",5],["IDS",60],["Wrap-up",5]]',
+  ['SEGMENTS', '[["Check-in",5],["Metrics",5],["Priority review",5],["Headlines",5],["To-do list",5],["Solve",60],["Wrap-up",5]]',
     'Agenda segments + minutes (JSON). Full agenda = 90 min; trim minutes here to fit a shorter slot.'],
   ['SCORECARD_WEEKS', 13, 'Trailing weeks shown on the metrics grid (13 = one quarter).'],
   ['TODO_DONE_TARGET', 90, 'Weekly to-do completion target % (team-level, not per person).'],
@@ -174,7 +174,7 @@ var L10_CONFIG_DEFAULTS = [
   ['ONE_ON_ONES', '', 'OPTIONAL override of the 1:1 schedule (baked into L10Mail.gs). Format "Name:Weekday[:manager]", e.g. "Courtney:Wed, CJ:Wed, Scott:Fri, Stuart:Thu:manager". Each weekday morning Alex gets a prep pack for that day\'s 1:1s.'],
   ['EMAIL_FROM_NAME', 'Paid Media Momentum', 'Display name on the automated Momentum Huddle emails.'],
   ['CHAT_WEBHOOK_URL', '',
-    'Incoming-webhook URL for the team chat space. When set, adding or completing a to-do posts a line to that space (e.g. "L10 To-Do - Complete - Scott - Fix the PDC feed"). Blank = off. Create it in the space → Apps & integrations → Webhooks → Add; or use Momentum Huddle → Chat → Set to-do webhook URL.'],
+    'Incoming-webhook URL for the team chat space. When set, adding or completing a to-do posts a line to that space (e.g. "Momentum Huddle To-Do - Complete - Scott - Fix the PDC feed"). Blank = off. Create it in the space → Apps & integrations → Webhooks → Add; or use Momentum Huddle → Chat → Set to-do webhook URL.'],
   ['JIRA_DOMAIN', 'bradyagile.atlassian.net', 'Atlassian site host for the Momentum Huddle→Jira to-do sync (no https://, no trailing path). Blank = Jira sync off. See L10Jira.gs.'],
   ['JIRA_PROJECT_KEY', 'BNADM', 'Jira project key new to-dos are created in (BNA - Digital Marketing board). Use Momentum Huddle → Jira → Test connection to list the project keys you can access.'],
   ['JIRA_EMAIL', '', 'Atlassian account email that owns the API token — issues are created as this user. Token itself lives in the L10_JIRA_API_TOKEN script property (Momentum Huddle → Jira → Set API token).'],

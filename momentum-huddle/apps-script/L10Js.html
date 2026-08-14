@@ -1555,7 +1555,7 @@ function renderSegment() {
   else if (/priorit|rock/i.test(name)) body.innerHTML = segRocks();
   else if (/headline/i.test(name)) body.innerHTML = segHeadlines();
   else if (/to-?do/i.test(name)) body.innerHTML = segTodos();
-  else if (/issue|ids/i.test(name)) body.innerHTML = segIds();
+  else if (/issue|ids|solve/i.test(name)) body.innerHTML = segIds();
   else body.innerHTML = segConclude();
   wireSegment(body);
   wireCaveats(body);

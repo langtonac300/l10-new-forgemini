@@ -75,10 +75,10 @@ valid content, or a non-numeric `Hour`, is rejected on save rather than silently
 firing.
 
 **Reply contract (labeled lines).** Recipients reply with one item per line,
-prefixed `Issue:`, `Headline:`, or `Rock:` (also `To-do:`). The script routes by
+prefixed `Issue:`, `Headline:`, or `Priority:` (also `To-do:`). The script routes by
 prefix; an **unlabeled** reply becomes a single **Issue**. The parser is tolerant of
 pasted-template formatting — leading bullets (`- `, `* `, `1.`) and markdown bold
-(`*Issue:*`, `**Rock** -`) all parse — and strips the quoted original (the
+(`*Issue:*`, `**Priority** -`) all parse — and strips the quoted original (the
 `On <date> … wrote:` header, `>` quotes, `From:`/`Original Message` dividers).
 Attribution comes from the sender's address mapped through `TEAM_EMAILS` (falls back
 to the email display name). The flag lands in the item's Notes ("Added via email
@@ -92,7 +92,7 @@ trimming junk. Dedup is per-message (Gmail message ids in a Script Property), so
 multiple replies in one thread across the week each get ingested once.
 
 **Owner vs outbound (why a self-test needs a real reply):** the sweep skips the
-script's *own outbound* heads-up (it contains example `Issue:`/`Headline:`/`Rock:`
+script's *own outbound* heads-up (it contains example `Issue:`/`Headline:`/`Priority:`
 lines that must NOT be ingested), identified as an owner-sent message that is *not*
 a `Re:`. A genuine **reply is ingested even from the owner's own account** (subject
 starts with `Re:`) — so Alex can email items in and self-test. A reply already seen

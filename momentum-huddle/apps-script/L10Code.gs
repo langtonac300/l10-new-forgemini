@@ -725,7 +725,7 @@ function l10BootCore_() {
   var team = String(config.TEAM || '').split(',').map(function (s) { return s.trim(); }).filter(String);
   var segments;
   try { segments = JSON.parse(config.SEGMENTS); } catch (e) {
-    segments = [['Check-in', 5], ['Metrics', 5], ['Priority review', 5], ['Headlines', 5], ['To-do list', 5], ['IDS', 60], ['Wrap-up', 5]];
+    segments = [['Check-in', 5], ['Metrics', 5], ['Priority review', 5], ['Headlines', 5], ['To-do list', 5], ['Solve', 60], ['Wrap-up', 5]];
   }
   var meetings = l10ReadTab_(L10.TABS.MEETINGS).rows.map(l10Sanitize_);
   var open = meetings.filter(function (m) { return String(m['Status']) === 'OPEN'; });
