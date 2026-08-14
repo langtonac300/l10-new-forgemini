@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?!= l10Include('L10Css'); ?>
+  <style>
+    /* Quick-add dialog frame — tokens, buttons, fields and chips come from the
+       shared Css include; this only lays out the row grid + footer. */
+    body { padding: 14px 16px 10px; }
+    .qa-sub { color: var(--soft); font-size: var(--text-4); margin: 0 0 12px; line-height: 1.5; }
+    .qa-row { display: flex; gap: 8px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .qa-row:last-child { border-bottom: 0; }
+    .qa-row .field { margin: 0; min-width: 130px; }
+    .qa-row input, .qa-row select { padding: 7px 9px; font-size: var(--text-4); }
+    .qa-grow { flex: 3; min-width: 240px; }
+    .qa-row.qa-err { background: var(--bad-soft); border-radius: var(--radius-md); padding-left: 8px; padding-right: 8px; }
+    .qa-owners { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; width: 100%; }
+    .qa-owners .ownerpick-lbl { margin-right: 2px; }
+    .qa-owners .person-chip { padding: 3px 10px 3px 4px; font-size: var(--text-3); }
+    .qa-owners .person-chip .avatar { width: 20px; height: 20px; font-size: 10px; }
+    .qa-x { background: none; border: 0; color: var(--faint); font-weight: 800; cursor: pointer; padding: 7px 4px; font-family: inherit; font-size: 13px; }
+    .qa-x:hover { color: var(--bad); }
+    .qa-foot { display: flex; gap: 10px; align-items: center; margin-top: 12px; position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 4px; border-top: 1px solid var(--line); }
+    .qa-log { margin-top: 8px; }
+    .qa-log .okline { color: var(--good); font-weight: 700; font-size: var(--text-3); padding: 2px 0; }
+    .qa-log .errline { color: var(--bad); font-weight: 700; font-size: var(--text-3); padding: 2px 0; }
+    .qa-log .warnline { background: var(--warn-soft); border: 1px solid #fedf89; color: #93580c; border-radius: var(--radius-md); padding: 7px 10px; font-size: var(--text-3); margin-top: 5px; line-height: 1.45; }
+    table.qa-sc { width: 100%; border-collapse: collapse; font-size: var(--text-4); }
+    table.qa-sc th { text-align: left; color: var(--faint); font-weight: 700; font-size: var(--text-1); text-transform: uppercase; letter-spacing: .4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    table.qa-sc td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    table.qa-sc tr:last-child td { border-bottom: 0; }
+    table.qa-sc input { width: 110px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; font-family: inherit; font-size: var(--text-4); }
+    table.qa-sc input:focus { outline: none; border-color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="card" style="margin-bottom:0">
+  <p class="qa-sub" id="qa-sub"></p>
+  <div id="qa-body"></div>
+  <div class="qa-log" id="qa-log"></div>
+  <div class="qa-foot">
+    <button class="btn subtle mini" id="qa-more" type="button">＋ another row</button>
+    <span style="flex:1"></span>
+    <span id="qa-busy" class="muted" style="display:none;font-size:var(--text-3);font-weight:700">saving…</span>
+    <button class="btn subtle" id="qa-close" type="button">Close</button>
+    <button class="btn" id="qa-save" type="button">Add</button>
+  </div>
+</div>
+<script>
+var MODE = <?!= modeJson ?>;
+var BOOT = <?!= bootJson ?>;
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function opts(list, blankLabel) {
+  var h = blankLabel !== undefined ? '<option value="">' + esc(blankLabel) + '</option>' : '';
+  return h + (list || []).map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('');
+}
+// Same per-person avatar colors as the app (Js.html personColor).
+var PALETTE = ['#0a58c4', '#d97706', '#0d9488', '#7c3aed', '#db2777', '#65a30d', '#dc2626', '#0284c7'];
+function personColor(name) {
+  var s = String(name || ''), h = 0;
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
+var SUBS = {
+  headline: 'One-liners for the team — they land on the Headlines list and show up in the next huddle’s Headlines segment. “Cascade” carries one into Monday’s digital-team meeting.',
+  issue: 'Anything in the way goes on the list the moment you think of it — the next huddle prioritizes and solves the top ones in Solve.',
+  todo: 'Seven-day commitments, one owner each. Tap every person a row is for — one to-do is created per person. Blank due date = next Monday (the next huddle reviews it).',
+  rock: 'Quarter-sized outcomes, one owner each. Milestones and status calls live in the app’s Priorities page.',
+  scorecard: 'Capture the week of ' + (BOOT.weekOf || '') + ': auto metrics pull from their Source Refs, manual metrics take what you type here (%, $ and commas are all fine). Blank inputs are skipped — never written as zero.'
+};
+$('qa-sub').textContent = SUBS[MODE] || '';
+
+// --- row templates per mode -------------------------------------------------
+function rowHtml() {
+  if (MODE === 'headline') {
+    return '<div class="qa-row">' +
+        '<div class="field"><select class="qa-type">' + opts(BOOT.types) + '</select></div>' +
+        '<div class="field qa-grow"><input class="qa-text" placeholder="one-liner — customer news, people news, FYI…"></div>' +
+        '<div class="field"><select class="qa-by">' + opts(BOOT.team) + '</select></div>' +
+        '<label style="display:flex;align-items:center;gap:6px;font-size:var(--text-3);font-weight:600;padding-top:8px"><input type="checkbox" class="qa-cascade"> cascade ↗</label>' +
+        '<button class="qa-x" type="button" title="remove row">✕</button></div>';
+  }
+  if (MODE === 'issue') {
+    return '<div class="qa-row">' +
+        '<div class="field qa-grow"><input class="qa-text" placeholder="what’s in the way?"></div>' +
+        '<div class="field"><select class="qa-by">' + opts(BOOT.team) + '</select></div>' +
+        '<div class="field"><select class="qa-acct">' + opts(BOOT.accounts, 'account…') + '</select></div>' +
+        '<div class="field"><select class="qa-cat">' + opts(BOOT.categories, 'category…') + '</select></div>' +
+        '<button class="qa-x" type="button" title="remove row">✕</button></div>';
+  }
+  if (MODE === 'todo') {
+    return '<div class="qa-row">' +
+        '<div class="field qa-grow"><input class="qa-text" placeholder="what needs doing…"></div>' +
+        '<div class="field"><input class="qa-due" type="date" title="due (blank = next Monday)"></div>' +
+        '<button class="qa-x" type="button" title="remove row">✕</button>' +
+        '<div class="qa-owners"><span class="ownerpick-lbl">Assign to</span>' +
+        (BOOT.team || []).map(function (p) {
+          return '<button type="button" class="person-chip qa-owner" data-name="' + esc(p) + '" aria-pressed="false"><span class="avatar" style="background:' + personColor(p) + '">' + esc(p.slice(0, 1).toUpperCase()) + '</span>' + esc(p) + '</button>';
+        }).join('') + '</div></div>';
+  }
+  if (MODE === 'rock') {
+    return '<div class="qa-row">' +
+        '<div class="field qa-grow"><input class="qa-text" placeholder="outcome, not activity…"></div>' +
+        '<div class="field"><select class="qa-by">' + opts(BOOT.team) + '</select></div>' +
+        '<div class="field"><input class="qa-due" type="date" title="due"></div>' +
+        '<div class="field"><select class="qa-acct">' + opts(BOOT.accounts, 'account…') + '</select></div>' +
+        '<button class="qa-x" type="button" title="remove row">✕</button></div>';
+  }
+  return '';
+}
+
+function goalLabel(d) {
+  var rule = String(d['Rule'] || '');
+  if (rule === 'between') return esc(d['Goal']) + '–' + esc(d['Goal 2']);
+  if (rule === '>=' || rule === '<=') return esc(rule) + ' ' + esc(d['Goal']);
+  return '—';
+}
+function scHtml() {
+  var h = '<table class="qa-sc"><tr><th>Metric</th><th>Owner</th><th>Goal</th><th>This week</th></tr>';
+  (BOOT.defs || []).forEach(function (d) {
+    var id = String(d['ID']);
+    var cur = (BOOT.values || {})[id];
+    var auto = ['RANGE', 'GA4'].indexOf(String(d['Source']).toUpperCase()) !== -1;
+    h += '<tr><td style="max-width:340px;white-space:normal"><b>' + esc(d['Metric']) + '</b></td>' +
+        '<td class="muted">' + esc(d['Owner'] || '—') + '</td>' +
+        '<td class="muted">' + goalLabel(d) + '</td>' +
+        '<td>' + (auto
+          ? '<span class="muted" data-auto="' + esc(id) + '">' + (cur !== undefined ? esc(cur) : 'auto on capture') + '</span>'
+          : '<input data-cap="' + esc(id) + '" value="' + (cur !== undefined ? esc(cur) : '') + '" placeholder="—">') + '</td></tr>';
+  });
+  return h + '</table>';
+}
+
+function addRow(focus) {
+  var wrap = document.createElement('div');
+  wrap.innerHTML = rowHtml();
+  var row = wrap.firstChild;
+  $('qa-body').appendChild(row);
+  wireRow(row);
+  if (focus) {
+    var t = row.querySelector('.qa-text');
+    if (t) t.focus();
+  }
+  return row;
+}
+function wireRow(row) {
+  var x = row.querySelector('.qa-x');
+  if (x) x.addEventListener('click', function () {
+    if ($('qa-body').querySelectorAll('.qa-row').length <= 1) {
+      // Always keep one row on screen — just blank it out.
+      row.querySelectorAll('input').forEach(function (i) {
+        if (i.type === 'checkbox') i.checked = false; else i.value = '';
+      });
+      row.querySelectorAll('.qa-owner.on').forEach(function (c) {
+        c.classList.remove('on');
+        c.setAttribute('aria-pressed', 'false');
+      });
+      row.classList.remove('qa-err');
+      return;
+    }
+    row.parentNode.removeChild(row);
+  });
+  row.querySelectorAll('.qa-owner').forEach(function (c) {
+    c.addEventListener('click', function () {
+      c.setAttribute('aria-pressed', c.classList.toggle('on') ? 'true' : 'false');
+    });
+  });
+}
+
+// --- collect + save ----------------------------------------------------------
+function collect() {
+  var rows = [], els = [];
+  $('qa-body').querySelectorAll('.qa-row').forEach(function (row) {
+    row.classList.remove('qa-err');
+    var textEl = row.querySelector('.qa-text');
+    var text = textEl ? textEl.value.trim() : '';
+    if (!text) return; // blank rows are just unused slots
+    var r = { text: text };
+    if (MODE === 'headline') {
+      r.type = row.querySelector('.qa-type').value;
+      r.by = row.querySelector('.qa-by').value;
+      r.cascade = row.querySelector('.qa-cascade').checked;
+    } else if (MODE === 'issue') {
+      r.by = row.querySelector('.qa-by').value;
+      r.accounts = row.querySelector('.qa-acct').value;
+      r.category = row.querySelector('.qa-cat').value;
+    } else if (MODE === 'todo') {
+      r.owners = [];
+      row.querySelectorAll('.qa-owner.on').forEach(function (c) { r.owners.push(c.dataset.name); });
+      r.due = row.querySelector('.qa-due').value;
+    } else if (MODE === 'rock') {
+      r.owner = row.querySelector('.qa-by').value;
+      r.due = row.querySelector('.qa-due').value;
+      r.accounts = row.querySelector('.qa-acct').value;
+    }
+    rows.push(r);
+    els.push(row);
+  });
+  return { rows: rows, els: els };
+}
+function log(msg, cls) {
+  var d = document.createElement('div');
+  d.className = cls || 'okline';
+  d.textContent = msg;
+  $('qa-log').appendChild(d);
+  d.scrollIntoView({ block: 'nearest' });
+}
+function busy(on) {
+  $('qa-busy').style.display = on ? 'inline' : 'none';
+  $('qa-save').disabled = on;
+  $('qa-more').disabled = on;
+}
+
+function saveAdds() {
+  var c = collect();
+  if (!c.rows.length) { log('Nothing to add — type into at least one row.', 'errline'); return; }
+  if (MODE === 'todo') {
+    var unowned = [];
+    c.rows.forEach(function (r, i) { if (!r.owners.length) { unowned.push(i); c.els[i].classList.add('qa-err'); } });
+    if (unowned.length) { log('Tap at least one person on each highlighted row.', 'errline'); return; }
+  }
+  busy(true);
+  google.script.run
+      .withSuccessHandler(function (res) {
+        busy(false);
+        res = res || {};
+        (res.rows || []).forEach(function (r, i) {
+          var el = c.els[i];
+          if (r && r.ok) {
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+          } else if (el) {
+            el.classList.add('qa-err');
+            log('Row kept above — ' + ((r && r.error) || 'failed'), 'errline');
+          }
+        });
+        if (res.added) log('✓ Added ' + res.added + ' item(s): ' + (res.ids || []).join(' · '));
+        if (!$('qa-body').querySelectorAll('.qa-row').length) addRow(true);
+      })
+      .withFailureHandler(function (e) {
+        busy(false);
+        log('⚠️ ' + ((e && e.message) || e || 'Save failed — retry.'), 'errline');
+      })
+      .l10_quickAdd(MODE, c.rows);
+}
+
+function saveCapture() {
+  var manual = {};
+  $('qa-body').querySelectorAll('[data-cap]').forEach(function (inp) {
+    if (inp.value.trim() !== '') manual[inp.dataset.cap] = inp.value;
+  });
+  busy(true);
+  google.script.run
+      .withSuccessHandler(function (res) {
+        busy(false);
+        res = res || {};
+        var written = res.written || {};
+        var ids = Object.keys(written);
+        log('✓ Captured ' + ids.length + ' metric(s) for the week of ' + BOOT.weekOf);
+        ids.forEach(function (id) {
+          var span = $('qa-body').querySelector('[data-auto="' + id + '"]');
+          if (span) span.textContent = String(written[id]);
+        });
+        (res.notes || []).forEach(function (n) { log(n, 'warnline'); });
+      })
+      .withFailureHandler(function (e) {
+        busy(false);
+        log('⚠️ ' + ((e && e.message) || e || 'Capture failed — retry.'), 'errline');
+      })
+      .l10_captureWeek(BOOT.weekOf, manual);
+}
+
+// --- boot --------------------------------------------------------------------
+if (MODE === 'scorecard') {
+  $('qa-body').innerHTML = scHtml();
+  $('qa-more').style.display = 'none';
+  $('qa-save').textContent = '⟳ Capture week (' + BOOT.weekOf + ')';
+  $('qa-save').addEventListener('click', saveCapture);
+} else {
+  var seed = MODE === 'rock' ? 1 : MODE === 'todo' ? 2 : 3;
+  for (var k = 0; k < seed; k++) addRow(k === 0);
+  $('qa-save').textContent = 'Add ' + (MODE === 'headline' ? 'headlines' : MODE === 'issue' ? 'issues' : MODE === 'todo' ? 'to-dos' : 'priorities');
+  $('qa-save').addEventListener('click', saveAdds);
+  $('qa-more').addEventListener('click', function () { addRow(true); });
+}
+$('qa-close').addEventListener('click', function () { google.script.host.close(); });
+</script>
+</body>
+</html>

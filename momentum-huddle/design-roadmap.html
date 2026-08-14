@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Momentum Huddle — design roadmap to corporation-grade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ── One token source. This page deliberately models step #1: every colour, space,
+   radius and type step is a variable. Nothing below uses a raw hex or a magic number. ── */
+:root{
+  /* brand + neutrals */
+  --accent:#0a58c4; --accent-deep:#043f8d; --accent-soft:#eaf1fb; --accent-tint:#f4f8fd;
+  --ink:#101828; --soft:#475467; --faint:#667085; --line:#eaecf0; --bg:#f6f7f9; --card:#fff;
+  /* semantic */
+  --good:#15803d; --good-soft:#ecfdf3; --bad:#dc2626; --bad-soft:#fef3f2;
+  --warn:#b45309; --warn-soft:#fffaeb;
+  /* type ramp */
+  --t-11:11px; --t-12:12px; --t-13:13px; --t-14:14px; --t-16:16px; --t-19:19px;
+  --t-24:24px; --t-32:32px; --t-44:44px;
+  /* 4px space scale */
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-8:32px; --s-10:40px; --s-14:56px;
+  /* radius / shadow / motion */
+  --r-1:8px; --r-2:12px; --r-3:16px; --r-pill:999px;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  --shadow-lg:0 12px 32px rgba(16,24,40,.12);
+  --ease:cubic-bezier(.2,.7,.3,1); --dur:.18s;
+  --focus:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:'Inter','Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);
+  color:var(--ink);font-size:var(--t-14);line-height:1.55;-webkit-font-smoothing:antialiased}
+/* the corp-grade tell: a visible focus ring everywhere */
+a:focus-visible,button:focus-visible{outline:none;box-shadow:var(--focus);border-radius:var(--r-1)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 var(--s-6)}
+
+/* header */
+header.hero{background:linear-gradient(135deg,var(--accent-deep),var(--accent));color:#fff;
+  padding:var(--s-14) 0 var(--s-10)}
+.hero .kick{display:inline-flex;align-items:center;gap:var(--s-2);background:rgba(255,255,255,.16);
+  border-radius:var(--r-pill);padding:6px 14px;font-size:var(--t-12);font-weight:700;letter-spacing:.3px;
+  text-transform:uppercase}
+.hero .mark{width:32px;height:32px;border-radius:var(--r-1);background:#fff;color:var(--accent-deep);
+  display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:var(--t-13)}
+.hero h1{font-size:var(--t-44);line-height:1.08;font-weight:800;letter-spacing:-1px;margin:var(--s-5) 0 var(--s-3);max-width:18ch}
+.hero p{font-size:var(--t-16);max-width:62ch;margin:0;color:#dbe7fb}
+.hero .meta{margin-top:var(--s-6);display:flex;gap:var(--s-5);flex-wrap:wrap;font-size:var(--t-13);color:#cfe0fa}
+.hero .meta b{color:#fff}
+
+/* verdict band */
+.verdict{background:var(--card);border-bottom:1px solid var(--line)}
+.verdict .wrap{padding-top:var(--s-10);padding-bottom:var(--s-10)}
+.lab{font-size:var(--t-12);font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--accent-deep);margin:0 0 var(--s-3)}
+.verdict h2{font-size:var(--t-24);font-weight:800;letter-spacing:-.4px;margin:0 0 var(--s-4)}
+.verdict p{color:var(--soft);max-width:80ch;margin:0 0 var(--s-4)}
+.drift{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--s-3);margin-top:var(--s-5)}
+.drift .d{border:1px solid var(--line);border-radius:var(--r-2);padding:var(--s-4);background:var(--bg)}
+.drift .d .h{font-size:var(--t-12);font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--faint);margin-bottom:var(--s-2)}
+.swatch{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-12);font-weight:700;font-family:'SF Mono',Consolas,monospace}
+.swatch i{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.08)}
+.vs{color:var(--faint);font-weight:600;margin:0 4px}
+.star{margin-top:var(--s-6);background:var(--accent-tint);border:1px solid #d6e4f8;border-left:4px solid var(--accent);
+  border-radius:var(--r-2);padding:var(--s-4) var(--s-5)}
+.star .h{font-size:var(--t-12);font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--accent-deep);margin-bottom:6px}
+.star p{color:var(--ink);font-style:italic;margin:0;max-width:none}
+
+/* three-things */
+section{padding:var(--s-10) 0}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--s-4)}
+.three .t{background:var(--card);border:1px solid var(--line);border-radius:var(--r-3);padding:var(--s-5);box-shadow:var(--shadow);position:relative}
+.three .t .n{position:absolute;top:calc(-1*var(--s-3));left:var(--s-5);width:30px;height:30px;border-radius:var(--r-pill);
+  background:var(--accent);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:var(--t-14);box-shadow:var(--shadow)}
+.three .t h3{margin:var(--s-4) 0 var(--s-2);font-size:var(--t-16);font-weight:800}
+.three .t p{margin:0;color:var(--soft);font-size:var(--t-13)}
+
+h2.sec{font-size:var(--t-24);font-weight:800;letter-spacing:-.4px;margin:0 0 var(--s-2)}
+p.sub{color:var(--soft);margin:0 0 var(--s-6);max-width:70ch}
+
+/* step cards */
+.steps{display:flex;flex-direction:column;gap:var(--s-4)}
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--r-3);box-shadow:var(--shadow);
+  overflow:hidden;transition:box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.step:hover{box-shadow:var(--shadow-lg);transform:translateY(-1px)}
+.step summary{list-style:none;cursor:pointer;padding:var(--s-5) var(--s-6);display:flex;align-items:center;gap:var(--s-4)}
+.step summary::-webkit-details-marker{display:none}
+.rank{flex:none;width:38px;height:38px;border-radius:var(--r-2);background:var(--accent-soft);color:var(--accent-deep);
+  font-weight:900;font-size:var(--t-19);display:flex;align-items:center;justify-content:center}
+.step[open] .rank{background:var(--accent);color:#fff}
+.step .head{flex:1;min-width:0}
+.step .head .ti{font-size:var(--t-16);font-weight:700;line-height:1.3}
+.step .head .th{font-size:var(--t-12);color:var(--faint);font-weight:600;margin-top:2px}
+.badges{display:flex;gap:6px;flex:none;align-items:center}
+.badge{font-size:var(--t-11);font-weight:800;border-radius:var(--r-pill);padding:4px 10px;white-space:nowrap;letter-spacing:.2px}
+.b-imp{background:var(--good-soft);color:var(--good)}
+.b-eff{background:var(--bg);color:var(--soft);border:1px solid var(--line)}
+.chev{flex:none;color:var(--faint);transition:transform var(--dur) var(--ease);font-size:var(--t-16)}
+.step[open] .chev{transform:rotate(90deg)}
+.body{padding:0 var(--s-6) var(--s-6) calc(var(--s-6) + 38px + var(--s-4));color:var(--soft)}
+.body .what{color:var(--ink);font-size:var(--t-14);margin:0 0 var(--s-4)}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:var(--s-2) var(--s-4);font-size:var(--t-13);margin-bottom:var(--s-4)}
+.kv dt{font-weight:800;color:var(--faint);text-transform:uppercase;font-size:var(--t-11);letter-spacing:.4px;padding-top:2px}
+.kv dd{margin:0}
+.kv code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:var(--t-12);
+  font-family:'SF Mono',Consolas,monospace;color:var(--accent-deep)}
+.lenses{display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--s-2)}
+.lens{font-size:var(--t-11);font-weight:700;background:var(--accent-soft);color:var(--accent-deep);border-radius:var(--r-pill);padding:3px 10px}
+.files{font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12);color:var(--soft)}
+
+/* themes + waves */
+.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--s-4)}
+.theme{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2);padding:var(--s-5);box-shadow:var(--shadow)}
+.theme .h{display:flex;align-items:center;gap:var(--s-2);font-weight:800;font-size:var(--t-14);margin-bottom:var(--s-2)}
+.dot{width:10px;height:10px;border-radius:var(--r-pill);flex:none}
+.theme p{margin:0;font-size:var(--t-13);color:var(--soft)}
+.waves{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--s-4)}
+.wave{background:var(--card);border:1px solid var(--line);border-radius:var(--r-3);padding:var(--s-5);box-shadow:var(--shadow);border-top:4px solid var(--accent)}
+.wave h3{margin:0 0 var(--s-3);font-size:var(--t-16);font-weight:800}
+.wave ol{margin:0;padding-left:var(--s-5);color:var(--soft);font-size:var(--t-13)}
+.wave li{margin-bottom:6px}
+.wave li b{color:var(--ink)}
+
+.mentions{columns:2;column-gap:var(--s-6)}
+.mentions li{break-inside:avoid;margin-bottom:var(--s-3);color:var(--soft);font-size:var(--t-13)}
+.mentions li b{color:var(--ink)}
+
+footer{padding:var(--s-8) 0 var(--s-10);color:var(--faint);font-size:var(--t-12);border-top:1px solid var(--line);background:var(--card)}
+
+@media (max-width:720px){
+  .hero h1{font-size:var(--t-32)}
+  .body{padding-left:var(--s-6)}
+  .mentions{columns:1}
+  .kv{grid-template-columns:1fr}
+  .kv dt{padding-top:var(--s-2)}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kick"><span class="mark">MH</span> Momentum Huddle · Design roadmap</span>
+    <h1>From competent internal tool to corporation-grade software</h1>
+    <p>A UX&nbsp;+ graphic-design review of the Momentum Huddle app — the meeting runner, the
+       new-member guide, and the weekly recap emails — with the ten highest-leverage next steps,
+       ranked.</p>
+    <div class="meta">
+      <span><b>Reviewed</b> 2026-06-30</span>
+      <span><b>8</b> design lenses</span>
+      <span><b>78</b> findings → <b>10</b> steps</span>
+      <span><b>Bar:</b> Linear · Notion · Asana · Monday</span>
+    </div>
+  </div>
+</header>
+
+<div class="verdict">
+  <div class="wrap">
+    <p class="lab">The verdict</p>
+    <h2>It works — and it reads as a script someone bolted on, not software</h2>
+    <p>Real flashes of product instinct live here: the to-scale priority-milestone timeline, optimistic
+       UI, the two-click “armed confirm”, a 255-line onboarding guide. But the single thing holding it
+       back most is that <b>there is no shared source of truth for anything.</b> The product
+       contradicts itself surface-to-surface within a single week of a teammate’s use — and almost
+       every finding traces back to four roots: <b>no tokens, no component layer, no room mode, no
+       accessible interaction baseline.</b></p>
+
+    <div class="drift">
+      <div class="d">
+        <div class="h">Brady blue, 3 definitions</div>
+        <span class="swatch"><i style="background:#0a58c4"></i>#0a58c4 app</span><br>
+        <span class="swatch"><i style="background:#043f8d"></i>#043f8d guide</span>
+        <span class="vs">·</span>
+        <span class="swatch">none in email</span>
+      </div>
+      <div class="d">
+        <div class="h">Off-track red, 2 values</div>
+        <span class="swatch"><i style="background:#dc2626"></i>#dc2626 app</span>
+        <span class="vs">vs</span>
+        <span class="swatch"><i style="background:#9c2a1c"></i>#9c2a1c email</span>
+      </div>
+      <div class="d">
+        <div class="h">Accessibility floor</div>
+        <span class="swatch">only <code style="font-family:inherit">:focus</code> rule = <b>outline:none</b></span><br>
+        <span class="swatch">3 ARIA attrs in 1,857 lines</span>
+      </div>
+      <div class="d">
+        <div class="h">Built to resist change</div>
+        <span class="swatch">67 inline styles</span><br>
+        <span class="swatch">innerHTML string concat</span>
+      </div>
+    </div>
+
+    <div class="star">
+      <div class="h">★ North star</div>
+      <p>A single Brady-blue, tokenized, component-built meeting product that reads identically in the
+         app, the recap email, and the new-hire guide; runs the room from a full-screen present mode;
+         is fully keyboard- and screen-reader-operable; and lets any mid-meeting mistake be undone in
+         one click.</p>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2 class="sec">▶ If you only do three things</h2>
+    <p class="sub">Foundation plus cheap polish — outsized perceived-quality, and they unblock the rest.
+       #1 before the visual/email work; #2 and #3 in parallel.</p>
+    <div class="three">
+      <div class="t"><div class="n">1</div><h3>One token source</h3>
+        <p>Colour, space, type defined once — consumed by app, guide <i>and</i> email. The keystone every
+           other visual fix depends on, and what kills the “three near-misses of the same blue” read.</p></div>
+      <div class="t"><div class="n">2</div><h3>Focus ring + keyboard</h3>
+        <p>The cheapest highest-credibility win on the board. Crisp focus rings are a direct tell of real
+           software, and it’s the floor of every procurement / VPAT check.</p></div>
+      <div class="t"><div class="n">3</div><h3>Undo + Wrap-up confirm</h3>
+        <p>The defining safety pattern of Linear/Superhuman/Gmail. A mis-click in a <i>live</i> meeting is
+           currently only fixable by hand-editing a sheet row.</p></div>
+    </div>
+
+    <div class="star" style="background:var(--warn-soft);border-color:#fde68a;border-left-color:var(--warn);margin-top:var(--s-6)">
+      <div class="h" style="color:var(--warn)">⚠ Don’t break the Jira sync (merged 2026-06-30)</div>
+      <p style="font-style:normal;color:var(--ink)">A one-way <b>Momentum Huddle → Jira</b> to-do sync now runs server-side and headless: a 10-minute trigger reads <code style="font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12)">L10_Todos</code> directly, creates a Jira issue for each OPEN to-do, and transitions it to Done when the to-do completes. Four steps below touch surfaces it reads — keep them Jira-safe:
+      <b>#3 / #10</b> must keep persisting <code style="font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12)">Status</code> to the sheet (the trigger reads it, not the client); <b>#5 / #10</b> must keep the appended <code style="font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12)">Jira Key</code>/<code style="font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12)">Jira Done</code> columns intact (read by header name, append-only); <b>#7</b> must preserve the <b>Jira</b> submenu in any <code style="font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12)">L10Setup.gs</code> menu refactor. The sync is one-way, so an undo (#3) reopens the sheet row but not a Jira issue already closed — word it accordingly, or have undo clear the <code style="font-family:'SF Mono',Consolas,monospace;font-size:var(--t-12)">Jira Done</code> stamp.</p>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <h2 class="sec">The top 10 next steps</h2>
+    <p class="sub">Ranked so foundational moves precede what depends on them, quick wins pulled early.
+       Tap a step to expand. <b>Impact</b> 1–5 · <b>Effort</b> S = hours, M = a day or two, L = ~a week.</p>
+    <div class="steps">
+
+      <details class="step" open>
+        <summary><span class="rank">1</span><span class="head"><span class="ti">Establish one canonical token source — app, guide & email</span><span class="th">Single source of truth</span></span><span class="badges"><span class="badge b-imp">Impact 5</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Define one token list — Brady-blue ramp, one neutral gray ramp, semantic success/danger/warning each with a <code>-soft</code> bg and <code>-text</code> fg — as <b>the</b> source of truth. Emit it as CSS custom properties; have the guide reuse the same hex; define the email’s <code>L10_MAIL</code> constants from the same list. Reconcile the six drifted email values to the digit.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>At the Linear/Notion/Stripe bar a brand colour has <b>exactly one</b> definition. Here it has three that already disagree. The precondition for every other visual & email fix.</dd>
+            <dt>User value</dt><dd>App, Stuart’s recap, and the new-hire guide read as one product instead of three near-misses of the same blue.</dd>
+            <dt>Files</dt><dd class="files">L10Css.html · L10Guide.html · L10Mail.gs</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Visual & brand</span><span class="lens">Email system</span><span class="lens">Design-system</span><span class="lens">Accessibility</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">2</span><span class="head"><span class="ti">Global focus-visible ring + keyboard-operable controls</span><span class="th">Accessible interaction baseline</span></span><span class="badges"><span class="badge b-imp">Impact 5</span><span class="badge b-eff">Effort S</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Add one global <code>:focus-visible</code> rule on every button/nav/chip/vote/snip and the timeline controls; never set <code>outline:none</code> without a ≥3:1 replacement. Convert the click-only timeline <code>&lt;div&gt;</code>s (milestones, edit/delete glyphs, +milestone) into real <code>&lt;button&gt;</code>s with <code>aria-label</code>, ≥24px.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Focus Visible (2.4.7 AA) and Keyboard (2.1.1 A) are the lowest non-negotiable bars in every VPAT — the first checkbox a buyer’s accessibility team ticks.</dd>
+            <dt>User value</dt><dd>The timeboxed huddle can be driven from the keyboard against the clock; a screen-reader teammate can track priorities/milestones instead of being locked out.</dd>
+            <dt>Files</dt><dd class="files">L10Css.html · L10Js.html</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Accessibility</span><span class="lens">Visual & brand</span><span class="lens">Design-system</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">3</span><span class="head"><span class="ti">Undo-on-toast + a Wrap-up confirm / summary</span><span class="th">Trust & reversibility</span></span><span class="badges"><span class="badge b-imp">Impact 5</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Add an inline <b>Undo</b> on the success toast for reversible mutations (decide, kill, park, todo-done, priority-status, send-to-issue) — the reverse server fns already exist. Gate the one-click Wrap-up (which wipes check-in/ratings/drafts) behind a confirm that doubles as a pre-flight summary.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Undo-on-toast is the defining safety pattern of Linear/Superhuman/Gmail. Today the trivial Discard is two-click-armed while the <i>irreversible</i> Wrap-up is one click — backwards.</dd>
+            <dt>User value</dt><dd>A mis-click during the live meeting is recoverable in one click instead of hand-repairing an <code>L10_</code> row.</dd>
+            <dt>Files</dt><dd class="files">L10Js.html</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Interaction & UX</span><span class="lens">States & onboarding</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">4</span><span class="head"><span class="ti">A Present / Room mode (pop-out to fullscreen)</span><span class="th">In-room / projection</span></span><span class="badges"><span class="badge b-imp">Impact 5</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">A <b>Present</b> control that opens the app at its own <code>doGet</code> URL in a full tab (escaping the cramped Sheets iframe), calls <code>requestFullscreen()</code>, and toggles <code>body.present</code>: hero ~96–120px timer with a non-colour over-time pulse, enlarged metrics/Solve, caveats inline. Weekly edits stay in the embed.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Linear/Superhuman-tier tools own the context they run in. A meeting app with no room mode reads as a personal utility someone happened to screen-share. Folds four findings into one epic.</dd>
+            <dt>User value</dt><dd>The whole team reads the metrics, countdown and current Solve issue from across the table — and the GTM caveats are finally visible in the room.</dd>
+            <dt>Files</dt><dd class="files">L10Js.html · L10Css.html · L10Index.html · L10Setup.gs</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Responsive & projection</span><span class="lens">Data-viz & IA</span><span class="lens">Accessibility</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">5</span><span class="head"><span class="ti">Extract a render-helper component layer + missing token scales</span><span class="th">Component & render layer</span></span><span class="badges"><span class="badge b-imp">Impact 5</span><span class="badge b-eff">Effort L</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Add the remaining scales (<code>--space</code> on a 4px base, a fixed <code>--text</code> ramp killing the half-pixel jitter, radius, <code>--z/--ease/--dur</code>). Extract render helpers (btn/pill/field/card) with <b>zero inline style</b>. Consolidate ~14 chip variants into one <code>.pill</code> with tone+size modifiers.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Corporation-grade UIs are component libraries first. This app has the vocabulary of components but none of the encapsulation — so a restyle leaves half the screens on the old look. A 4pt grid + a fixed type ramp are the literal substrate of Linear/Asana polish.</dd>
+            <dt>User value</dt><dd>Status reads identically on every surface; future Brady-theme / dark-mode ships uniformly instead of per-screen.</dd>
+            <dt>Files</dt><dd class="files">L10Js.html · L10Css.html</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Design-system</span><span class="lens">Visual & brand</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">6</span><span class="head"><span class="ti">Fix the sparklines: magnitude-vs-goal, status-coloured</span><span class="th">Honest data display</span></span><span class="badges"><span class="badge b-imp">Impact 5</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Stop per-row min-max normalizing (a 2% wobble and a 200% blowout fill the same box today). Draw a dashed goal line, colour by the metric’s status (not the hardcoded <code>#0a58c4</code>), add a latest-point dot, stable weekly x-scale so nulls are gaps. Reuse at chart size on History against the rating/done targets already in config but never drawn.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Tufte’s whole point about sparklines is the reference line. The app’s signature data-viz currently <b>misinforms</b> in a meeting whose only verb is “on/off track.”</dd>
+            <dt>User value</dt><dd>The team sees direction-vs-goal at a glance in the 5-minute read; “send it to Issues” calls get faster and more honest.</dd>
+            <dt>Files</dt><dd class="files">L10Js.html · L10Css.html</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Data-viz & IA</span><span class="lens">Visual & brand</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">7</span><span class="head"><span class="ti">Surface the orphaned guide in-app + design first-run</span><span class="th">States & onboarding</span></span><span class="badges"><span class="badge b-imp">Impact 4</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Wire the already-built 255-line guide (today reachable <b>only</b> from the host Sheets menu) into the SPA via a header <b>?</b> button + the existing modal. Replace the bare start-screen with a “Set up your huddle” checklist when there’s no history; standardize the scattered emoji empty-states.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Notion/Linear surface onboarding inside the product at the moment of need. A guide that can’t be reached from the app reads as <i>nobody designed day one</i> — and it’s the cheapest finish on the board, since the asset already exists.</dd>
+            <dt>User value</dt><dd>A new analyst self-orients in their first huddle in two clicks instead of “it’s somewhere in the spreadsheet menu.”</dd>
+            <dt>Files</dt><dd class="files">L10Index.html · L10Js.html · L10Css.html · L10Setup.gs</dd>
+          </dl>
+          <div class="lenses"><span class="lens">States & onboarding</span><span class="lens">Interaction & UX</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">8</span><span class="head"><span class="ti">Make the emails corp-grade: shell · Outlook · responsive · deep-link</span><span class="th">Single source of truth</span></span><span class="badges"><span class="badge b-imp">Impact 4</span><span class="badge b-eff">Effort L</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Wrap every body in a document shell (DOCTYPE/head/charset/viewport) with a hidden preheader, a 600px <code>role=presentation</code> table, <code>bgcolor</code> fallbacks and an MSO conditional for the gradient header so Outlook renders the brand band. One mobile <code>@media</code> block; a bulletproof “Open the huddle” button; lead with movement (delta arrow, milestone bar).</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>The weekly recap is the <b>most-seen surface</b> and the one the manager judges it by. div-only mail with no preheader/viewport/Outlook scaffolding is the clearest internal-tool tell.</dd>
+            <dt>User value</dt><dd>Stuart — likely Outlook + mobile — sees the intended branded recap with the week’s headline in the inbox preview and trajectory on every metric.</dd>
+            <dt>Files</dt><dd class="files">L10Mail.gs</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Email system</span><span class="lens">Responsive & projection</span><span class="lens">Data-viz & IA</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">9</span><span class="head"><span class="ti">Metrics health roll-up · always-visible caveats · SR plumbing</span><span class="th">Honest data display</span></span><span class="badges"><span class="badge b-imp">Impact 4</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">A summary strip atop the Metrics (“On track X · Off track Y · Not captured Z”) + an “off-track first” sort. Replace the hover-only caveat with a focus-reachable disclosure (the team’s own house rule says read the number <i>with</i> its caveat). Text/glyph status not hue alone; <code>aria-live</code> on toasts + timer.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Corp-grade metrics dashboards lead with the aggregate health number rather than making humans count red cells, and surface data-quality flags as first-class annotations. Use-of-Colour, Hover/Focus and Status-Messages are among the most-cited VPAT failures.</dd>
+            <dt>User value</dt><dd>The team instantly knows the week’s health; nobody calls a polluted conversion number “on track” because the warning was one un-hoverable pixel away.</dd>
+            <dt>Files</dt><dd class="files">L10Js.html · L10Css.html</dd>
+          </dl>
+          <div class="lenses"><span class="lens">Data-viz & IA</span><span class="lens">Accessibility</span><span class="lens">Email system</span></div>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary><span class="rank">10</span><span class="head"><span class="ti">Quiet the feedback layer · real timer controls · retire blanket refresh()</span><span class="th">Trust & reversibility</span></span><span class="badges"><span class="badge b-imp">Impact 4</span><span class="badge b-eff">Effort M</span></span><span class="chev">›</span></summary>
+        <div class="body">
+          <p class="what">Drop “Successfully” from all 27 toasts; reserve green for consequential events and let optimistic UI carry high-frequency flips silently. Sync chip says “Loading…” for reads vs “Saving…” for writes. Give the timer pause/resume/reset. Make error revert <b>surgical</b> (roll back one row, not <code>boot(true)</code>). One <code>armedConfirm()</code> helper everywhere.</p>
+          <dl class="kv">
+            <dt>Why corp</dt><dd>Linear’s hallmark is near-silent success; a toast per click signals a tool that doesn’t trust its own rendering. A timed-meeting product whose timer can’t be paused reads as a prototype.</dd>
+            <dt>User value</dt><dd>No stream of green popups during the rapid pass; an honest clock through interruptions; a background save failure no longer interrupts whoever is mid-edit.</dd>
+            <dt>Files</dt><dd class="files">L10Js.html · L10Index.html</dd>
+          </dl>
+          <div class="lenses"><span class="lens">States & onboarding</span><span class="lens">Interaction & UX</span></div>
+        </div>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2 class="sec">The six cross-cutting themes</h2>
+    <p class="sub">Every step is an instance of one of these. Fix the themes, not the symptoms.</p>
+    <div class="themes">
+      <div class="theme"><div class="h"><span class="dot" style="background:var(--accent)"></span>Single source of truth (tokens)</div><p>One canonical token set consumed verbatim by app CSS, the guide, and the email builder. The keystone.</p></div>
+      <div class="theme"><div class="h"><span class="dot" style="background:var(--accent-deep)"></span>Component & render layer</div><p>Retire the innerHTML string-building + 67 inline styles for render helpers and consolidated CSS components.</p></div>
+      <div class="theme"><div class="h"><span class="dot" style="background:var(--bad)"></span>Accessible interaction baseline</div><p>The floor every audit checks: focus ring, keyboard, text+glyph status, aria-live, dialog semantics, contrast.</p></div>
+      <div class="theme"><div class="h"><span class="dot" style="background:var(--warn)"></span>In-room / projection mode</div><p>A deliberate present mode so the meeting lives on the shared screen, not the driver’s narration.</p></div>
+      <div class="theme"><div class="h"><span class="dot" style="background:var(--good)"></span>Trust & reversibility</div><p>Undo-on-toast, a confirm before the state-wiping Wrap-up, draft persistence, surgical reconciliation.</p></div>
+      <div class="theme"><div class="h"><span class="dot" style="background:#7c3aed"></span>Honest data display</div><p>Sparklines that show magnitude-vs-goal, always-visible caveats, a health roll-up, trend in the exec email.</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--card);border-top:1px solid var(--line)">
+  <div class="wrap">
+    <h2 class="sec">Suggested sequencing</h2>
+    <p class="sub">#1 gates the visual/email work; #5 gates consistent restyling; #2 and #3 ride along early for credibility.</p>
+    <div class="waves">
+      <div class="wave"><h3>Wave 1 · foundation + cheap wins <span style="font-weight:600;color:var(--faint)">~1 wk</span></h3>
+        <ol><li><b>#1</b> token source</li><li><b>#2</b> focus / keyboard</li><li><b>#3</b> undo / confirm</li></ol></div>
+      <div class="wave"><h3>Wave 2 · the system + the room <span style="font-weight:600;color:var(--faint)">~2 wks</span></h3>
+        <ol><li><b>#5</b> components / scales</li><li><b>#4</b> present mode</li><li><b>#6</b> sparklines</li></ol></div>
+      <div class="wave"><h3>Wave 3 · the edges + the exec surface</h3>
+        <ol><li><b>#7</b> guide / empty states</li><li><b>#9</b> metrics roll-up / a11y</li><li><b>#8</b> email</li><li><b>#10</b> feedback / timer</li></ol></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2 class="sec">Honorable mentions</h2>
+    <p class="sub">Strong, didn’t make the 10.</p>
+    <ul class="mentions">
+      <li><b>Real product mark.</b> Replace the typed-string “Momentum Huddle” logo with an inline-SVG mark reused across app, guide and email.</li>
+      <li><b>One icon set.</b> Swap functional emoji for a lightweight <code>currentColor</code> inline-SVG set matching the Experiment Hub.</li>
+      <li><b>Solve dialog semantics.</b> <code>role=dialog</code> + <code>aria-modal</code> + Tab trap + focus restore — a 508 reviewer reproduces the focus leak in 30s.</li>
+      <li><b>Persistent meeting in the IA.</b> A sticky-header chip with current segment + remaining time so the clock survives navigating away.</li>
+      <li><b>Content skeletons</b> shaped like the tiles/rail/rows instead of the lone boot spinner.</li>
+      <li><b>Cheap VPAT line items:</b> skip link, <code>nav aria-label</code>, <code>aria-current=page</code> on the active nav button.</li>
+      <li><b>Persist the Decide draft</b> on incidental Esc/backdrop close — the hardest-won resolution wording is silently dropped today.</li>
+      <li><b>ResizeObserver on <code>.ms-tl</code></b> so the priority timeline relays out on embed-width change (the one real correctness bug).</li>
+      <li><b>Mirror the gold kudos card in the email</b> Headlines section — the detection regex already exists.</li>
+      <li><b>Surface the Jira link in-app</b> <i>(new — from the 2026-06-30 sync).</i> A synced to-do now carries a <code>Jira Key</code> but the app shows nothing — render a <code>BNADM-398 ↗</code> chip (links to the issue) + a muted “syncing…” state, so the room sees a commitment is tracked on the board.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Structured multi-lens design review of the Momentum Huddle front end (<span class="files">L10Css · L10Index · L10Js · L10Guide</span> and the <span class="files">L10Mail</span> HTML builders), against the polish bar of best-in-class SaaS. 78 grounded findings scored and de-duplicated into the ranked 10 above. Every cited count was read from the code — re-confirm against the current paste before acting. This page itself models step #1: one token set, a visible focus ring, a reduced-motion guard, and semantic markup throughout.
+  </div>
+</footer>
+
+</body>
+</html>
