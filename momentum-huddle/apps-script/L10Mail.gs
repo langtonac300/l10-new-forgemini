@@ -1,7 +1,7 @@
-// Level 10 Huddle — email automation. Three pieces:
+// Momentum Huddle — email automation. Three pieces:
 //   1. l10SendMondayHeadsup()  — a personalized "heads-up for tomorrow" to each
-//      team member the day before the huddle: their open to-dos + rocks due, and
-//      an ask to reply with issues/headlines/rocks for the agenda.
+//      team member the day before the huddle: their open to-dos + priorities due, and
+//      an ask to reply with issues/headlines/priorities for the agenda.
 //   2. l10ProcessMailReplies() — scans Gmail for replies to that email and adds
 //      each labeled line to the huddle (Issue:/Headline:/Rock:, unlabeled reply
 //      => one Issue), with the sender's name and a "via email" flag.
@@ -14,14 +14,14 @@
 // SETUP (one time):
 //   1. Run l10Setup() (adds the email config rows to L10_Config).
 //   2. In L10_Config, fill TEAM_EMAILS with "Name=email" pairs (the owner names
-//      must match the Owner column used on rocks/to-dos, e.g. Alex/Courtney/Scott/CJ).
-//   3. Run l10InstallMailTriggers() once (or menu: L10 Huddle -> Email: install).
+//      must match the Owner column used on priorities/to-dos, e.g. Alex/Courtney/Scott/CJ).
+//   3. Run l10InstallMailTriggers() once (or menu: Momentum Huddle -> Email: install).
 //      That schedules: heads-up the day before HUDDLE_DAY (~7am), recap on
 //      HUDDLE_DAY (~5pm), and an hourly reply sweep.
 // Quotas: ~100 recipients/day on a consumer account, ~1,500/day on Workspace.
 
 var L10_MAIL = {
-  HEADSUP_SUBJECT: '[L10] Heads-up — reply with issues, headlines & rocks',
+  HEADSUP_SUBJECT: '[L10] Heads-up — reply with issues, headlines & priorities',
   HEADSUP_SUBJECT_STUART: '[L10] Heads-up — anything you’d like the team to cover Tuesday?',
   HEADSUP_TAG: 'Heads-up',          // subject token the reply sweep matches on (both subjects carry it)
   PROCESSED_PROP: 'L10_MAIL_PROCESSED',   // CSV of Gmail message ids already ingested
@@ -36,7 +36,7 @@ var L10_MAIL = {
 
 // Built-in team roster — used when TEAM_EMAILS in L10_Config is blank, so the
 // emails work with zero sheet setup. The name on each pair must match the Owner
-// column on rocks/to-dos (Alex / Courtney / Scott / CJ). When someone joins or
+// column on priorities/to-dos (Alex / Courtney / Scott / CJ). When someone joins or
 // leaves, edit THIS line (or set TEAM_EMAILS in L10_Config to override it).
 var L10_MAIL_TEAM_DEFAULT =
   'Alex=alex_langton@bradycorp.com, ' +
@@ -101,10 +101,10 @@ function l10MailDay_(name) {
 }
 
 function l10MailToast_(msg, title) {
-  try { SpreadsheetApp.getActive().toast(msg, title || 'L10 Email', 6); }
-  catch (e) { Logger.log((title || 'L10 Email') + ': ' + msg); }
+  try { SpreadsheetApp.getActive().toast(msg, title || 'Momentum Email', 6); }
+  catch (e) { Logger.log((title || 'Momentum Email') + ': ' + msg); }
 }
-function l10MailWarn_(msg) { l10MailToast_(msg, 'L10 Email — check'); Logger.log('L10 Email: ' + msg); }
+function l10MailWarn_(msg) { l10MailToast_(msg, 'Momentum Email — check'); Logger.log('Momentum Email: ' + msg); }
 
 // ---------------------------------------------------------------------------
 // 1) Monday heads-up (personalized per person)
@@ -155,7 +155,7 @@ function l10MailDueFor_(person, ctx) {
   return { todos: todos, rocks: rocks };
 }
 
-// Shared section markup — the personalized to-do list and rock cards. BOTH the
+// Shared section markup — the personalized to-do list and priority cards. BOTH the
 // day-before heads-up and a custom digest render these, so the two stay identical
 // (one source of truth). `todos`/`rocks` are the arrays from l10MailDueFor_.
 function l10MailTodoListHtml_(todos) {
@@ -193,7 +193,7 @@ function l10MailRockListHtml_(rocks) {
           '<div style="font-weight:600;color:' + M.INK + ';font-size:14px;">' + esc(r.text) + '</div>' +
           '<div style="margin-top:3px;">' + sb + fq + '</div>' + ms + '</div>';
       }).join('')
-    : '<p style="margin:6px 0 0;color:' + M.MUTED + ';font-size:14px;">No active rocks assigned to you.</p>';
+    : '<p style="margin:6px 0 0;color:' + M.MUTED + ';font-size:14px;">No active priorities assigned to you.</p>';
 }
 
 function l10SendMondayHeadsup() {
@@ -205,8 +205,8 @@ function l10SendMondayHeadsup() {
   }
   var ctx = l10MailContext_();
   var dayInfo = l10MailDay_(config.HUDDLE_DAY);
-  var meetingName = String(config.MEETING_NAME || 'Paid Media L10 Huddle');
-  var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media L10');
+  var meetingName = String(config.MEETING_NAME || 'Paid Media Momentum Huddle');
+  var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media Momentum');
   var prefs = l10NotifyPrefs_();
   var sent = 0, skipped = 0;
   roster.list.forEach(function (p) {
@@ -249,7 +249,7 @@ function l10MailHeadsupHtml_(p, due, dayInfo, meetingName) {
       '<p style="margin:0 0 4px;font-size:15px;">Hi ' + esc(p.name) + ',</p>' +
       '<p style="margin:0 0 14px;color:' + M.MUTED + ';font-size:13px;">A quick look at what’s on your plate before we meet.</p>' +
       head('Your open to-dos') + todoHtml +
-      head('Your rocks') + rockHtml +
+      head('Your priorities') + rockHtml +
       ask +
     '</div></div>';
 }
@@ -406,12 +406,12 @@ function l10MailNotifyOwner_(config, added) {
     to: to,
     subject: '[L10] ' + added.length + ' item(s) added from email replies',
     htmlBody: '<p>' + l10MailEsc_(summary) + ' added to the huddle from email replies (flagged “via email”). Review or trim before the huddle:</p><ul>' + li + '</ul>',
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
 }
 
 function l10MailKindLabel_(kind) {
-  return { issue: 'Issue', headline: 'Headline', rock: 'Rock', todo: 'To-do' }[kind] || 'Issue';
+  return { issue: 'Issue', headline: 'Headline', rock: 'Priority', todo: 'To-do' }[kind] || 'Issue';
 }
 
 // Confirmation back to whoever emailed in (Stuart or a teammate): "got it —
@@ -437,7 +437,7 @@ function l10MailConfirmSender_(config, toEmail, who, items) {
         '<ul style="margin:0;padding-left:18px;">' + li + '</ul>' +
         '<p style="margin:10px 0 0;color:' + M.MUTED + ';font-size:12px;">Reply again any time before the huddle to add more. Nothing else you need to do.</p>' +
       '</div></div>',
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
 }
 
@@ -445,9 +445,9 @@ function l10MailConfirmSender_(config, toEmail, who, items) {
 // 3) Recap email
 // ---------------------------------------------------------------------------
 
-// force=true (menu) sends the latest concluded meeting's recap regardless of
+// force=true (menu) sends the latest wrapped-up meeting's recap regardless of
 // date / prior send. The trigger calls it with no arg, so it only fires for a
-// huddle concluded TODAY and never double-sends.
+// huddle wrapped up TODAY and never double-sends.
 function l10SendTuesdayRecap(force) {
   var config = l10Config_();
   var roster = l10MailRoster_(config);
@@ -456,7 +456,7 @@ function l10SendTuesdayRecap(force) {
   var concluded = meetingsAll.filter(function (m) {
     return String(m['Status']).toUpperCase() === 'CONCLUDED';
   });
-  if (!concluded.length) return { ok: false, error: 'No concluded meeting to recap.' };
+  if (!concluded.length) return { ok: false, error: 'No wrapped-up meeting to recap.' };
   var meeting = concluded[concluded.length - 1];
   var mid = String(meeting['ID']);
   var concludedDate = l10DateStr_(meeting['Concluded At']) || l10DateStr_(meeting['Date']);
@@ -478,15 +478,15 @@ function l10SendTuesdayRecap(force) {
     return { ok: false, error: 'no recipients this cadence', skipped: skipped };
   }
 
-  if (!force && concludedDate !== l10Today_()) return { ok: false, error: 'No huddle concluded today — recap skipped.' };
+  if (!force && concludedDate !== l10Today_()) return { ok: false, error: 'No huddle wrapped up today — recap skipped.' };
   var props = PropertiesService.getScriptProperties();
   if (!force && props.getProperty(L10_MAIL.LAST_RECAP_PROP) === mid) return { ok: false, error: 'Recap for ' + mid + ' already sent.' };
 
   MailApp.sendEmail({
     to: recipients.join(','),
-    subject: 'Paid Media L10 Recap — ' + l10DateStr_(meeting['Date']),
+    subject: 'Paid Media Momentum Recap — ' + l10DateStr_(meeting['Date']),
     htmlBody: l10MailRecapHtml_(meeting, config),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   props.setProperty(L10_MAIL.LAST_RECAP_PROP, mid);
   return { ok: true, meeting: mid, recipients: recipients.length, skipped: skipped };
@@ -496,9 +496,9 @@ function l10MailRecapHtml_(meeting, config) {
   var M = L10_MAIL, esc = l10MailEsc_;
   var mid = String(meeting['ID']);
   var date = l10DateStr_(meeting['Date']);
-  var meetingName = String(config.MEETING_NAME || 'Paid Media L10 Huddle');
+  var meetingName = String(config.MEETING_NAME || 'Paid Media Momentum Huddle');
 
-  // Optional human summary the team wrote at Conclude (the room's TL;DR), shown
+  // Optional human summary the team wrote at Wrap-up (the room's TL;DR), shown
   // above the structured sections. Never the Cascade field — that's Alex's Meta
   // Monday talking points, with blanks.
   var recapText = String(meeting['Recap'] || '').trim();
@@ -518,10 +518,10 @@ function l10MailRecapHtml_(meeting, config) {
   var inner =
     l10MailRecapHeader_(meetingName + ' — Recap', esc(date), config) +
     '<div style="padding:18px 20px;">' +
-      '<p style="margin:0;color:' + M.MUTED + ';font-size:13px;">This week’s huddle at a glance — scorecard, rocks, what we solved, and the open to-dos.</p>' +
+      '<p style="margin:0;color:' + M.MUTED + ';font-size:13px;">This week’s huddle at a glance — metrics, priorities, what we solved, and the open to-dos.</p>' +
       summaryHtml +
-      l10MailSect_('Scorecard') + l10MailScorecardHtml_() +
-      l10MailSect_('Rocks (quarterly priorities)') + l10MailRocksHtml_() +
+      l10MailSect_('Metrics') + l10MailScorecardHtml_() +
+      l10MailSect_('Quarterly priorities') + l10MailRocksHtml_() +
       l10MailSect_('What we solved') + l10MailSolvedHtml_(mid) +
       l10MailSect_('To-dos') + l10MailOpenTodosHtml_(meeting) +
       l10MailSect_('Headlines') + l10MailHeadlinesHtml_() +
@@ -604,7 +604,7 @@ function l10MailDoc_(innerHtml, opts) {
     '<meta http-equiv="x-ua-compatible" content="IE=edge">' +
     '<meta name="color-scheme" content="light dark">' +
     '<meta name="supported-color-schemes" content="light dark">' +
-    '<title>' + esc(String(opts.title || 'Paid Media L10')) + '</title>' +
+    '<title>' + esc(String(opts.title || 'Paid Media Momentum')) + '</title>' +
     '<style>' + css + '</style></head>' +
     '<body style="margin:0;padding:0;background-color:#f4f6fa;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">' +
     '<div class="l10-pre" style="display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4f6fa;opacity:0;">' + pre + spacer + '</div>' +
@@ -650,8 +650,8 @@ function l10MailPreheader_() {
   var offRocks = l10ReadTab_(L10.TABS.ROCKS).rows.filter(function (r) { return String(r['Status']).toUpperCase() === 'OFF TRACK'; }).length;
   if (!captured && !offRocks) return 'This week’s huddle recap';
   var parts = [];
-  if (captured) parts.push('Scorecard ' + onTrack + '/' + captured + ' on track');
-  parts.push(offRocks + ' rock' + (offRocks === 1 ? '' : 's') + ' off track');
+  if (captured) parts.push('Metrics ' + onTrack + '/' + captured + ' on track');
+  parts.push(offRocks + ' priorit' + (offRocks === 1 ? 'y' : 'ies') + ' off track');
   return parts.join(' · ');
 }
 
@@ -834,19 +834,19 @@ function l10SendStuartRecap(force) {
   var concluded = l10ReadTab_(L10.TABS.MEETINGS).rows.filter(function (m) {
     return String(m['Status']).toUpperCase() === 'CONCLUDED';
   });
-  if (!concluded.length) return { ok: false, error: 'No concluded meeting to recap.' };
+  if (!concluded.length) return { ok: false, error: 'No wrapped-up meeting to recap.' };
   var meeting = concluded[concluded.length - 1];
   var mid = String(meeting['ID']);
   var concludedDate = l10DateStr_(meeting['Concluded At']) || l10DateStr_(meeting['Date']);
-  if (!force && concludedDate !== l10Today_()) return { ok: false, error: 'No huddle concluded today — manager recap skipped.' };
+  if (!force && concludedDate !== l10Today_()) return { ok: false, error: 'No huddle wrapped up today — manager recap skipped.' };
   var props = PropertiesService.getScriptProperties();
   if (!force && props.getProperty(L10_MAIL.LAST_STUART_PROP) === mid) return { ok: false, error: 'Manager recap for ' + mid + ' already sent.' };
 
   MailApp.sendEmail({
     to: to,
-    subject: 'Paid Media L10 — manager recap — ' + l10DateStr_(meeting['Date']),
+    subject: 'Paid Media Momentum — manager recap — ' + l10DateStr_(meeting['Date']),
     htmlBody: l10MailStuartHtml_(meeting, config),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   props.setProperty(L10_MAIL.LAST_STUART_PROP, mid);
   return { ok: true, meeting: mid, to: to };
@@ -877,7 +877,7 @@ function l10MailScoreStatus_(value, rule, goal, goal2) {
 function l10MailStuartHtml_(meeting, config) {
   var M = L10_MAIL, esc = l10MailEsc_;
   var date = l10DateStr_(meeting['Date']);
-  var meetingName = String(config.MEETING_NAME || 'Paid Media L10 Huddle');
+  var meetingName = String(config.MEETING_NAME || 'Paid Media Momentum Huddle');
   var mid = String(meeting['ID']);
 
   var stats = [];
@@ -893,8 +893,8 @@ function l10MailStuartHtml_(meeting, config) {
     l10MailRecapHeader_('Paid Media — weekly manager recap', esc(meetingName) + ' · ' + esc(date), config) +
     '<div style="padding:18px 20px;">' +
       '<p style="margin:0;color:' + M.MUTED + ';font-size:13px;">Where the paid media team is this week — pacing, leading indicators, priorities, and what we’re solving.</p>' +
-      l10MailSect_('Scorecard') + l10MailScorecardHtml_() +
-      l10MailSect_('Rocks (quarterly priorities)') + l10MailRocksHtml_() +
+      l10MailSect_('Metrics') + l10MailScorecardHtml_() +
+      l10MailSect_('Quarterly priorities') + l10MailRocksHtml_() +
       l10MailSect_('What we solved') + l10MailSolvedHtml_(mid) +
       l10MailSect_('To-dos') + l10MailOpenTodosHtml_(meeting) +
       l10MailSect_('Headlines') + l10MailHeadlinesHtml_() +
@@ -918,7 +918,7 @@ function l10SendStuartHeadsup() {
     to: to,
     subject: L10_MAIL.HEADSUP_SUBJECT_STUART,
     htmlBody: l10MailStuartHeadsupHtml_(config),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   return { ok: true, to: to };
 }
@@ -933,14 +933,14 @@ function l10TestStuartHeadsup() {
     to: me,
     subject: '[TEST] ' + L10_MAIL.HEADSUP_SUBJECT_STUART,
     htmlBody: l10MailStuartHeadsupHtml_(config),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   return { ok: true, to: me };
 }
 
 function l10MailStuartHeadsupHtml_(config) {
   var M = L10_MAIL, esc = l10MailEsc_;
-  var meetingName = String(config.MEETING_NAME || 'Paid Media L10 Huddle');
+  var meetingName = String(config.MEETING_NAME || 'Paid Media Momentum Huddle');
   var dayInfo = l10MailDay_(config.HUDDLE_DAY);
   var day = esc(dayInfo.dayLabel);
 
@@ -1005,7 +1005,7 @@ function l10SendOneOnOnePreps(force) {
     issues: l10ReadTab_(L10.TABS.ISSUES).rows,
     headlines: l10ReadTab_(L10.TABS.HEADLINES).rows.filter(l10HeadlineLive_)
   };
-  var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media L10');
+  var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media Momentum');
   var sent = 0;
   list.forEach(function (o) {
     var html = o.manager ? l10MailMgrPrepHtml_(o, ctx) : l10MailReportPrepHtml_(o, ctx);
@@ -1130,7 +1130,7 @@ function l10SendCascadeDraft(force) {
     to: me,
     subject: '[L10] Cascade draft — ' + l10Today_(),
     htmlBody: l10MailDoc_(inner, { preheader: 'Fresh pacing pulls for the Monday meeting', title: 'Cascade draft' }),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   return { ok: true, to: me };
 }
@@ -1303,7 +1303,7 @@ function l10DigestBuildHtml_(p, set, ctx, config, r) {
   }
   if (set.indexOf('SCORECARD') !== -1) {
     has.SCORECARD = l10DigestScorecardHas_();
-    parts.push(l10MailSect_('Scorecard') + l10MailScorecardHtml_());
+    parts.push(l10MailSect_('Metrics') + l10MailScorecardHtml_());
   }
   if (set.indexOf('HEADLINES') !== -1) {
     has.HEADLINES = l10DigestHeadlinesHas_();
@@ -1330,7 +1330,7 @@ function l10RunDigests(force, onlyEmail) {
   if (!sheet || sheet.getLastRow() < 2) return { ok: true, sent: 0, skipped: 0 };
   var config = l10Config_();
   var roster = l10MailRoster_(config);
-  var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media L10');
+  var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media Momentum');
   var now = l10DigestNow_();
   var lastSentCol = L10.HEADERS.L10_Digests.indexOf('Last Sent') + 1;
   var onlyLc = onlyEmail ? String(onlyEmail).toLowerCase() : '';
@@ -1432,9 +1432,9 @@ function l10TestRecap() {
   var meeting = concluded[concluded.length - 1];
   MailApp.sendEmail({
     to: me,
-    subject: '[TEST] Paid Media L10 Recap preview — ' + l10DateStr_(meeting['Date']),
+    subject: '[TEST] Paid Media Momentum Recap preview — ' + l10DateStr_(meeting['Date']),
     htmlBody: l10MailRecapHtml_(meeting, config),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   return { ok: true, to: me, meeting: String(meeting['ID']) };
 }
@@ -1459,9 +1459,9 @@ function l10TestStuartRecap() {
   var meeting = concluded[concluded.length - 1];
   MailApp.sendEmail({
     to: me,
-    subject: '[TEST] Paid Media L10 — manager recap preview — ' + l10DateStr_(meeting['Date']),
+    subject: '[TEST] Paid Media Momentum — manager recap preview — ' + l10DateStr_(meeting['Date']),
     htmlBody: l10MailStuartHtml_(meeting, config),
-    name: String(config.EMAIL_FROM_NAME || 'Paid Media L10')
+    name: String(config.EMAIL_FROM_NAME || 'Paid Media Momentum')
   });
   return { ok: true, to: me, meeting: String(meeting['ID']) };
 }

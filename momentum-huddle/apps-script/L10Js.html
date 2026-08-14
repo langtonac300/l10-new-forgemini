@@ -2973,7 +2973,7 @@ function wireIdsOverlay_(o, iss) {
     if (rows.length >= 5) { notify('Five to-dos from one issue is a project — split the issue.', 'warn'); return; }
     rows.push({});
     state.drafts[id].todos = rows;
-    state.idsActiveStep = 'sol'; // adding a to-do is a Solve action — keep Solve lit, don't snap back
+    state.idsActiveStep = 'sol'; // adding a to-do is a Decide action — keep Decide lit, don't snap back
     renderIdsOverlay();
     var newRows = $('ids-overlay').querySelectorAll('.js-todo-row .js-solt');
     if (newRows.length) newRows[newRows.length - 1].focus();
@@ -3002,7 +3002,7 @@ function wireIdsOverlay_(o, iss) {
         state.drafts[id].todos = rows;
         notify('Added ' + res.id + ' — saved, solve or not', 'ok');
         rerenderLists();
-        state.idsActiveStep = 'sol'; // keep Solve lit after the row is banked
+        state.idsActiveStep = 'sol'; // keep Decide lit after the row is banked
         renderIdsOverlay();
       }).catch(function (e) { btn.disabled = false; errToast(e); });
     });
@@ -3034,8 +3034,8 @@ function wireIdsOverlay_(o, iss) {
         })
         .catch(function (e) { errToast(e); refresh(); });
   });
-  // Door two: the issue is bigger than a to-do — it becomes a rock.
-  // Server-first (not optimistic): the new rock's id names the resolution.
+  // Door two: the issue is bigger than a to-do — it becomes a priority.
+  // Server-first (not optimistic): the new priority's id names the resolution.
   var promo = o.querySelector('[data-promote]');
   if (promo) promo.addEventListener('click', function () {
     var ta = o.querySelector('.js-sol');
@@ -3057,7 +3057,7 @@ function wireIdsOverlay_(o, iss) {
       if (res.rock) state.boot.rocks.push(res.rock);
       delete state.drafts[id];
       closeIds();
-      notify('★ Now rock ' + res.rockId + ' — issue closed as promoted', 'ok', 6000);
+      notify('★ Now priority ' + res.rockId + ' — issue closed as promoted', 'ok', 6000);
       rerenderLists();
     }).catch(function (e) { promo.disabled = false; errToast(e); });
   });
@@ -3154,7 +3154,7 @@ function idsSplice_(ta, from, to, insert, caret) {
   ta.setSelectionRange(pos, pos);
   ta.dispatchEvent(new Event('input'));
 }
-// Lean typing ergonomics for the Identify/Discuss/Solve notes — plain-text only
+// Lean typing ergonomics for the Identify/Discuss/Decide notes — plain-text only
 // (the values are stored as strings; a rich editor is brittle in the iframe):
 //   • Enter continues a "- " bullet (empty bullet + Enter ends the list)
 //   • Tab indents two spaces / Shift+Tab outdents (Shift+Tab with nothing to

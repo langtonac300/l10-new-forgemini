@@ -2604,7 +2604,7 @@ function l10QuickAddDialog_(mode) {
   SpreadsheetApp.getUi().showModalDialog(html, L10_QUICK_TITLES[mode] || 'Quick add');
 }
 
-// The little the dialog needs: roster + tag lists, and for scorecard mode the
+// The little the dialog needs: roster + tag lists, and for metrics mode the
 // active metric defs plus this week's already-captured values.
 function l10QuickBoot_(mode) {
   var config = l10Config_();

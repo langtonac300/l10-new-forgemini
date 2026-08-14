@@ -1,6 +1,6 @@
-# L10 Huddle — changelog & current state
+# Momentum Huddle — changelog & current state
 
-Version history for the L10 Huddle app. Newest first. For current state, read
+Version history for the Momentum Huddle app. Newest first. For current state, read
 [`README.md`](./README.md) plus the newest version entry below. (The old
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
@@ -25,7 +25,7 @@ UI before every slice lands. Fixed:
   (`state.loadedAt`), restoring the pre-v2.10 invariant — otherwise the
   arriving slices repainted the live segment out from under the room's typing
   and the first minutes read stale numbers.
-- **The post-conclude background refresh can't kick the room out of a
+- **The post-wrap-up background refresh can't kick the room out of a
   just-started next huddle**: `applyFull_` carries a locally-open meeting
   forward when the (older) fetch says there is none, and never repaints the
   huddle surface mid-meeting — the same contract `fetchHealth_` and
@@ -46,7 +46,7 @@ UI before every slice lands. Fixed:
   now reloads in the SAME context and asserts, via an instrumented
   `localStorage.getItem`, that the snapshot was actually read. New smoke
   coverage drives the promote splice (card flips, no reload), the start
-  splice (segment rail with no reboot), and full conclude and discard flows
+  splice (segment rail with no reboot), and full wrap-up and discard flows
   back to the start screen. `l10_promoteBriefItem`'s fixture now mirrors the
   real `{ok, id, row}` / `{ok, id, already}` server contract.
 
@@ -57,7 +57,7 @@ UI before every slice lands. Fixed:
 ## v2.10 (2026-08-13) — every load path gets faster
 
 A systematic loading-performance pass: initial load, loads after actions, and
-the scorecard capture were audited path by path (7-dimension review, every
+the metrics capture were audited path by path (7-dimension review, every
 finding adversarially verified before landing) and the confirmed costs cut.
 Nothing changes in what the app does — only in how long you wait for it.
 
@@ -70,7 +70,7 @@ Nothing changes in what the app does — only in how long you wait for it.
   exactly once; `null` (or a pre-upgrade paste) falls back to the four-slice
   fetch unchanged.
 - **Repeat loads paint the list pages instantly** from a per-workbook
-  `localStorage` snapshot of the work/plan/scorecard slices
+  `localStorage` snapshot of the work/plan/metrics slices
   (stale-while-revalidate: the live slices still fetch and re-render seconds
   later — the same staleness window the 3-minute idle refetch already
   accepts). The open meeting and the user are never snapshotted.
@@ -96,10 +96,10 @@ Nothing changes in what the app does — only in how long you wait for it.
   slice, not the 16-read sequential `l10_bootstrap`), applied in one atomic
   pass; slice failure falls back to the composed call, whose failure shows the
   error banner.
-- **Start/conclude/discard a meeting no longer reboot the app.** Each was a
+- **Start/wrap up/discard a meeting no longer reboot the app.** Each was a
   full four-execution reload between the click and seeing the app again; the
   client now splices the server's response (start returns the meeting row) and
-  paints immediately. Conclude still refreshes in the background — the meeting
+  paints immediately. Wrap-up still refreshes in the background — the meeting
   is over, so it's safe.
 - Docket promote splices the returned issue row locally; the scheduler caches
   the calendar context per session (opens after the first skip an execution).
@@ -112,7 +112,7 @@ Nothing changes in what the app does — only in how long you wait for it.
   its 2-per-row writes into contiguous-run `setValues` — the week's first boot
   stops paying ~100-300ms per carried to-do.
 
-**Scorecard capture:**
+**Metrics capture:**
 - The hub force-pull runs **only when an active HUB_\* metric will consume
   it** (and only for the current week) — it used to pay the multi-second
   foreign-workbook openByUrl on every capture, hub metrics or not.
@@ -128,7 +128,7 @@ second `preview-embed.html` with a fixture-built inline payload; `run.js`
 gains embed-path and snapshot-path smoke sections (asserting the core slice is
 NOT re-fetched, the three list slices still reconcile, and the snapshot writes
 and reads back), clears `localStorage` between variants, and the meeting
-fixtures mirror the server's row-returning start/conclude shapes.
+fixtures mirror the server's row-returning start/wrap-up shapes.
 
 - **Re-paste:** `L10Code.gs`, `L10Setup.gs`, `L10Ga4.gs`, `L10Health.gs`,
   `L10Index.html`, `L10Js.html` — the full set together (the embed spans
@@ -163,10 +163,10 @@ time — doc drifted from code, not the reverse.
 - **Re-paste:** `L10Jira.gs` + `L10Setup.gs`, reload, run the new menu item
   once. No web-app redeploy.
 
-## v2.9 (2026-07-28) — the scorecard checks its sources (data health)
+## v2.9 (2026-07-28) — the metrics check their sources (data health)
 
 The knowledge base's number landmines become an automated gate. A BigQuery view
-in the sanctioned dataset scores every upstream source the scorecard depends on;
+in the sanctioned dataset scores every upstream source the metrics depend on;
 the app reads it and warns the room BEFORE a number gets read aloud. This is the
 layer that makes the false −58% leads scare (a silently stale
 `al_leads_lifecycle_v1`) structurally unrepeatable.
@@ -192,7 +192,7 @@ layer that makes the false −58% leads scare (a silently stale
   days, cost columns discovered via INFORMATION_SCHEMA — drift degrades to
   UNKNOWN, never a wrong verdict). Every failure path returns a value; health
   can never block a boot, a capture, or the huddle.
-- **Scorecard strip**: all-fresh collapses to one quiet "✓ Data sources fresh"
+- **Metrics strip**: all-fresh collapses to one quiet "✓ Data sources fresh"
   chip; anything STALE/BROKEN shows red chips naming the source and its
   data-through date. Fetched after boot, outside the boot barrier; never
   repaints a live meeting segment.
@@ -201,7 +201,7 @@ layer that makes the false −58% leads scare (a silently stale
   metric whose source is sick carries a ⛔ "source stale" pill and an
   always-visible "do not read this number as current" line — in the grid AND
   in the capture row, per the read-the-number-with-its-caveat house rule.
-- Menu: **L10 Huddle → Data health check** (force-refresh + full detail).
+- Menu: **Momentum Huddle → Data health check** (force-refresh + full detail).
 
 **Deploy:** (1) run section 1 of `sql/l10-data-health.sql` in the BigQuery
 console, verify with section 2; (2) add file `L10Health.gs` and re-paste
@@ -210,7 +210,7 @@ console, verify with section 2; (2) add file `L10Health.gs` and re-paste
 (4) redeploy the web app (New version). Blank/OFF config or a missing
 BigQuery service = the feature is silently absent, nothing else changes.
 
-**✅ Deployed + verified live 2026-07-27 22:34** (Alex ran L10 Huddle → Data
+**✅ Deployed + verified live 2026-07-27 22:34** (Alex ran Momentum Huddle → Data
 health check): safe-rank ordering correct (BROKEN → LAG → 8× FRESH), rebuilt
 leads table reads FRESH through 2026-07-27, and the Amazon-block probe returned
 its first real verdict — **mart carries 100% of SP+SB cost over the last 14
@@ -232,7 +232,7 @@ becomes a loss.
 
 - **🟠 Every form flattened to equal-width columns.** The new `.f-2/.f-3/.f-fix/.f-160/
   .f-170` width utilities lose to the pre-existing `.row > .field { flex: 1 }` at
-  (0,2,0) — so the composer's text input, the IDS solve fields, the capture-week
+  (0,2,0) — so the composer's text input, the Solve fields, the capture-week
   select and every other converted form ignored their widths. Compound
   `.row > .field.f-*` rules now carry them.
 - **🟠 The skip link navigated the whole page away.** It inherited the page's
@@ -285,7 +285,7 @@ do blind on a live tool" in v1.15, done with the harness watching:
   .sc-chip .sc-sortbtn .who-chip .fchip .vote-chip .td-group-n .ms-count .srcref .snip
   .person-chip .hdr-schedule .today-btn`) now alias a single base rule defined first in
   the sheet; each family keeps only its genuine delta. New code uses `.pill` +
-  tone/size/`--btn` modifiers directly. To-dos and Scorecard verified pixel-identical.
+  tone/size/`--btn` modifiers directly. To-dos and Metrics verified pixel-identical.
 - **Render helpers.** `attrs_` (escaped, always double-quoted — `esc()` deliberately
   skips single quotes), `btnH_`, `pillH_`, `fieldH_`, `cardH_`; adopted across the
   row-action family (the markup that renders dozens of times per paint). One-shot
@@ -294,8 +294,8 @@ do blind on a live tool" in v1.15, done with the harness watching:
 **#7 — the guide comes indoors + a real first run.** A **?** in the nav opens the
 new-member guide in-app (new `l10_getGuideHtml` serves the standalone document into an
 iframe so its styles never fight the app's; missing-file safe). Until the first huddle
-concludes, the start screen leads with a **"Set up your huddle" checklist** — metrics,
-rocks, guide — whose ticks derive from the data, so it retires itself. Bare empty
+wraps up, the start screen leads with a **"Set up your huddle" checklist** — metrics,
+priorities, guide — whose ticks derive from the data, so it retires itself. Bare empty
 states ("Empty list.") replaced with action-oriented copy.
 
 **#10 — the feedback layer grows up.**
@@ -305,17 +305,17 @@ states ("Empty list.") replaced with action-oriented copy.
 - The sync chip distinguishes **Loading…** (reads in flight) from **Saving…** (a write
   in flight) instead of hard-coding "saving…" during boot.
 - The segment timer gains **↺ reset** beside pause/resume; one **`armedConfirm()`**
-  helper now runs every two-click confirm (Conclude with its pre-flight summary, both
+  helper now runs every two-click confirm (Wrap-up with its pre-flight summary, both
   discards, milestone delete) identically.
 - **Surgical error reverts:** `serverSync` accepts a one-row rollback, supplied for
   to-do status flips (snapshot taken BEFORE the optimistic mutation — argument
-  evaluation order matters), rock status, due moves, cascade, headline kill/revive and
+  evaluation order matters), priority status, due moves, cascade, headline kill/revive and
   votes — a background failure no longer `refresh()`-repaints the app out from under an
-  open editor or IDS card. Paths without a safe row rollback keep the atomic fallback.
+  open editor or Solve card. Paths without a safe row rollback keep the atomic fallback.
 
 **Post-roadmap a11y/correctness:** every overlay card carries `role=dialog` +
 `aria-modal` + `aria-labelledby` with one shared Tab trap and focus-restore-to-opener;
-the rock timeline gets a **ResizeObserver** (the Sheets embed resizes without a window
+the priority timeline gets a **ResizeObserver** (the Sheets embed resizes without a window
 resize — the review's "one real correctness bug"); loading **skeletons** replace the
 lone spinner; a **skip link**, `nav aria-label`, and `aria-current="page"` land.
 
@@ -559,7 +559,7 @@ recap and 1:1 packs; WORKING/BLOCKED now show as text badges in the recap).
 
 **Deploy (one-time, in this order):**
 1. **Re-paste all six files** into the workbook's shared script project.
-2. Run **L10 Huddle → Setup / repair tabs** once. It appends `Blocked On` and
+2. Run **Momentum Huddle → Setup / repair tabs** once. It appends `Blocked On` and
    `Last Carried Week` to the end of `L10_Todos` (append-only — existing rows untouched),
    creates `L10_Todo_Steps` and `L10_Todo_Log`, re-applies the status dropdown with the two
    new values, and seeds `TODO_KEEP_DAYS` / `TODO_STALE_CARRIES`.
@@ -627,7 +627,7 @@ negatives all next to each other, A/S all next to each other."*
   values — only when they differ, and it never touches team-added custom metrics or their
   Sort. No metrics, goals, owners, source refs, or captured history change; only display order.
 
-**Deploy:** re-paste `L10Setup.gs` → **L10 Huddle → Setup / repair tabs** once (renumbers
+**Deploy:** re-paste `L10Setup.gs` → **Momentum Huddle → Setup / repair tabs** once (renumbers
 the `Sort` column). No web-app redeploy needed — no HTML or server-boot changes, and the
 client already renders in `Sort` order.
 
@@ -669,7 +669,7 @@ paid-search A/S rows (SC-011/SC-012). Requested by Alex (2026-07-20).
 
 **Deploy:** first rebuild the Financial Dashboard (`V2.gs` v3.10 → `buildFinancialDashboardV2`)
 and enter the advertised-only Amazon sales in `Manual Inputs!B2`, so K10 has a value. Then re-paste `L10Setup.gs`
-→ **L10 Huddle → Setup / repair tabs** once (appends SC-015). Next weekly capture picks it up
+→ **Momentum Huddle → Setup / repair tabs** once (appends SC-015). Next weekly capture picks it up
 automatically. No web-app redeploy needed (no HTML/server changes).
 
 ## v2.3 (2026-07-15) — Seton/Emedco NB-negatives scorecard rows (SC-013/SC-014)
@@ -692,7 +692,7 @@ Emedco Keep/Kill loop went live Jul 2026 and its impact belongs on the huddle sc
 - Formula (not text) refs on purpose: `IMPORTRANGE` must live in the cell; until the
   one-time **Allow access** click it shows `#REF!` and capture skips it loudly.
 
-**Deploy:** re-paste `L10Setup.gs` → **L10 Huddle → Setup / repair tabs** once (appends
+**Deploy:** re-paste `L10Setup.gs` → **Momentum Huddle → Setup / repair tabs** once (appends
 the two rows) → open `L10_Scorecard`, click **Allow access** on the `SC-013`/`SC-014`
 Source Ref cells (col I) to authorize the IMPORTRANGE. Next weekly capture picks them up
 automatically. No web-app redeploy needed (no HTML/server changes).
@@ -746,7 +746,7 @@ of day** — and mixable ("only to-do's daily, the rest normal"). Requested by A
 
 **Chat is still unchanged** (same reason as v2.1 — webhooks post to a space, not a person).
 
-**Deploy:** re-paste `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`, `L10Js.html`; run **L10 Huddle →
+**Deploy:** re-paste `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`, `L10Js.html`; run **Momentum Huddle →
 Setup / repair tabs** once (creates `L10_Digests`); **Settings → Install / refresh email
 triggers** once (adds the hourly `l10RunDigests`); redeploy the web app. No new scopes.
 Verified: `node --check` clean on all four files, no dangling `gs()`/menu handlers, a headless
@@ -781,7 +781,7 @@ Notifications** — no more one-size-fits-all sends. Two levers per person:
 person, so true per-analyst chat volume would need each analyst to paste their own webhook —
 deferred by choice (Alex, 2026-07-10). To-do pings stay a team-space broadcast.
 
-**Deploy:** re-paste `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`, `L10Js.html`; run **L10 Huddle →
+**Deploy:** re-paste `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`, `L10Js.html`; run **Momentum Huddle →
 Setup / repair tabs** once (creates + seeds `L10_Notify`); redeploy the web app. No new scopes.
 Verified: `node --check` clean, wiring audited, the Settings Notifications card renders + saves
 in the SPA harness with zero console errors.
@@ -836,7 +836,7 @@ the Settings-page token setter.
 **Deploy steps (one-time):**
 1. **Re-paste all files** into the workbook's shared script project, and **add the new
    `L10Ga4.gs`** (File → New → Script → paste).
-2. Run **L10 Huddle → Setup / repair tabs** once — it appends the new columns (`L10_Rocks`
+2. Run **Momentum Huddle → Setup / repair tabs** once — it appends the new columns (`L10_Rocks`
    `Metric ID`+`Source`, `L10_Todos` `Repeat`, `L10_Issues` `Waiting On`) at the **end** of
    each tab (append-only; existing rows/data untouched, since tab names stay `L10_*`) and
    seeds the new config rows (`GA4_PROPERTY_ID`, `FISCAL_START_MONTH=8`, `TIMER_CHIME`).
@@ -877,7 +877,7 @@ Open threads, in order:
    PRs (#80 notifications + capture fix, #81 IDS focus mode, the v1.3 capture
    fix, v1.4 rock milestones, v1.5 IDS reorder, v1.6 inline editing, and **v1.9
    no-auto-start (`L10Js.html` + `L10Css.html`)** —
-   v1.4–v1.6 touch **all five files** and need one run of **L10 Huddle →
+   v1.4–v1.6 touch **all five files** and need one run of **Momentum Huddle →
    Setup / repair tabs** to create the `L10_Rock_Milestones` tab and the two
    new `L10_Issues` columns; **v1.9 is client-only — no Setup/repair, just
    re-paste those two files + redeploy the web app**; **v1.10 multi-assign to-dos
@@ -991,7 +991,7 @@ Two changes this pass:
 ## v1.21 (2026-07-08) — quick-add menu dialogs · to-do→IDS context · kill headlines · turn-order voting
 Four asks from Alex in one pass, all quality-of-life on the live huddle:
 
-1. **Quick add straight from the sheet menu — no app, no meeting.** The **L10 Huddle**
+1. **Quick add straight from the sheet menu — no app, no meeting.** The **Momentum Huddle**
    menu grows five items: **Add headlines… / Add issues… / Add to-dos… / Add rocks… /
    Update scorecard…** Each opens a small modal dialog (new **`L10QuickAdd.html`**,
    one file templated per mode) with open rows and the full features of the app's
@@ -1046,7 +1046,7 @@ Four asks from Alex in one pass, all quality-of-life on the live huddle:
   untouched.
 - **Upgrade:** in the Apps Script editor add a file named **`L10QuickAdd`** (File →
   New → HTML) and paste it; re-paste `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`,
-  `L10Js.html`, `L10Css.html`; run **L10 Huddle → Setup / repair tabs** once (adds the
+  `L10Js.html`, `L10Css.html`; run **Momentum Huddle → Setup / repair tabs** once (adds the
   `L10_Headlines` Status column); reload the workbook (menu rebuilds with the quick-add
   items) → Deploy → Manage deployments → ✏️ → **New version** (for the web-app client).
 - **Verified:** `node --check` on all six JS surfaces + a 58-assertion stubbed harness —
@@ -1136,7 +1136,7 @@ voice call). **`L10Setup.gs` + `L10Code.gs` + `L10Index.html` + `L10Js.html` +
   revenue-first order as the in-app builder. `CASCADE_DRAFT` config = NO turns it
   off; menu **Email → Send Monday cascade draft now (to me)** to test.
 - **Upgrade (all five files):** re-paste `L10Setup.gs`, `L10Code.gs`, `L10Index.html`,
-  `L10Js.html`, `L10Mail.gs` → run **L10 Huddle → Setup / repair tabs** once (creates
+  `L10Js.html`, `L10Mail.gs` → run **Momentum Huddle → Setup / repair tabs** once (creates
   `L10_Brief` + `L10_Playbook`, appends the three `L10_Issues` columns, seeds the
   `BRIEF_ENABLED` / `OUTCOME_REVIEW_WEEKS` / `CASCADE_DRAFT` config rows + the PB
   seeds) → **Brief → Set intake token…** → Deploy → Manage deployments → ✏️ → **New
@@ -1398,13 +1398,13 @@ new tab, no new service, no credentials in code. `L10Code.gs` + `L10Setup.gs`:
   (`_silent`) and posts a single `… - Scott, CJ, Courtney - {Task}` line. IDS
   solve-spawned to-dos and email-ingested to-dos go through `l10_addTodo` and each
   announce individually (each is a discrete new commitment).
-- **Set it / test it:** new **L10 Huddle → Chat** submenu — **Set to-do webhook
+- **Set it / test it:** new **Momentum Huddle → Chat** submenu — **Set to-do webhook
   URL…** (prompts, writes `CHAT_WEBHOOK_URL`) and **Send test message** (posts a
   sample line so Alex can confirm it lands in the right space). Menu wrappers live in
   `L10Setup.gs` so they don't depend on the optional `L10Mail.gs`.
 - **One-time setup (Alex):** in the *Paid Team & Stuart* space → **Apps &
   integrations → Webhooks → Add** (name it e.g. "L10 To-Do Bot"), copy the URL, then
-  **L10 Huddle → Chat → Set to-do webhook URL…** and paste it. (Incoming webhooks are
+  **Momentum Huddle → Chat → Set to-do webhook URL…** and paste it. (Incoming webhooks are
   a Google **Workspace** feature — this works on the `@bradycorp.com` space, not a
   consumer Gmail.) Webhooks post under their own configured name/avatar, not as the
   person who acted.
@@ -1475,7 +1475,7 @@ needed since it's client-side):
   `Weekly Negatives Impact!B3`/`!B4`. Idempotent like `l10SeedConfig_`, so it lands on an
   already-populated scorecard without duplicating or disturbing edits (unlike
   `l10SeedScorecard_`, which only seeds an empty scorecard).
-- **Upgrade:** re-paste `L10Setup.gs`, run **L10 Huddle → Setup / repair tabs** once
+- **Upgrade:** re-paste `L10Setup.gs`, run **Momentum Huddle → Setup / repair tabs** once
   (adds the two rows), then open `L10_Scorecard`, find the `SC-012`/`SC-013` Source Ref
   cells (col I), and click **Allow access** once each to authorize the IMPORTRANGE. Until
   authorized they show `#REF!` and capture skips them with a loud note (never a wrong
@@ -1659,7 +1659,7 @@ hard-to-read text. Review found 10 issues; all fixed:
 
 **Upgrading an existing install:** replace the contents of all five files in
 the Apps Script editor with these versions and save. **v1.4 adds a tab and
-v1.5 adds two `L10_Issues` columns**, so run **L10 Huddle → Setup / repair
+v1.5 adds two `L10_Issues` columns**, so run **Momentum Huddle → Setup / repair
 tabs** once after pasting (it creates `L10_Rock_Milestones`, appends
 `Identified`/`Discussed` to the issues header row, and leaves every existing
 tab's data untouched — setup is repair-safe). If you deployed a web app, also
