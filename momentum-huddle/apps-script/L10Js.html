@@ -1,8 +1,8 @@
 <script>
-// ── Momentum Huddle brand intro (once-per-session splash) ──────────────────
-// Self-contained and fully wrapped so it can NEVER break app boot. Runs only
-// when the head gate set <html class="mh-intro-on"> (first load of a session,
-// reduced-motion off). Plays over the boot fetch, then removes itself.
+// ── Momentum Huddle brand intro (plays on every open) ──────────────────────
+// Self-contained and fully wrapped so it can NEVER break app boot. Runs whenever
+// the head gate set <html class="mh-intro-on"> — i.e. on every open, unless the
+// viewer prefers reduced motion. Plays over the boot fetch, then removes itself.
 (function () {
   try {
     var root = document.documentElement;
@@ -11,7 +11,6 @@
     var mark = document.getElementById('mh-mark');
     var badge = document.getElementById('mh-badge');
     if (!overlay || !mark || !badge) return;
-    try { sessionStorage.setItem('mh_intro_played', '1'); } catch (e) {}
 
     var N = 30, K = 70, C = 2.8, DURATION = 2.0;   // physics spec (from the handoff)
     var COLORS = ['#003087', '#FF6B00', '#3366a8'];

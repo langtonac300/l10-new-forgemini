@@ -3,14 +3,13 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <!-- Brand intro gate: decide BEFORE first paint whether the once-per-session
-       splash plays, so a repeat load in the same session never flashes it. -->
+  <!-- Brand intro gate: mark <html> BEFORE first paint so the splash overlay is
+       present immediately on every open (skipped only for reduced motion). -->
   <script>
     (function () {
       try {
-        var played = sessionStorage.getItem('mh_intro_played');
         var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (!played && !reduce) document.documentElement.className += ' mh-intro-on';
+        if (!reduce) document.documentElement.className += ' mh-intro-on';
       } catch (e) {}
     })();
   </script>
