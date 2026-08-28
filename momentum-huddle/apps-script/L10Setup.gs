@@ -182,6 +182,9 @@ var L10_CONFIG_DEFAULTS = [
   ['JIRA_DONE_TRANSITION', 'Done', 'Workflow transition name used to close a Jira issue when its to-do is completed in the huddle. Default Done; falls back to any transition whose target is in the "done" status category.'],
   ['JIRA_USER_MAP', '', 'OPTIONAL owner→Jira accountId map for assignment, e.g. "Scott=5b10...;CJ=5b10...". Blank = resolve owner → email → accountId via the roster (TEAM_EMAILS override if set, else the addresses baked into L10Mail.gs).'],
   ['GA4_PROPERTY_ID', '', 'Google Analytics (GA4) property ID — the digits from Analytics → Admin → Property settings (a pasted "properties/123456" works too). Powers metrics with the GA4 source: each user\'s own sign-in reads the data, so no key or token is stored. Blank = off. Also editable in the app: Settings → Integrations.'],
+  ['GEMINI_ENABLED', 'YES', 'Master switch for every Gemini-powered feature. NO turns them all off in one edit without clearing the key. Needs an API key set via Momentum Huddle > Gemini > Set API key (stored in the L10_GEMINI_API_KEY script property, never in the sheet). See L10Gemini.gs.'],
+  ['GEMINI_MODEL', 'gemini-2.5-flash', 'Gemini model the app calls. Change only if your key cannot reach the default or you want a different speed/quality trade-off.'],
+  ['GEMINI_DAILY_CAP', 200, 'Maximum Gemini API calls per day across all features combined, so one runaway loop cannot spend the quota. Reached = features report the cap and stop until tomorrow.'],
   ['BRIEF_ENABLED', 'YES', 'Show the pre-huddle brief (L10_Brief rows for the current week) on the start screen and in Solve. The rows arrive via the intake endpoint (doPost) or can be typed into the tab by hand. NO = hide.'],
   ['FISCAL_START_MONTH', 8, 'First month of the fiscal year (1 = January; 8 = the Brady Aug–Jul fiscal year). Drives the fiscal-quarter date chips.'],
   ['OUTCOME_REVIEW_WEEKS', 4, 'Weeks after an issue is SOLVED before the Wrap-up segment asks "did the fix hold?". The answer lands in the Outcome column — the decision ledger\'s hit rate.'],
@@ -239,6 +242,10 @@ function l10BuildMenu() {
             .addItem('Set web app URL…', 'l10MenuSetBriefUrl')
             .addItem('Send test brief (sample rows)', 'l10MenuBriefSelfTest')
             .addItem('Intake status', 'l10MenuBriefStatus'))
+        .addSubMenu(ui.createMenu('Gemini')
+            .addItem('Set API key…', 'l10MenuSetGeminiKey')
+            .addItem('Test connection', 'l10MenuTestGemini')
+            .addItem('Status / usage', 'l10MenuGeminiStatus'))
         .addSubMenu(ui.createMenu('Jira')
             .addItem('Set API token…', 'l10MenuSetJiraToken')
             .addItem('Test connection', 'l10MenuTestJira')

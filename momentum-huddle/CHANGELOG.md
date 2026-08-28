@@ -5,7 +5,51 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.10.1 (2026-08-13)** · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.11 (2026-08-28)** · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.11 (2026-08-28) — Gemini service layer (plumbing only, no feature yet)
+
+Adds [`apps-script/L10Gemini.gs`](./apps-script/L10Gemini.gs): the shared
+wrapper every future Gemini-powered feature calls. **Deliberately feature-free
+— nothing in the app generates text yet.** It exists so the first surface can
+be chosen on its merits instead of inheriting whatever the first implementation
+happened to do, and so every later one gets the same failure behaviour.
+Modeled on `L10Jira.gs`: API key in the `L10_GEMINI_API_KEY` script property
+(never in the sheet), non-secret settings in `L10_Config`, dormant until
+configured, **Momentum Huddle → Gemini →** submenu with Set API key / Test connection /
+Status.
+
+- **Never throws.** Every entry point returns `{ok:false, error}`; `off:true`
+  separates *not configured* from *failed*, so a calling feature degrades to
+  "no suggestion" rather than breaking the huddle.
+- **Retry + budget.** 429/5xx/network retried three times with backoff; a
+  shared `GEMINI_DAILY_CAP` (default 200) ceilings calls across all features so
+  one runaway loop can't spend the quota. Identical prompts cache for 15 min —
+  a re-opened page or a double-tap costs nothing and returns the same wording.
+- **Refuses clearly.** A safety block, an empty candidate or a `MAX_TOKENS`
+  truncation each come back as a stated error, never as empty text the room
+  might read as "nothing to say".
+- **`l10GeminiJson_`** takes a `responseSchema` and returns parsed data, so
+  features that produce rows never hand-parse prose.
+- **The never-invent-a-number rule is enforced in code, not just prompted.**
+  `l10GeminiGuardNumbers_` fails a draft that contains any figure absent from
+  its source (normalized for `$`, `%`, commas, trailing zeros — so rounding
+  `38.4` to `38` fails, it's a new number) **or** that answers a `___` blank.
+  Omitting a blank line is allowed (a summary may leave things out); putting a
+  value next to a blank label is not, including a value borrowed from elsewhere
+  in the source, which the number check alone would miss. Returns the offending
+  numbers and labels so a caller can say *what* was wrong. It's a backstop, not
+  a fact-checker: it can't tell whether a supported number was attached to the
+  right metric, so a draft still goes in front of a person.
+- **One kill switch.** `GEMINI_ENABLED=NO` turns every Gemini feature off in a
+  single cell without clearing the key.
+
+Two edits to `L10Setup.gs` (three `L10_Config` rows, the **Gemini** submenu);
+nothing else changed, no front-end files touched, no redeploy needed to paste
+this in. Docs: [`GEMINI.md`](./GEMINI.md).
+
+**Scope for the first actual feature is still open** — see the *Scope status*
+section in `GEMINI.md` for the candidates considered.
 
 ## v2.10.1 (2026-08-13) — v2.10 hardening (adversarial review findings)
 

@@ -36,7 +36,8 @@ so the vocabulary lands upward too.
 > email automation → [`EMAIL-AUTOMATION.md`](./EMAIL-AUTOMATION.md) ·
 > Jira sync → [`JIRA-SYNC.md`](./JIRA-SYNC.md) ·
 > pre-huddle brief intake (doPost contract) → [`BRIEF-INTAKE.md`](./BRIEF-INTAKE.md) ·
-> calendar scheduling (Advanced Calendar Service) → [`CALENDAR.md`](./CALENDAR.md).
+> calendar scheduling (Advanced Calendar Service) → [`CALENDAR.md`](./CALENDAR.md) ·
+> Gemini service layer → [`GEMINI.md`](./GEMINI.md).
 
 ## Why this exists (Brady context)
 
@@ -193,6 +194,7 @@ SOP: [`../../processes/level10-huddle.md`](../../processes/level10-huddle.md).
 | [`apps-script/L10Ga4.gs`](./apps-script/L10Ga4.gs) | **GA4 metrics connector** (new, v2.0): a metric with the `GA4` source pulls sessions/users/revenue/… from the Google Analytics Data API using each viewer's own sign-in — no tokens stored. Needs the Analytics Data API + `analytics.readonly`; property ID in `GA4_PROPERTY_ID`. |
 | [`apps-script/L10QuickAdd.html`](./apps-script/L10QuickAdd.html) | The quick-add dialog (v1.21): one templated modal serving the menu's **Add headlines/issues/to-dos/priorities** batch forms + **Update metrics** capture grid — rows funnel through the app's own add functions via `l10_quickAdd` |
 | [`apps-script/L10Mail.gs`](./apps-script/L10Mail.gs) | Email automation: personalized Monday heads-up, Gmail reply-ingest of issues/headlines/priorities, Tuesday recap, per-analyst **custom digests** (hourly `l10RunDigests`, sheet-timezone match), triggers + menu items |
+| [`apps-script/L10Gemini.gs`](./apps-script/L10Gemini.gs) | **Gemini service layer** (new, 2026-08-28): the shared wrapper every Gemini-powered feature calls — key in a script property, retries, a daily call cap, a `GEMINI_ENABLED` kill switch, and the never-invent-a-number guard that fails any draft carrying a figure the source didn't have or answering a `___` blank. Feature-free on its own; dormant until a key is set. See [`GEMINI.md`](./GEMINI.md). |
 | [`apps-script/L10Jira.gs`](./apps-script/L10Jira.gs) | One-way **Momentum Huddle → Jira** to-do sync: OPEN to-do → Jira issue, DONE to-do → issue transitioned to Done; idempotent via the `Jira Key` column; 10-min trigger + **Jira** submenu. Token in script property, settings in `L10_Config`. See the *Jira sync* section above. |
 | [`apps-script/L10Calendar.gs`](./apps-script/L10Calendar.gs) | **Google Calendar scheduling** (Advanced Calendar service): book a meeting from any issue/headline with a day-view free/busy picker. `Freebusy.query` + `Events.insert`. Needs the Calendar API added under **Services** once. See [`CALENDAR.md`](./CALENDAR.md). |
 | [`apps-script/L10Guide.html`](./apps-script/L10Guide.html) | The visual new-member onboarding one-pager, opened in a modal from **Momentum Huddle → New member guide** (`l10OpenGuide`) — and, since v2.8, from the **? button in the app's nav** (served by `l10_getGuideHtml` into an iframe). Byte-identical to [`../../processes/l10-new-member-guide.html`](../../processes/l10-new-member-guide.html) (the standalone shareable copy) — **keep the two in sync**. |
