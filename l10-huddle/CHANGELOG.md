@@ -5,7 +5,38 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.13 (2026-09-01)** · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.13.1 (2026-09-01)** · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.13.1 (2026-09-01) — L10_Team repairs itself; Settings says which code it is running
+
+A photo saved fine and was gone on reopen. Root cause: the `L10_Team` tab had
+been added **without its header row** (the Setup / repair step that writes it
+had not run), so the app read the first photo row *as* the headers, found no
+`Photo` column on boot, and — unable to match the name — appended a new row on
+every save.
+
+- **The tab is created and repaired on demand.** `l10EnsureTeamTab_` inserts
+  the sheet if missing and inserts the header row above existing data when
+  row 1 is not `Name`. It runs on every boot read (cheap, idempotent) and on
+  every save, so the feature no longer depends on Setup / repair tabs at all,
+  and a workbook in the broken state heals on the next open.
+- **One row per name.** Saves update the first match and delete duplicates;
+  the boot read lets the last row win in the meantime.
+- Two small additions make the *other* way this can look broken — a page
+  served by older code — self-diagnosing:
+
+- **Settings shows the app version** (`app v2.13.1`, from `L10_APP_VERSION`
+  in `L10Js.html`). If it does not match the changelog, the paste or the
+  deployment is behind.
+- **Team card status line:** "N of M people have a photo stored in L10_Team",
+  or, when the boot payload carries no photos field at all, a warning that the
+  server code predates v2.13 with the exact fix (paste `L10Code.gs` +
+  `L10Setup.gs`, run Setup / repair tabs, publish a new deployment version).
+
+**Harness:** asserts the status line reads `1 of 4` against the fixture and
+that the version shows. **Paste sequence:** re-paste `L10Code.gs` and
+`L10Js.html`; publish a new deployment version if the team uses the link. No
+manual sheet fix needed — the next open repairs the tab.
 
 ## v2.13 (2026-09-01) — Team photos in the avatar bubbles
 

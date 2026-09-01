@@ -774,16 +774,51 @@ function l10_settingsData() {
 // ---------------------------------------------------------------------------
 // Team photos — one small image per roster name, kept as a data URI in the
 // L10_Team tab (the Settings page resizes to a 128px square JPEG before
-// sending, a few KB). Read on every boot; a missing tab (pre-upgrade
-// workbook) reads as no photos, so the initials keep working until Setup runs.
-// ---------------------------------------------------------------------------
+// sending, a few KB). The tab is created and its header row repaired here,
+// on demand, so the feature never depends on the Setup / repair step: a tab
+// added by hand without headers would otherwise have its first data row read
+// AS the headers, and every save would append instead of update.
+function l10EnsureTeamTab_(create) {
+  var ss = l10Ss_();
+  var sheet = ss.getSheetByName(L10.TABS.TEAM);
+  if (!sheet) {
+    if (!create) return null;
+    sheet = ss.insertSheet(L10.TABS.TEAM);
+  }
+  var headers = L10.HEADERS[L10.TABS.TEAM];
+  var first = sheet.getLastRow() > 0 ? String(sheet.getRange(1, 1).getValue()).trim() : '';
+  if (first !== headers[0]) {
+    if (sheet.getLastRow() > 0) sheet.insertRowBefore(1);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+        .setFontWeight('bold').setBackground('#06316b').setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+    l10TabDirty_(L10.TABS.TEAM);
+  }
+  return sheet;
+}
 function l10TeamPhotos_() {
   var out = {};
+  if (!l10EnsureTeamTab_(false)) return out;
   l10ReadTab_(L10.TABS.TEAM).rows.forEach(function (r) {
     var name = String(r['Name'] || '').trim(), photo = String(r['Photo'] || '').trim();
-    if (name && photo.indexOf('data:image/') === 0) out[name] = photo;
+    if (name && photo.indexOf('data:image/') === 0) out[name] = photo; // last row wins
   });
   return out;
+}
+// Write one row per name: update the first match, delete any duplicates
+// (bottom-up so row numbers stay valid), append when there is none.
+function l10TeamWrite_(name, photo) {
+  var sheet = l10EnsureTeamTab_(true);
+  var tab = l10ReadTab_(L10.TABS.TEAM);
+  var now = l10Now_();
+  var mine = tab.rows.filter(function (r) { return String(r['Name'] || '').trim() === name; });
+  if (!mine.length) {
+    l10Append_(L10.TABS.TEAM, [name, photo, now]);
+    return;
+  }
+  l10WriteRowCells_(sheet, tab.headers, mine[0]._row, { 'Photo': photo, 'Updated At': now });
+  for (var i = mine.length - 1; i >= 1; i--) sheet.deleteRow(mine[i]._row);
+  l10TabDirty_(L10.TABS.TEAM);
 }
 var L10_PHOTO_MAX_ = 45000; // characters — under the 50,000-per-cell limit, with headroom
 function l10_setTeamPhoto(name, dataUri) {
@@ -793,18 +828,14 @@ function l10_setTeamPhoto(name, dataUri) {
   if (!name || team.indexOf(name) === -1) return { ok: false, error: 'Not on the roster: ' + name };
   if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(dataUri)) return { ok: false, error: 'That is not an image the app can store.' };
   if (dataUri.length > L10_PHOTO_MAX_) return { ok: false, error: 'Image too large to store (' + dataUri.length + ' characters, max ' + L10_PHOTO_MAX_ + ').' };
-  if (!l10Ss_().getSheetByName(L10.TABS.TEAM)) return { ok: false, error: 'Run Setup / repair tabs once (it adds the ' + L10.TABS.TEAM + ' tab), then retry.' };
-  var now = l10Now_();
-  if (!l10SetCells_(L10.TABS.TEAM, name, { 'Photo': dataUri, 'Updated At': now })) {
-    l10Append_(L10.TABS.TEAM, [name, dataUri, now]);
-  }
+  l10TeamWrite_(name, dataUri);
   return { ok: true, name: name };
 }
 function l10_removeTeamPhoto(name) {
   name = String(name || '').trim();
   if (!name) return { ok: false, error: 'No name given.' };
-  if (!l10Ss_().getSheetByName(L10.TABS.TEAM)) return { ok: true, name: name };
-  l10SetCells_(L10.TABS.TEAM, name, { 'Photo': '', 'Updated At': l10Now_() });
+  if (!l10EnsureTeamTab_(false)) return { ok: true, name: name };
+  l10TeamWrite_(name, '');
   return { ok: true, name: name };
 }
 

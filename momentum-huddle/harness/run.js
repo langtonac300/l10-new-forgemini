@@ -201,6 +201,10 @@ async function clickNav(page, target) {
   // --- Team photos: rows render, the fixture photo replaces one initial, upload + remove round-trip ---
   const tmRows = await page.$$('.tm-row');
   if (tmRows.length !== 4) errors.push('Settings team card has ' + tmRows.length + ' photo rows (want 4)');
+  const tmStatus = await page.$eval('#tm-status', (el) => el.textContent).catch(() => null);
+  if (tmStatus !== '1 of 4 people have a photo stored in L10_Team.') errors.push('team photo status line reads "' + tmStatus + '"');
+  const verLine = await page.$eval('#page-settings .page-sub', (el) => el.textContent);
+  if (!/app v\d+\.\d+/.test(verLine)) errors.push('Settings subtitle does not show the app version');
   const imgs0 = await page.$$eval('#page-huddle .person-chip .avatar--img', (els) => els.length);
   if (imgs0 !== 1) errors.push('start screen shows ' + imgs0 + ' photo avatars (want 1 — CJ from the fixture)');
   const letters0 = await page.$$eval('#page-huddle .person-chip .avatar:not(.avatar--img)', (els) => els.length);
