@@ -2056,9 +2056,12 @@ function l10_setTodoStatus(id, status, opts) {
   if (!todo) return { ok: false, error: 'To-do ' + id + ' not found.' };
   var was = String(todo['Status']).toUpperCase();
   var wasDone = was === 'DONE';
+  // Done At is the terminal stamp for DONE and DROPPED alike: a dropped row
+  // with no stamp can only be dated by its Created cell, which misplaces it in
+  // every week-keyed view. Reopening (any open state) clears it.
   var updates = {
     'Status': status,
-    'Done At': status === 'DONE' ? l10Now_() : ''
+    'Done At': (status === 'DONE' || status === 'DROPPED') ? l10Now_() : ''
   };
   // 'Blocked On' only means something while BLOCKED — leaving that state clears
   // it, so a row can never show a stale blocker next to a live status.

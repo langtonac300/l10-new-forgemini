@@ -97,6 +97,20 @@ async function clickNav(page, target) {
       errors.push('todo DONE click did not persist via l10_setTodoStatus (Jira sync would miss it)');
     }
   } else errors.push('no ✓ done button found on To-dos page');
+  // Dropping stamps Done At locally, the same as the server now does — the
+  // week-keyed stats would otherwise misplace every drop.
+  const dropBtn = await page.$('[data-todo$="|DROPPED"]');
+  if (dropBtn) {
+    const dropId = await dropBtn.evaluate((el) => el.dataset.todo.split('|')[0]);
+    await dropBtn.click();
+    await page.waitForTimeout(250);
+    const dropped = await page.evaluate((id) => {
+      const t = (window.state && state.boot.todos || []).find((x) => String(x['ID']) === id);
+      return t ? { s: t['Status'], d: t['Done At'] } : null;
+    }, dropId);
+    if (!dropped || dropped.s !== 'DROPPED') errors.push('drop click did not flip the row to DROPPED (' + JSON.stringify(dropped) + ')');
+    else if (!/^\d{4}-\d{2}-\d{2}/.test(String(dropped.d))) errors.push('dropped to-do carries no Done At stamp locally ("' + dropped.d + '")');
+  } else errors.push('no drop button found on To-dos page');
   await shot(page, 'todos-after-flows');
 
   // --- Scorecard: capture grid opens; sparklines drew ---
