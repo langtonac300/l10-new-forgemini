@@ -83,6 +83,9 @@ var state = {
   // Data-source health (v_l10_data_health via l10_dataHealth) — fetched lazily
   // after boot, cached server-side; null = unknown/off and the UI stays quiet.
   health: null,
+  // Team stats page — the l10_teamStats payload, fetched the first time the
+  // page is opened (fetchTeamStats_); null until then, error text on failure.
+  teamStats: null, teamStatsInflight: false, teamStatsErr: null,
   // Metrics "off track first" toggle (client-only) + a one-shot flag so the
   // timer announces over-time to screen readers once, not every tick.
   scSortOffFirst: false, segOverAnnounced: false, idsActiveStep: null,
@@ -126,7 +129,7 @@ var L10_READS_ = { l10_bootCore: 1, l10_bootWork: 1, l10_bootPlan: 1, l10_bootSc
   l10_bootstrap: 1, l10_getSettings: 1, l10_getGuideHtml: 1, l10_webAppUrl: 1,
   l10_calContext: 1, l10_calDay: 1, l10_testRangeRef: 1, l10_ga4Test: 1,
   l10_metricPacks: 1, l10_getNotifyPrefs: 1, l10_getDigests: 1,
-  l10_hubCounts: 1, l10_settingsData: 1, l10_dataHealth: 1 };
+  l10_hubCounts: 1, l10_settingsData: 1, l10_dataHealth: 1, l10_teamStats: 1 };
 function busy(delta, isRead) {
   state.busyN = Math.max(0, state.busyN + delta);
   state.busyW = Math.max(0, (state.busyW || 0) + (isRead ? 0 : delta));
@@ -847,6 +850,9 @@ function showPage(name) {
     fetchSettingsData_();
     renderSettings();
   }
+  // Same lazy pattern: the stats payload is the whole to-do tab, read only
+  // when someone actually opens the page.
+  if (name === 'teamstats') fetchTeamStats_();
 }
 
 // --- Dialog semantics shared by every fixed overlay -------------------------
@@ -1096,7 +1102,7 @@ function boot(keepSeg) {
   L10_FIRST_BOOT_ = false;
   if (!snap) {
     ['page-scorecard', 'page-rocks', 'page-headlines', 'page-todos', 'page-issues',
-     'page-oneonone', 'page-history', 'page-settings'].forEach(pageLoading_);
+     'page-oneonone', 'page-history', 'page-teamstats', 'page-settings'].forEach(pageLoading_);
   }
   // EVERY slice arrival re-renders EVERY page: the renderers self-guard on
   // their own dependencies, so each page paints the moment its last slice
@@ -1116,6 +1122,7 @@ function boot(keepSeg) {
     renderIssues();
     renderOneOnOne();
     renderHistory();
+    renderTeamStats();
     if (state.inMeeting && hyd('work') && hyd('plan') && hyd('scorecard')) renderSegment();
   }
   var core;
@@ -5708,6 +5715,432 @@ function ledgerListHtml_(q, acct) {
         outcomeBadge_(i) + '</div></div></div>';
   }).join('') + (rows.length > capped.length ? '<div class="help">+ ' + (rows.length - capped.length) + ' more — narrow the search.</div>' : '');
 }
+// ---------------------------------------------------------------------------
+// Team stats — to-do completion analytics. Data comes from l10_teamStats (the
+// whole L10_Todos tab, compact rows), fetched the first time the page is
+// opened; every number on the page is computed here so the window and the
+// toggles are instant. The team completion score stays a TEAM number — the
+// per-person table carries counts and durations, never a completion %.
+// ---------------------------------------------------------------------------
+
+var STATS_WINDOWS_ = [4, 13, 26, 52];
+function statsPrefGet_(k, dflt) {
+  try { var v = localStorage.getItem(k); return v === null ? dflt : v; } catch (e) { return dflt; }
+}
+function statsPrefSet_(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) {} }
+function statsWeeks_() {
+  var n = Number(statsPrefGet_('l10StatsWeeks', 13));
+  return STATS_WINDOWS_.indexOf(n) === -1 ? 13 : n;
+}
+function statsRepeats_() { return statsPrefGet_('l10StatsRepeats', 'YES') !== 'NO'; }
+
+// Monday of a yyyy-mm-dd (noon anchor so a DST edge can't slide the day).
+function statsMonday_(s) {
+  var d = new Date(String(s).slice(0, 10) + 'T12:00:00');
+  if (isNaN(d)) return '';
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return fmtLocal(d);
+}
+function statsShiftDays_(s, n) {
+  var d = new Date(String(s).slice(0, 10) + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return fmtLocal(d);
+}
+// Whole days from a to b (b - a). Null when either side is missing.
+function statsDays_(a, b) {
+  if (!a || !b) return null;
+  var da = new Date(String(a).slice(0, 10) + 'T12:00:00'), db = new Date(String(b).slice(0, 10) + 'T12:00:00');
+  if (isNaN(da) || isNaN(db)) return null;
+  return Math.round((db - da) / 864e5);
+}
+function statsQuantile_(arr, q) {
+  var a = arr.filter(function (v) { return v !== null && isFinite(v); }).sort(function (x, y) { return x - y; });
+  if (!a.length) return null;
+  var pos = (a.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+  return lo === hi ? a[lo] : Math.round((a[lo] + (a[hi] - a[lo]) * (pos - lo)) * 10) / 10;
+}
+function statsMean_(arr) {
+  var a = arr.filter(function (v) { return v !== null && isFinite(v); });
+  if (!a.length) return null;
+  return Math.round(a.reduce(function (s, v) { return s + v; }, 0) / a.length * 10) / 10;
+}
+function statsPct_(num, den) { return den ? Math.round(num / den * 100) : null; }
+
+// Which door a to-do came through. Source is an issue id, a priority id, EMAIL,
+// MANUAL, or blank; weekly repeats are their own bucket whatever the source.
+function statsSourceKind_(r) {
+  if (r.repeat) return { key: 'weekly', label: '↻ Weekly repeat' };
+  var s = String(r.source || '').toUpperCase();
+  if (/^IS-\d+/.test(s) || s.indexOf('ISSUE:') === 0) return { key: 'issue', label: 'From an issue (Solve)' };
+  if (/^RK-\d+/.test(s) || s.indexOf('ROCK:') === 0) return { key: 'rock', label: 'From a priority' };
+  if (s === 'EMAIL') return { key: 'email', label: 'Email intake' };
+  if (s === 'BRIEF' || s.indexOf('BRIEF') === 0) return { key: 'brief', label: 'Pre-huddle brief' };
+  if (!s || s === 'MANUAL') return { key: 'direct', label: 'Added directly' };
+  return { key: 'other:' + s, label: 'From ' + String(r.source) };
+}
+
+// The whole computation, pure: data (l10_teamStats payload) + opts → numbers.
+// opts.weeks — window length; opts.repeats — include ↻ weekly to-dos.
+function teamStatsCompute_(data, opts) {
+  opts = opts || {};
+  var weeks = opts.weeks || 13;
+  var today = d10(data.today) || localToday();
+  var weekOf = d10(data.weekOf) || statsMonday_(today);
+  var staleAt = Number(data.staleAt) || 3;
+  var keys = [];
+  for (var i = weeks - 1; i >= 0; i--) keys.push(statsShiftDays_(weekOf, -7 * i));
+  var winStart = keys[0];
+  var idx = {};
+  keys.forEach(function (k, j) { idx[k] = j; });
+  var rows = (data.todos || []).filter(function (r) { return opts.repeats !== false || !r.repeat; });
+
+  var W = { created: 0, done: 0, dropped: 0, closed: 0, byNext: 0, onTime: 0, withDue: 0,
+    noDue: 0, cycles: [], lateDays: [], carriesDone: [], carryDist: { 0: 0, 1: 0, 2: 0, '3+': 0 },
+    steps: 0, notes: 0, withSteps: 0, withNotes: 0 };
+  var O = { n: 0, overdue: 0, blocked: 0, working: 0, stale: 0, ages: [], noDue: 0, oldest: null,
+    buckets: [{ label: '0–7 days', min: 0, max: 7, n: 0, owners: {} }, { label: '8–14 days', min: 8, max: 14, n: 0, owners: {} },
+      { label: '15–28 days', min: 15, max: 28, n: 0, owners: {} }, { label: '29+ days', min: 29, max: 1e9, n: 0, owners: {} }] };
+  var weekly = keys.map(function (k) { return { week: k, created: 0, done: 0, dropped: 0 }; });
+  var owners = {};
+  function own(name) {
+    var o = String(name || '').trim() || '—';
+    if (!owners[o]) owners[o] = { name: o, assigned: 0, done: 0, dropped: 0, open: 0, overdue: 0, blocked: 0, stale: 0,
+      cycles: [], carries: [], weeklyDone: keys.map(function () { return 0; }), onTime: 0, withDue: 0 };
+    return owners[o];
+  }
+  var sources = {};
+  function src(r) {
+    var k = statsSourceKind_(r);
+    if (!sources[k.key]) sources[k.key] = { key: k.key, label: k.label, created: 0, done: 0, dropped: 0, open: 0, cycles: [] };
+    return sources[k.key];
+  }
+  rows.forEach(function (r) {
+    var status = String(r.status || '').toUpperCase();
+    var open = todoOpen_(status);
+    var done = status === 'DONE', dropped = status === 'DROPPED';
+    var created = d10(r.created), due = d10(r.due), doneAt = d10(r.doneAt);
+    var stamp = doneAt || created; // a DROPPED row may carry no Done At
+    var createdIn = !!created && created >= winStart && created <= today;
+    var doneIn = done && !!doneAt && doneAt >= winStart;
+    var droppedIn = dropped && !!stamp && stamp >= winStart;
+    var cycle = (done && created && doneAt) ? Math.max(0, statsDays_(created, doneAt)) : null;
+    var o = own(r.owner), s = src(r);
+    if (createdIn) {
+      W.created++; o.assigned++; s.created++;
+      if (!due) W.noDue++;
+      var wk = idx[statsMonday_(created)];
+      if (wk !== undefined) weekly[wk].created++;
+    }
+    if (doneIn) {
+      W.done++; W.closed++; o.done++; s.done++;
+      var carried = Number(r.carried) || 0;
+      if (carried === 0) W.byNext++;
+      W.carriesDone.push(carried); o.carries.push(carried);
+      W.carryDist[carried >= 3 ? '3+' : carried]++;
+      if (cycle !== null) { W.cycles.push(cycle); o.cycles.push(cycle); s.cycles.push(cycle); }
+      if (due) {
+        W.withDue++; o.withDue++;
+        var lateBy = statsDays_(due, doneAt);
+        if (lateBy <= 0) { W.onTime++; o.onTime++; } else W.lateDays.push(lateBy);
+      }
+      if (r.steps) { W.withSteps++; W.steps += r.steps; }
+      if (r.notes) { W.withNotes++; W.notes += r.notes; }
+      var wd = idx[statsMonday_(doneAt)];
+      if (wd !== undefined) { weekly[wd].done++; o.weeklyDone[wd]++; }
+    }
+    if (droppedIn) {
+      W.dropped++; W.closed++; o.dropped++; s.dropped++;
+      var wx = idx[statsMonday_(stamp)];
+      if (wx !== undefined) weekly[wx].dropped++;
+    }
+    if (open) {
+      O.n++; o.open++; s.open++;
+      var age = created ? Math.max(0, statsDays_(created, today)) : null;
+      if (age !== null) {
+        O.ages.push(age);
+        if (O.oldest === null || age > O.oldest) O.oldest = age;
+        for (var b = 0; b < O.buckets.length; b++) {
+          if (age >= O.buckets[b].min && age <= O.buckets[b].max) {
+            O.buckets[b].n++;
+            O.buckets[b].owners[o.name] = (O.buckets[b].owners[o.name] || 0) + 1;
+            break;
+          }
+        }
+      }
+      if (!due) O.noDue++;
+      if (due && due < today) { O.overdue++; o.overdue++; }
+      if (status === 'BLOCKED') { O.blocked++; o.blocked++; }
+      if (status === 'WORKING') O.working++;
+      if ((Number(r.carried) || 0) >= staleAt) { O.stale++; o.stale++; }
+    }
+  });
+  var meetings = (data.meetings || []).filter(function (m) {
+    return d10(m.date) >= winStart && m.pct !== null && m.pct !== undefined && isFinite(Number(m.pct));
+  }).map(function (m) { return { date: d10(m.date), pct: Number(m.pct), done: m.done, open: m.open }; })
+    .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  var ownerList = Object.keys(owners).map(function (k) { return owners[k]; }).filter(function (o) {
+    return o.assigned || o.done || o.dropped || o.open;
+  });
+  ownerList.forEach(function (o) {
+    o.medianCycle = statsQuantile_(o.cycles, 0.5);
+    o.avgCarried = statsMean_(o.carries);
+    o.onTimePct = statsPct_(o.onTime, o.withDue);
+  });
+  var sourceList = Object.keys(sources).map(function (k) { return sources[k]; }).filter(function (s) {
+    return s.created || s.done || s.dropped || s.open;
+  }).sort(function (a, b) { return (b.created + b.done + b.open) - (a.created + a.done + a.open); });
+  sourceList.forEach(function (s) {
+    s.closed = s.done + s.dropped;
+    s.completionPct = statsPct_(s.done, s.closed);
+    s.medianCycle = statsQuantile_(s.cycles, 0.5);
+  });
+  var weeksElapsed = keys.filter(function (k) { return k <= weekOf; }).length || 1;
+  return {
+    weeks: weeks, keys: keys, winStart: winStart, today: today, weekOf: weekOf, staleAt: staleAt,
+    n: rows.length, repeatsExcluded: (data.todos || []).length - rows.length,
+    created: W.created, done: W.done, dropped: W.dropped, closed: W.closed,
+    completionPct: statsPct_(W.done, W.closed),
+    byNextPct: statsPct_(W.byNext, W.done), byNext: W.byNext,
+    onTimePct: statsPct_(W.onTime, W.withDue), onTime: W.onTime, withDue: W.withDue,
+    lateDaysAvg: statsMean_(W.lateDays), lateN: W.lateDays.length,
+    cycleMedian: statsQuantile_(W.cycles, 0.5), cycleP90: statsQuantile_(W.cycles, 0.9), cycleN: W.cycles.length,
+    noDuePct: statsPct_(W.noDue, W.created), noDue: W.noDue,
+    donePerWeek: Math.round(W.done / weeksElapsed * 10) / 10,
+    createdPerWeek: Math.round(W.created / weeksElapsed * 10) / 10,
+    net: W.created - W.done - W.dropped,
+    carryDist: W.carryDist, avgCarried: statsMean_(W.carriesDone),
+    withSteps: W.withSteps, withNotes: W.withNotes,
+    open: O, openMedianAge: statsQuantile_(O.ages, 0.5),
+    weekly: weekly, meetings: meetings,
+    meetingsAvg: statsMean_(meetings.map(function (m) { return m.pct; })),
+    meetingsAtTarget: meetings.filter(function (m) { return m.pct >= (Number(data.target) || 90); }).length,
+    owners: ownerList, sources: sourceList
+  };
+}
+
+function fetchTeamStats_(force) {
+  if (force) { state.teamStats = null; state.teamStatsErr = null; }
+  if (state.teamStats || state.teamStatsInflight) return;
+  var page = $('page-teamstats');
+  if (!page || !page.classList.contains('visible')) return; // fetch only when someone is looking
+  state.teamStatsInflight = true;
+  state.teamStatsErr = null;
+  renderTeamStats();
+  gs('l10_teamStats').then(function (d) {
+    state.teamStatsInflight = false;
+    if (!d || d.ok === false) {
+      state.teamStatsErr = (d && d.error) || 'The stats call returned nothing.';
+    } else {
+      state.teamStats = d;
+    }
+    renderTeamStats();
+  }).catch(function (e) {
+    state.teamStatsInflight = false;
+    state.teamStatsErr = (e && e.message) || String(e || 'Could not load team stats.');
+    renderTeamStats();
+  });
+}
+
+function statsNum_(v, suffix) {
+  return (v === null || v === undefined || !isFinite(v)) ? '—' : (String(v) + (suffix || ''));
+}
+function statsTile_(value, label, sub, status) {
+  var dot = status === 'on' ? '<span class="st-mark st-on" aria-hidden="true">✓</span>' :
+      status === 'off' ? '<span class="st-mark st-off" aria-hidden="true">✕</span>' : '';
+  return '<div class="tile st-tile"><div class="v">' + dot + value + '</div><div class="l">' + label + '</div>' +
+      (sub ? '<div class="st-sub">' + sub + '</div>' : '') + '</div>';
+}
+// Grouped weekly bars: Added (outlined), Done (solid), Dropped (grey, hatched).
+// Shape + fill distinguish the series, so the legend reads without color, and
+// every non-zero bar carries its number.
+function statsBarsHtml_(weekly) {
+  var n = weekly.length;
+  if (!n) return '';
+  var max = 1;
+  weekly.forEach(function (w) { max = Math.max(max, w.created, w.done, w.dropped); });
+  // Bar width scales with the window so 4 weeks and 52 both fill the card.
+  var bw = n > 26 ? 5 : (n > 13 ? 8 : 14), gap = 2, group = bw * 3 + gap * 2, sp = n > 26 ? 6 : (n > 13 ? 10 : 22);
+  var pad = 14, H = 150, top = 22, bottom = 26;
+  var Wd = pad * 2 + n * group + (n - 1) * sp;
+  var innerH = H - top - bottom;
+  var every = n > 26 ? 4 : (n > 13 ? 2 : 1);
+  var svg = '<svg class="st-bars" viewBox="0 0 ' + Wd + ' ' + H + '" role="img" aria-label="Weekly to-dos added, done and dropped">';
+  svg += '<defs><pattern id="st-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="4" fill="currentColor"/></pattern></defs>';
+  svg += '<line class="st-axis" x1="' + pad + '" y1="' + (H - bottom) + '" x2="' + (Wd - pad) + '" y2="' + (H - bottom) + '"/>';
+  weekly.forEach(function (w, i) {
+    var x0 = pad + i * (group + sp);
+    var series = [{ v: w.created, cls: 'st-b-created' }, { v: w.done, cls: 'st-b-done' }, { v: w.dropped, cls: 'st-b-dropped' }];
+    series.forEach(function (s, j) {
+      var h = s.v ? Math.max(2, (s.v / max) * innerH) : 0;
+      var x = x0 + j * (bw + gap), y = H - bottom - h;
+      if (s.v) {
+        svg += '<rect class="' + s.cls + '" x="' + x + '" y="' + y.toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '"/>';
+        if (s.cls === 'st-b-dropped') svg += '<rect x="' + x + '" y="' + y.toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '" fill="url(#st-hatch)" class="st-b-hatch"/>';
+        svg += '<text class="st-val" x="' + (x + bw / 2) + '" y="' + (y - 3).toFixed(1) + '" text-anchor="middle">' + s.v + '</text>';
+      }
+    });
+    if (i % every === 0 || i === n - 1) {
+      var lbl = w.week.slice(5).replace('-', '/');
+      svg += '<text class="st-lbl" x="' + (x0 + group / 2) + '" y="' + (H - bottom + 14) + '" text-anchor="middle">' + lbl + '</text>';
+    }
+  });
+  return svg + '</svg>';
+}
+function statsWeeklyTableHtml_(weekly) {
+  return '<div class="st-scroll"><table class="data st-weekly"><tr><th>Week of</th>' +
+      weekly.map(function (w) { return '<th>' + esc(w.week.slice(5).replace('-', '/')) + '</th>'; }).join('') + '</tr>' +
+      '<tr><td>Added</td>' + weekly.map(function (w) { return '<td>' + w.created + '</td>'; }).join('') + '</tr>' +
+      '<tr><td>Done</td>' + weekly.map(function (w) { return '<td>' + w.done + '</td>'; }).join('') + '</tr>' +
+      '<tr><td>Dropped</td>' + weekly.map(function (w) { return '<td>' + w.dropped + '</td>'; }).join('') + '</tr></table></div>';
+}
+function statsMiniBars_(vals) {
+  var max = Math.max.apply(null, vals.concat([1]));
+  return '<span class="st-mini" aria-hidden="true">' + vals.map(function (v) {
+    return '<i style="height:' + Math.max(v ? 2 : 0, Math.round(v / max * 14)) + 'px"></i>';
+  }).join('') + '</span>';
+}
+
+function renderTeamStats() {
+  var page = $('page-teamstats');
+  if (!page) return;
+  if (!hyd('core')) return pageLoading_('page-teamstats');
+  var weeks = statsWeeks_(), repeats = statsRepeats_();
+  var html = '<h2 class="page-title">Team stats</h2>' +
+      '<p class="page-sub">How the team\'s to-dos actually move: added, finished, dropped, how fast, and how often by the next huddle. Team-level by design — the completion score is collective.</p>';
+  // Controls
+  html += '<div class="card st-controls"><div class="st-ctl-row">' +
+      '<span class="st-ctl-lbl">Window</span>' +
+      STATS_WINDOWS_.map(function (w) {
+        return '<button type="button" class="pill pill--btn' + (w === weeks ? ' on' : '') + '" data-stwin="' + w + '" aria-pressed="' + (w === weeks) + '">' + w + ' wk</button>';
+      }).join('') +
+      '<label class="ck-lbl st-ck"><input type="checkbox" id="st-repeats"' + (repeats ? ' checked' : '') + '> include ↻ weekly repeats</label>' +
+      '<span class="st-ctl-spacer"></span>' +
+      '<button type="button" class="btn mini subtle" id="st-refresh" title="Re-read the to-do tab">⟳ Refresh</button>' +
+      '</div>' +
+      (state.teamStats ? '<div class="help">Read ' + esc(state.teamStats.asOf || '') + ' · ' + (state.teamStats.todos || []).length + ' to-dos in the tab · window starts ' + esc(statsShiftDays_(d10(state.teamStats.weekOf) || localToday(), -7 * (weeks - 1))) + ' (Monday-keyed weeks, ending this week)</div>' : '') +
+      '</div>';
+  if (state.teamStatsErr) {
+    html += '<div class="banner bad"><b>Couldn\'t load team stats.</b> ' + esc(state.teamStatsErr) +
+        ' <button type="button" class="btn mini ghost" id="st-retry">Retry</button></div>';
+    page.innerHTML = html;
+    wireTeamStats_(page);
+    return;
+  }
+  if (!state.teamStats) {
+    html += '<div class="card" aria-hidden="true"><div class="skel skel-line"></div><div class="skel skel-line skel-w2"></div><div class="skel skel-line skel-w3"></div></div>' +
+        '<span class="sr-only" role="status">Loading team stats…</span>';
+    page.innerHTML = html;
+    wireTeamStats_(page);
+    return;
+  }
+  var d = state.teamStats;
+  var S = teamStatsCompute_(d, { weeks: weeks, repeats: repeats });
+  var target = Number(d.target) || 90;
+  if (!S.created && !S.done && !S.dropped && !S.open.n) {
+    html += '<div class="card"><div class="empty"><div class="e">📊</div>No to-dos in the last ' + weeks + ' weeks' +
+        (S.repeatsExcluded ? ' (' + S.repeatsExcluded + ' weekly repeats hidden by the toggle)' : '') +
+        '. Widen the window, or add the first to-do on the To-dos page.</div></div>';
+    page.innerHTML = html;
+    wireTeamStats_(page);
+    return;
+  }
+  function ge(v, bar) { return (v === null || !isFinite(v)) ? null : (v >= bar ? 'on' : 'off'); }
+  // Completion tiles
+  html += '<h3 class="st-h">Completion <span class="h3-sub">closed in the window</span></h3><div class="tiles">' +
+      statsTile_(statsNum_(S.completionPct, '%'), 'completion rate', S.done + ' done · ' + S.dropped + ' dropped · of ' + S.closed + ' closed', ge(S.completionPct, target)) +
+      statsTile_(statsNum_(S.byNextPct, '%'), 'done by the next huddle', S.byNext + ' of ' + S.done + ' done with zero carry-overs · target ≥' + target + '%', ge(S.byNextPct, target)) +
+      statsTile_(statsNum_(S.onTimePct, '%'), 'on or before due date', S.withDue ? (S.onTime + ' of ' + S.withDue + ' dated' + (S.lateN ? ' · late ones avg ' + statsNum_(S.lateDaysAvg) + ' days over' : '')) : 'no finished to-do carried a due date') +
+      statsTile_(statsNum_(S.cycleMedian), 'median days to done', S.cycleN ? ('90th percentile ' + statsNum_(S.cycleP90) + ' · n=' + S.cycleN) : 'needs Created + Done At on a finished to-do') +
+      '</div>';
+  // Flow tiles
+  html += '<h3 class="st-h">Flow <span class="h3-sub">per week, over ' + weeks + ' weeks</span></h3><div class="tiles">' +
+      statsTile_(statsNum_(S.donePerWeek), 'finished per week', S.done + ' in the window') +
+      statsTile_(statsNum_(S.createdPerWeek), 'added per week', S.created + ' in the window' + (S.noDue ? ' · ' + S.noDue + ' (' + statsNum_(S.noDuePct, '%') + ') added without a due date' : '')) +
+      statsTile_((S.net > 0 ? '+' : '') + S.net, 'backlog change', S.net > 0 ? 'added outpaced closed — the list grew' : (S.net < 0 ? 'closed outpaced added — the list shrank' : 'added and closed balanced')) +
+      statsTile_(String(S.open.n), 'open right now', S.open.overdue + ' overdue · ' + S.open.blocked + ' blocked · ' + S.open.stale + ' stale (≥' + S.staleAt + ' carries)' + (S.openMedianAge !== null ? ' · median age ' + S.openMedianAge + ' days' : '')) +
+      '</div>';
+  // Weekly chart + huddle-scored series
+  html += '<div class="card"><h3>Week by week</h3>' +
+      '<div class="st-legend"><span><i class="st-lg st-lg-created"></i> Added</span><span><i class="st-lg st-lg-done"></i> Done</span><span><i class="st-lg st-lg-dropped"></i> Dropped</span></div>' +
+      statsBarsHtml_(S.weekly) + statsWeeklyTableHtml_(S.weekly) + '</div>';
+  html += '<div class="card"><h3>As scored in the huddle <span class="h3-sub">Todo Done % written at Wrap-up</span></h3>';
+  if (S.meetings.length) {
+    var last = S.meetings[S.meetings.length - 1];
+    html += '<div class="st-huddle">' + statsTile_(statsNum_(last.pct, '%'), 'last huddle (' + esc(last.date) + ')', '', ge(last.pct, target)) +
+        '<div class="tile st-tile"><div class="v">' + statsNum_(S.meetingsAvg, '%') + '</div><div class="l">average over ' + S.meetings.length + ' huddles</div></div>' +
+        '<div class="tile st-tile"><div class="v">' + S.meetingsAtTarget + '/' + S.meetings.length + '</div><div class="l">huddles at or above ' + target + '%</div></div>' +
+        '<div class="st-spark">' + sparkline(S.meetings.map(function (m) { return m.pct; }), 260, 48, { goal: target, rule: '>=', status: ge(last.pct, target), chart: true }) + '</div></div>' +
+        '<div class="help">This is the number the room sees at Wrap-up: done in the 7 days before the huddle ÷ (that + still-owed and due by the huddle date). It is a different cut from the completion rate above, which counts everything closed in the window — read them side by side, not as one number.</div>';
+  } else {
+    html += '<div class="empty">No concluded huddle in this window carries a to-do score yet.</div>';
+  }
+  html += '</div>';
+  // Per person
+  if (d.perPerson !== false && S.owners.length) {
+    var ordered = lensOwnerOrder_(S.owners.map(function (o) { return o.name; }));
+    html += '<div class="card"><h3>By person <span class="h3-sub">counts and durations — the completion score stays a team number</span></h3>' +
+        '<div class="st-scroll"><table class="data st-people"><tr><th>Person</th><th>Added</th><th>Done</th><th>Dropped</th><th>Open</th><th>Overdue</th><th>Blocked</th><th>Stale</th><th>Median days to done</th><th>Avg carry-overs</th><th>Done, weekly</th></tr>' +
+        ordered.map(function (name) {
+          var o = S.owners.filter(function (x) { return x.name === name; })[0];
+          if (!o) return '';
+          return '<tr><td>' + who(o.name === '—' ? '' : o.name) + '</td><td>' + o.assigned + '</td><td>' + o.done + '</td><td>' + o.dropped + '</td>' +
+              '<td>' + o.open + '</td><td>' + (o.overdue ? '<span class="tag stale">' + o.overdue + '</span>' : '0') + '</td>' +
+              '<td>' + (o.blocked ? '<span class="tag warn">' + o.blocked + '</span>' : '0') + '</td><td>' + o.stale + '</td>' +
+              '<td>' + statsNum_(o.medianCycle) + '</td><td>' + statsNum_(o.avgCarried) + '</td><td>' + statsMiniBars_(o.weeklyDone) + '</td></tr>';
+        }).join('') +
+        '<tr class="st-total"><td>Team</td><td>' + S.created + '</td><td>' + S.done + '</td><td>' + S.dropped + '</td><td>' + S.open.n + '</td><td>' + S.open.overdue + '</td><td>' + S.open.blocked + '</td><td>' + S.open.stale + '</td><td>' + statsNum_(S.cycleMedian) + '</td><td>' + statsNum_(S.avgCarried) + '</td><td>' + statsMiniBars_(S.weekly.map(function (w) { return w.done; })) + '</td></tr>' +
+        '</table></div>' +
+        '<div class="help">Added = created in the window. Done / Dropped = closed in the window. Open, Overdue, Blocked and Stale are right now, whatever the age. Hide this table with <span class="mono">STATS_PER_PERSON = NO</span> in L10_Config.</div></div>';
+  }
+  // Sources + carry-over distribution + open aging
+  html += '<div class="row st-row">';
+  html += '<div class="card grow"><h3>Where to-dos come from</h3><table class="data"><tr><th>Door</th><th>Added</th><th>Done</th><th>Dropped</th><th>Open</th><th>Done ÷ closed</th><th>Median days</th></tr>' +
+      S.sources.map(function (s) {
+        return '<tr><td>' + esc(s.label) + '</td><td>' + s.created + '</td><td>' + s.done + '</td><td>' + s.dropped + '</td><td>' + s.open + '</td><td>' + statsNum_(s.completionPct, '%') + '</td><td>' + statsNum_(s.medianCycle) + '</td></tr>';
+      }).join('') + '</table></div>';
+  html += '<div class="card grow"><h3>Carry-overs before done <span class="h3-sub">finished in the window</span></h3><table class="data"><tr><th>Huddles survived</th><th>To-dos</th><th>Share</th></tr>' +
+      ['0', '1', '2', '3+'].map(function (k) {
+        var n = S.carryDist[k];
+        return '<tr><td>' + (k === '0' ? '0 — done by the next huddle' : k) + '</td><td>' + n + '</td><td>' + statsNum_(statsPct_(n, S.done), '%') + '</td></tr>';
+      }).join('') + '</table>' +
+      '<div class="help">' + (S.withSteps || S.withNotes ? S.withSteps + ' finished with sub-steps, ' + S.withNotes + ' with a note on the trail.' : 'No finished to-do used sub-steps or notes in this window.') + '</div></div>';
+  html += '</div>';
+  html += '<div class="card"><h3>Open work by age <span class="h3-sub">days since created, right now</span></h3><table class="data"><tr><th>Age</th><th>To-dos</th><th>Who</th></tr>' +
+      S.open.buckets.map(function (b) {
+        var names = Object.keys(b.owners).sort().map(function (n) { return esc(n) + (b.owners[n] > 1 ? ' ×' + b.owners[n] : ''); }).join(', ');
+        return '<tr><td>' + esc(b.label) + '</td><td>' + b.n + '</td><td>' + (names || '<span class="muted">—</span>') + '</td></tr>';
+      }).join('') + '</table>' +
+      (S.open.oldest !== null ? '<div class="help">Oldest open to-do: ' + S.open.oldest + ' days. ' + (S.open.noDue ? S.open.noDue + ' open with no due date.' : 'Every open to-do has a due date.') + '</div>' : '') + '</div>';
+  // Definitions
+  html += '<div class="card st-defs"><h3>How these are computed</h3><ul>' +
+      '<li><b>Window.</b> Monday-keyed weeks ending with the current week. "Added" keys on Created, "Done" and "Dropped" on Done At (a dropped row with no Done At falls back to Created). Still-open to-dos count whatever their age.</li>' +
+      '<li><b>Completion rate.</b> Done ÷ (Done + Dropped) among to-dos closed in the window. Open ones are not in the denominator — they are shown separately, so a busy week can\'t look like a bad one.</li>' +
+      '<li><b>Done by the next huddle.</b> Finished with a Carried Over of 0. The carry counter advances once per calendar week on the first open of the app, so a week nobody opened it under-counts carries.</li>' +
+      '<li><b>Days to done.</b> Done At minus Created, calendar days. Median and 90th percentile; nothing is interpolated where a stamp is missing.</li>' +
+      '<li><b>Weekly repeats.</b> ↻ to-dos respawn on completion and would otherwise dominate the counts; the toggle above removes them from every number on the page.</li>' +
+      '<li><b>Source.</b> Reads the Source column: an issue id, a priority id, EMAIL, MANUAL or blank. Sub-step and note counts come from L10_Todo_Steps and L10_Todo_Log.</li>' +
+      '</ul></div>';
+  page.innerHTML = html;
+  wireTeamStats_(page);
+}
+function wireTeamStats_(page) {
+  page.querySelectorAll('[data-stwin]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      statsPrefSet_('l10StatsWeeks', b.dataset.stwin);
+      renderTeamStats();
+    });
+  });
+  var rp = $('st-repeats');
+  if (rp) rp.addEventListener('change', function () {
+    statsPrefSet_('l10StatsRepeats', rp.checked ? 'YES' : 'NO');
+    renderTeamStats();
+  });
+  var rf = $('st-refresh');
+  if (rf) rf.addEventListener('click', function () { fetchTeamStats_(true); });
+  var rt = $('st-retry');
+  if (rt) rt.addEventListener('click', function () { fetchTeamStats_(true); });
+}
+
 function renderHistory() {
   if (!hyd('core') || !hyd('work')) return pageLoading_('page-history');
   var b = state.boot;

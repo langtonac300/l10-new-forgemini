@@ -154,6 +154,7 @@ var L10_CONFIG_DEFAULTS = [
   ['TODO_DONE_TARGET', 90, 'Weekly to-do completion target % (team-level, not per person).'],
   ['TODO_KEEP_DAYS', 60, 'How many days of FINISHED to-dos the app loads. Still-owed to-dos always load, whatever their age.'],
   ['TODO_STALE_CARRIES', 3, 'Carry-overs before a to-do is flagged as misclassified work and offered a promotion to a rock or an issue.'],
+  ['STATS_PER_PERSON', 'YES', 'Team stats page: show the per-person counts table (added/done/open/overdue, days to done). NO = hide it. The completion score itself is never split per person.'],
   ['RATING_BAR', 8, 'Meeting ratings below this prompt a "where did we lose you?" note.'],
   ['DATA_HEALTH', 'ON', 'Scorecard data-source health strip (needs the BigQuery service + the v_l10_data_health view). OFF = hide.'],
   ['HEALTH_MAP', '{"SC-007":["leads_lifecycle"],"SC-011":["spend_mart","web_orders","adobe_orders"],"SC-012":["spend_mart","web_orders","adobe_orders"],"SC-015":["spend_mart","amazon_sp","amazon_sb","amazon_mart_block"]}',

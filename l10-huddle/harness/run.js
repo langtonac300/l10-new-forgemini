@@ -45,7 +45,7 @@ async function clickNav(page, target) {
   await shot(page, 'start-screen');
 
   // Every page renders without error.
-  for (const p of ['scorecard', 'rocks', 'headlines', 'todos', 'issues', 'oneonone', 'history', 'settings', 'how']) {
+  for (const p of ['scorecard', 'rocks', 'headlines', 'todos', 'issues', 'oneonone', 'history', 'teamstats', 'settings', 'how']) {
     await clickNav(page, p);
     const empty = await page.$eval('#page-' + p, (el) => el.innerHTML.trim().length);
     if (empty < 40) errors.push(`page-${p} rendered nearly empty (${empty} chars)`);
@@ -111,6 +111,61 @@ async function clickNav(page, target) {
   if (hlth && !/Leads lifecycle/.test(hlthTxt)) errors.push('health strip does not surface the stale leads source');
   const srcWarns = await page.$$('#page-scorecard .sc-src-warn');
   if (!srcWarns.length) errors.push('no metric carries the source-stale warning line (HEALTH_MAP flag path dead)');
+
+  // --- Team stats: lazy fetch, exact numbers against the fixture, controls ---
+  await clickNav(page, 'teamstats');
+  await page.waitForTimeout(300);
+  const stCalls = await page.evaluate(() => window.__GS_CALLS.filter((c) => c.fn === 'l10_teamStats').length);
+  if (stCalls !== 1) errors.push('team stats fetched ' + stCalls + ' times on first open (want exactly 1)');
+  // Hand-computed from the l10_teamStats fixture at the default 13-week window,
+  // repeats included. Window = 13 Mondays ending this week → created offsets
+  // ≥ -84 days. Created in window: TD-101..105, 201..210 minus TD-201 (-70 is
+  // in) … all fifteen live/history rows are ≥ -84 → 15 added. Done in window:
+  // 104, 201, 202, 203, 204, 205, 207, 208, 209, 210 = 10; dropped: 206 = 1.
+  // Completion 10/11 = 91%. Zero-carry among done: 104,201,203,205,207,208,210
+  // = 7/10 = 70%. On-time (due present): 104(7≤7) 201(4≤5) 203(3≤7) 205(no due)
+  // 207(6≤7) 208(5≤7) 210(2≤3) on time; 202(9>7) 204(16>7) 209(21>7) late →
+  // 6/9 = 67%. Cycle days sorted: 2,2,3,4,5,6,7,9,13,16 → median 5.5. Open now: 101,102,103,105 = 4.
+  const TEAM_STATS_EXPECT = [
+    [/completion rate/, '91%'], [/done by the next huddle/, '70%'],
+    [/on or before due date/, '67%'], [/median days to done/, '5.5'],
+    [/open right now/, '4']
+  ];
+  const tiles = await page.$$eval('#page-teamstats .st-tile', (els) => els.map((el) => ({
+    v: el.querySelector('.v').textContent.trim(), l: el.querySelector('.l').textContent.trim()
+  })));
+  TEAM_STATS_EXPECT.forEach(([re, want]) => {
+    const t = tiles.find((x) => re.test(x.l));
+    if (!t) errors.push('team stats tile missing: ' + re);
+    else if (t.v.replace(/[✓✕]/g, '').trim() !== want) errors.push('team stats tile ' + re + ' shows "' + t.v + '" (want ' + want + ')');
+  });
+  // The pre-window rows must not leak: the 52-week window sees them, 13 doesn't.
+  const bars13 = await page.$$('#page-teamstats .st-bars rect.st-b-done');
+  if (bars13.length !== 9) errors.push('13-week chart drew ' + bars13.length + ' done bars (want 9 weeks with ≥1 done)');
+  await page.click('[data-stwin="52"]');
+  await page.waitForTimeout(150);
+  const tiles52 = await page.$$eval('#page-teamstats .st-tile', (els) => els.map((el) => el.querySelector('.l').textContent.trim() + '=' + el.querySelector('.v').textContent.replace(/[✓✕]/g, '').trim()));
+  if (!tiles52.some((s) => /^completion rate=85%$/.test(s))) errors.push('52-week completion should be 11/13 = 85%, got ' + tiles52.filter((s) => /completion/.test(s)));
+  // Repeats toggle removes the weekly row from every count (done 10 → 9 at 13 wk).
+  await page.click('[data-stwin="13"]');
+  await page.waitForTimeout(150);
+  await page.click('#st-repeats');
+  await page.waitForTimeout(150);
+  const noRep = await page.$eval('#page-teamstats', (el) => el.textContent);
+  if (!/9 done · 1 dropped · of 10 closed/.test(noRep)) errors.push('repeats toggle did not drop the ↻ weekly to-do from the closed count');
+  await page.click('#st-repeats'); // restore
+  await page.waitForTimeout(150);
+  // Per-person table: counts only, no completion % column.
+  const peopleHdr = await page.$eval('.st-people tr', (tr) => tr.textContent);
+  if (/%/.test(peopleHdr)) errors.push('per-person table carries a % column — the completion score must stay team-level');
+  const peopleRows = await page.$$('.st-people tr');
+  if (peopleRows.length !== 6) errors.push('per-person table has ' + peopleRows.length + ' rows (want header + 4 people + team total)');
+  // Refresh re-reads the tab exactly once more.
+  await page.click('#st-refresh');
+  await page.waitForTimeout(300);
+  const stCalls2 = await page.evaluate(() => window.__GS_CALLS.filter((c) => c.fn === 'l10_teamStats').length);
+  if (stCalls2 !== 2) errors.push('refresh fetched l10_teamStats ' + (stCalls2 - stCalls) + ' times (want 1)');
+  await shot(page, 'team-stats');
 
   // --- Issues: IDS overlay opens (dialog semantics land in the a11y wave) ---
   await clickNav(page, 'issues');
