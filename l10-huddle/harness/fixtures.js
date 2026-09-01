@@ -196,6 +196,43 @@
     l10_bootstrap: bootstrapAll,
 
     l10_settingsData: SETTINGS_DATA,
+
+    // Team stats — the whole to-do tab, compact rows (see l10_teamStats).
+    // Deterministic relative to MON so the smoke suite can assert exact
+    // numbers: see the TEAM_STATS_EXPECT block in run.js.
+    l10_teamStats: function () {
+      var rows = [];
+      function td(id, owner, cWk, dueOff, status, dOff, carried, source, repeat) {
+        rows.push({ id: id, owner: owner, created: fmt(shiftDays(MON, cWk)), due: dueOff === null ? '' : fmt(shiftDays(MON, cWk + dueOff)),
+          doneAt: dOff === null ? '' : fmt(shiftDays(MON, cWk + dOff)), status: status, carried: carried || 0,
+          source: source || '', repeat: !!repeat, blocked: status === 'BLOCKED', jira: false, steps: id === 'TD-201' ? 2 : 0, notes: id === 'TD-202' ? 1 : 0 });
+      }
+      // Live rows mirror the boot fixture's five to-dos.
+      td('TD-101', 'Scott', -7, 11, 'OPEN', null, 0);
+      td('TD-102', 'CJ', -14, 11, 'WORKING', null, 1);
+      td('TD-103', 'Courtney', -28, 18, 'BLOCKED', null, 3, 'IS-014');
+      td('TD-104', 'Alex', -7, 7, 'DONE', 7, 0, '', true);
+      td('TD-105', 'Scott', -2, 4, 'OPEN', null, 0);
+      // Finished history across the last 13 weeks.
+      td('TD-201', 'Alex', -70, 5, 'DONE', 4, 0, 'IS-014');
+      td('TD-202', 'Courtney', -63, 7, 'DONE', 9, 1);
+      td('TD-203', 'CJ', -56, 7, 'DONE', 3, 0, 'EMAIL');
+      td('TD-204', 'Scott', -49, 7, 'DONE', 16, 2);
+      td('TD-205', 'Alex', -42, null, 'DONE', 2, 0);
+      td('TD-206', 'CJ', -35, 7, 'DROPPED', 12, 1);
+      td('TD-207', 'Courtney', -28, 7, 'DONE', 6, 0, 'RK-001');
+      td('TD-208', 'Scott', -21, 7, 'DONE', 5, 0);
+      td('TD-209', 'Alex', -14, 7, 'DONE', 13, 3);
+      td('TD-210', 'CJ', -14, 3, 'DONE', 2, 0, 'MANUAL');
+      // Older than any window under test — must not leak into the 13-week numbers.
+      td('TD-001', 'Alex', -120, 7, 'DONE', 3, 0);
+      td('TD-002', 'Scott', -110, 7, 'DROPPED', 10, 2);
+      return {
+        ok: true, asOf: TODAY + ' 09:00', today: TODAY, weekOf: WEEK_OF, team: TEAM,
+        target: 90, staleAt: 3, perPerson: true, todos: rows,
+        meetings: CORE.history.map(function (m) { return { date: m['Date'], pct: Number(m['Todo Done %']), done: Number(m['Todos Done']), open: Number(m['Todos Open']) }; })
+      };
+    },
     l10_hubCounts: { running: 7, needDecision: 6 },
 
     // Meetings — `row` mirrors the real server's shape (the client splices it

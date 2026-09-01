@@ -804,4 +804,45 @@ html.mh-intro-play .mh-sublabel { animation: mhFadeUp .5s cubic-bezier(.16, 1, .
 @keyframes mhBarGrow { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
 @keyframes mhFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { html.mh-intro-on .mh-intro { display: none; } }
+/* Team stats page */
+.st-h { margin: 6px 0 10px; font-size: 13px; font-weight: 700; color: var(--soft); text-transform: uppercase; letter-spacing: .4px; }
+.st-tile .v { display: flex; align-items: center; gap: 6px; }
+.st-sub { color: var(--faint); font-size: var(--text-2); margin-top: 4px; line-height: 1.4; }
+.st-mark { font-size: 15px; font-weight: 800; border-radius: 99px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
+.st-on { background: var(--good-soft); color: var(--good); }
+.st-off { background: var(--bad-soft); color: var(--bad); }
+.st-controls { padding: 12px 16px; }
+.st-ctl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.st-ctl-lbl { font-size: var(--text-3); font-weight: 600; color: var(--soft); margin-right: 2px; }
+.st-ck { margin-left: 10px; font-size: var(--text-3); }
+.st-ctl-spacer { flex: 1; }
+.st-legend { display: flex; gap: 16px; font-size: var(--text-3); color: var(--soft); margin-bottom: 6px; }
+.st-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.st-lg { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.st-lg-created { border: 2px solid var(--accent); background: #fff; box-sizing: border-box; }
+.st-lg-done { background: var(--good); }
+.st-lg-dropped { background: repeating-linear-gradient(45deg, #98a2b3 0 2px, #e4e7ec 2px 4px); }
+.st-bars { width: 100%; height: auto; max-height: 220px; display: block; }
+.st-b-created { fill: #fff; stroke: var(--accent); stroke-width: 1.5; }
+.st-b-done { fill: var(--good); }
+.st-b-dropped { fill: #e4e7ec; }
+.st-b-hatch { color: #98a2b3; }
+.st-val { font-size: 8px; fill: var(--soft); font-weight: 600; }
+.st-lbl { font-size: 8px; fill: var(--faint); }
+.st-axis { stroke: var(--line); }
+.st-scroll { overflow-x: auto; }
+.st-weekly td, .st-weekly th { text-align: center; white-space: nowrap; }
+.st-weekly td:first-child, .st-weekly th:first-child { text-align: left; font-weight: 600; }
+.st-huddle { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; margin-bottom: 8px; }
+.st-huddle .tile { min-width: 150px; }
+.st-spark { display: flex; align-items: center; padding: 0 8px; }
+.st-people td, .st-people th { white-space: nowrap; }
+.st-total td { font-weight: 700; border-top: 2px solid var(--line); }
+.st-mini { display: inline-flex; align-items: flex-end; gap: 1px; height: 14px; }
+.st-mini i { display: inline-block; width: 4px; background: var(--good); border-radius: 1px 1px 0 0; }
+.st-row { gap: 14px; align-items: stretch; }
+.st-row > .card { flex: 1 1 320px; }
+.st-defs ul { margin: 0; padding-left: 18px; }
+.st-defs li { margin-bottom: 6px; line-height: 1.5; }
+@media (max-width: 720px) { .st-huddle .tile { min-width: 120px; } }
 </style>

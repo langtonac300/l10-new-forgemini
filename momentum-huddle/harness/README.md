@@ -35,6 +35,9 @@ any Chrome). It fails on any console error, page error, or broken flow.
 
 - Boot: four slices resolve, the start screen replaces the spinner.
 - Every nav page renders non-empty.
+- Team stats: lazy-fetched once, tiles match hand-computed fixture values at
+  13 and 52 weeks, the repeats toggle and Refresh work, and the per-person
+  table carries no % column.
 - To-dos: composer expands on focus and survives a filter re-render; the steps
   drawer opens; select-mode shows checkboxes + the bulk bar; a ✓ done click
   persists through `l10_setTodoStatus` (the Jira-sync contract).

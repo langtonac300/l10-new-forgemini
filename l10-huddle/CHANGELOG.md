@@ -5,7 +5,64 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.11 (2026-08-28)** · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.12 (2026-09-01)** · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.12 (2026-09-01) — Team stats page (to-do completion analytics)
+
+A new **Team stats** nav tab (between History and Settings) that answers the
+question the History page only hints at: *how does the team's to-do work
+actually move?* One new server file, one endpoint, no schema change.
+
+- **Own data feed, not the boot payload.** [`apps-script/L10Stats.gs`](./apps-script/L10Stats.gs)
+  adds `l10_teamStats`: reads the WHOLE `L10_Todos` tab (the boot slice ages
+  finished to-dos out after `TODO_KEEP_DAYS`, which is right for the To-dos
+  page and wrong for a trend), plus sub-step/note counts and every concluded
+  huddle's `Todo Done %`. Ships compact rows (short keys, no free text) so a
+  year of history is a small payload. Fetched the first time the page is
+  opened (same lazy pattern as Settings), memoized, **⟳ Refresh** re-reads.
+  Read-only — nothing writes.
+- **All arithmetic client-side** (`teamStatsCompute_`, pure): window and toggle
+  changes are instant. Window = Monday-keyed weeks ending this week, 4 / 13 / 26 /
+  52, remembered per browser. **Include ↻ weekly repeats** toggle removes
+  respawning to-dos from every number on the page.
+- **Completion tiles:** completion rate (done ÷ done + dropped, closed in the
+  window — open work is never in the denominator), done by the next huddle (zero
+  carry-overs), on/before due date (+ average days over for the late ones),
+  median and 90th-percentile days to done. ✓/✕ marks against `TODO_DONE_TARGET`
+  ride with the number, not just the color.
+- **Flow tiles:** finished and added per week, backlog change (added − closed),
+  open right now with overdue / blocked / stale (≥ `TODO_STALE_CARRIES`) / median
+  age.
+- **Week by week:** grouped bars (Added outlined, Done solid, Dropped hatched —
+  three shapes, so it reads without color) with the exact-number table under it.
+- **As scored in the huddle:** the `Todo Done %` the room saw at Conclude, last /
+  average / count at target, with the target line on the sparkline — and a note
+  that it is a different cut from the completion rate above (7-day done ÷ that +
+  due-by-huddle), so nobody reads them as one number.
+- **By person:** added / done / dropped / open / overdue / blocked / stale, median
+  days to done, average carry-overs, a weekly done mini-bar. **Counts and
+  durations only — no per-person completion %.** The team-level rule (README,
+  "Team-level to-do completion %", PIP sensitivity) stands; the new
+  `STATS_PER_PERSON = NO` config row hides the table entirely.
+- **Where to-dos come from** (issue / rock / email / direct / ↻ weekly — from the
+  `Source` column), **carry-overs before done** distribution, **open work by age**
+  buckets, and a **How these are computed** card that states every definition
+  and the two caveats that matter: the carry counter only advances on the first
+  open of the app each week, and a dropped row with no `Done At` keys on
+  `Created`.
+- **Never invents a number:** every tile prints its numerator and denominator;
+  a missing stamp shows `—`, never a filled-in value.
+
+**Harness:** the smoke suite now opens the page, asserts the tiles against
+hand-computed values from a 17-row `l10_teamStats` fixture (91% / 70% / 67% /
+5.5 days / 4 open at 13 weeks; 85% at 52 — the two pre-window rows must not
+leak), flips the window and the repeats toggle, checks the per-person table has
+no % column, and that Refresh re-reads exactly once.
+
+**Paste sequence:** add `L10Stats.gs` (new file), re-paste `L10Index.html`,
+`L10Css.html`, `L10Js.html`, `L10Setup.gs`; run **L10 Huddle → Setup / repair
+tabs** once (adds the `STATS_PER_PERSON` config row — optional, defaults to
+YES); redeploy. No tab or column changes.
 
 ## v2.11 (2026-08-28) — Gemini service layer (plumbing only, no feature yet)
 
