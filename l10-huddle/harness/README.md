@@ -35,6 +35,9 @@ any Chrome). It fails on any console error, page error, or broken flow.
 
 - Boot: four slices resolve, the start screen replaces the spinner.
 - Every nav page renders non-empty.
+- Team photos: the fixture photo replaces one initial, an uploaded PNG is
+  resized and sent as a JPEG data URI under the cell budget, Remove restores
+  the initial.
 - Team stats: lazy-fetched once, tiles match hand-computed fixture values at
   13 and 52 weeks, the repeats toggle and Refresh work, and the per-person
   table carries no % column.

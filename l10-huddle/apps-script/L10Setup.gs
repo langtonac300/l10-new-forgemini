@@ -30,7 +30,8 @@ var L10 = {
     BRIEF: 'L10_Brief',
     PLAYBOOK: 'L10_Playbook',
     NOTIFY: 'L10_Notify',
-    DIGESTS: 'L10_Digests'
+    DIGESTS: 'L10_Digests',
+    TEAM: 'L10_Team'
   },
   // Column-header strings double as row-object keys across the codebase (e.g.
   // r['Rock'], 'Segue (JSON)') — treat them as internal identifiers and do not
@@ -70,6 +71,10 @@ var L10 = {
     // Posting a note never changes the to-do's status — the trail is the story,
     // the Status column is the state.
     L10_Todo_Log: ['ID', 'Todo ID', 'At', 'Who', 'Note'],
+    // One row per roster name. 'Photo' holds a small (≤128px) image as a data
+    // URI written by the Settings page — well under the 50,000-character cell
+    // limit. Blank = the avatar falls back to the initial.
+    L10_Team: ['Name', 'Photo', 'Updated At'],
     // 'Identified'/'Discussed' (IDS notes) sit at the END on purpose — the
     // columns were added later and inserting them mid-row would shift every
     // existing row's data under the wrong header. Same rule for the outcome-review

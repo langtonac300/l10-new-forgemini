@@ -257,6 +257,11 @@ function personColor(name) {
   return PALETTE[h % PALETTE.length];
 }
 function avatar(name) {
+  // A stored team photo wins over the initial (Settings → Team). alt is empty
+  // on purpose: the name sits next to the picture everywhere it is drawn.
+  var photos = (state.boot && state.boot.photos) || {};
+  var src = photos[String(name || '').trim()];
+  if (src) return '<span class="avatar avatar--img"><img src="' + esc(src) + '" alt=""></span>';
   var init = String(name || '?').trim().slice(0, 1).toUpperCase();
   return '<span class="avatar" style="background:' + personColor(name) + '">' + esc(init) + '</span>';
 }
@@ -6849,6 +6854,97 @@ function fetchSettingsData_() {
     wireNotifyDigests_();
   }).catch(function () { state.settingsDataInflight = false; });
 }
+// ---------------------------------------------------------------------------
+// Team photos — Settings → Team. A picture is resized in the browser to a
+// 128px square JPEG (a few KB) and stored as a data URI in L10_Team; the core
+// boot slice carries the map and avatar() prefers it over the initial.
+// ---------------------------------------------------------------------------
+function teamPhotoRowsHtml_(team) {
+  var photos = (state.boot && state.boot.photos) || {};
+  return team.map(function (p) {
+    var has = !!photos[p];
+    return '<div class="tm-row" data-tmrow="' + esc(p) + '">' + avatar(p) +
+        '<span class="tm-name">' + esc(p) + '</span>' +
+        '<button type="button" class="btn mini subtle" data-tmpick="' + esc(p) + '">' + (has ? 'Change photo' : 'Add photo') + '</button>' +
+        (has ? '<button type="button" class="btn mini subtle" data-tmremove="' + esc(p) + '">Remove</button>' : '') +
+        '<input type="file" class="tm-file" accept="image/*" data-tmfile="' + esc(p) + '" aria-label="' + esc('Photo for ' + p) + '">' +
+        '</div>';
+  }).join('');
+}
+// Centre-crop to a square and scale down on a canvas. Two attempts keep the
+// result under the sheet cell budget without asking anyone to pre-shrink.
+function teamPhotoResize_(file, cb) {
+  var reader = new FileReader();
+  reader.onerror = function () { cb(new Error('Could not read that file.')); };
+  reader.onload = function () {
+    var img = new Image();
+    img.onerror = function () { cb(new Error('That file is not an image the browser can open.')); };
+    img.onload = function () {
+      function encode(size, q) {
+        var c = document.createElement('canvas');
+        c.width = size; c.height = size;
+        var side = Math.min(img.naturalWidth, img.naturalHeight);
+        var sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+        c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        return c.toDataURL('image/jpeg', q);
+      }
+      var out = encode(128, 0.82);
+      if (out.length > 40000) out = encode(96, 0.7);
+      if (out.length > 40000) return cb(new Error('That image will not compress small enough — try a simpler picture.'));
+      cb(null, out);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+// Every surface that draws an avatar repaints, so a new photo shows at once.
+function photosChanged_() {
+  renderSettings();
+  renderHeader();
+  if (!state.inMeeting) renderHuddle();
+  renderScorecard();
+  rerenderLists();
+  renderTeamStats();
+}
+function wireTeamPhotos_(scope) {
+  scope.querySelectorAll('[data-tmpick]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var row = b.closest('.tm-row');
+      var inp = row && row.querySelector('input.tm-file');
+      if (inp) inp.click();
+    });
+  });
+  scope.querySelectorAll('input.tm-file').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      var file = inp.files && inp.files[0];
+      var name = inp.dataset.tmfile;
+      if (!file) return;
+      if (file.size > 12 * 1024 * 1024) { notify('That file is over 12 MB — pick a smaller one.', 'err'); inp.value = ''; return; }
+      teamPhotoResize_(file, function (err, dataUri) {
+        inp.value = '';
+        if (err) return notify('⚠️ ' + err.message, 'err');
+        gs('l10_setTeamPhoto', name, dataUri).then(function (r) {
+          if (!r || !r.ok) return errToast(r);
+          state.boot.photos = state.boot.photos || {};
+          state.boot.photos[name] = dataUri;
+          photosChanged_();
+          notify('Photo saved for ' + name, 'ok');
+        }).catch(errToast);
+      });
+    });
+  });
+  scope.querySelectorAll('[data-tmremove]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var name = b.dataset.tmremove;
+      gs('l10_removeTeamPhoto', name).then(function (r) {
+        if (!r || !r.ok) return errToast(r);
+        if (state.boot.photos) delete state.boot.photos[name];
+        photosChanged_();
+        notify('Photo removed — ' + name + ' is back to the initial', 'ok');
+      }).catch(errToast);
+    });
+  });
+}
 function renderSettings() {
   var page = $('page-settings');
   if (!page) return;
@@ -6875,9 +6971,8 @@ function renderSettings() {
       '<button class="btn" id="set-save-meeting">Save meeting settings</button></div>';
 
   // Team
-  html += '<div class="card"><h3>Team</h3><div class="row mb-3">' +
-      (b.team || []).map(function (p) { return '<span class="person-chip on is-static">' + avatar(p) + esc(p) + '</span>'; }).join(' ') + '</div>' +
-      '<div class="help">Edit the <b>TEAM</b> row in L10_Config to change the roster — comma-separated names, matching the Owner column on rocks and to-dos.</div></div>';
+  html += '<div class="card"><h3>Team</h3>' + teamPhotoRowsHtml_(b.team || []) +
+      '<div class="help mt-2">Photos show in place of the initial everywhere a name appears. Pictures are squared and shrunk in the browser before saving (nothing is uploaded elsewhere). Edit the <b>TEAM</b> row in L10_Config to change the roster — comma-separated names, matching the Owner column on rocks and to-dos.</div></div>';
 
   // Notifications + custom digests — the inner content renders from the
   // lazily-fetched settingsData (see fetchSettingsData_ / notifyCardInner_).
@@ -6946,6 +7041,7 @@ function renderSettings() {
     state.setSegs.push(['New segment', 5]);
     reSeg_();
   });
+  wireTeamPhotos_(page);
   $('set-save-meeting').addEventListener('click', function () {
     var btn = $('set-save-meeting');
     btn.disabled = true;

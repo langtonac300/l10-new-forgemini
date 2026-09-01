@@ -197,10 +197,32 @@ async function clickNav(page, target) {
   // The skip link must not inherit <base target="_top">.
   const skipTarget = await page.$eval('.skip-link', (el) => el.getAttribute('target'));
   if (skipTarget !== '_self') errors.push('skip-link target is ' + skipTarget + ' — base target=_top would navigate the top window');
-  // Settings roster chips must not look clickable.
   await clickNav(page, 'settings');
-  const cur = await page.$eval('.person-chip.is-static', (el) => getComputedStyle(el).cursor).catch(() => null);
-  if (cur && cur !== 'default') errors.push('.is-static loses the cursor fight (' + cur + ')');
+  // --- Team photos: rows render, the fixture photo replaces one initial, upload + remove round-trip ---
+  const tmRows = await page.$$('.tm-row');
+  if (tmRows.length !== 4) errors.push('Settings team card has ' + tmRows.length + ' photo rows (want 4)');
+  const imgs0 = await page.$$eval('#page-huddle .person-chip .avatar--img', (els) => els.length);
+  if (imgs0 !== 1) errors.push('start screen shows ' + imgs0 + ' photo avatars (want 1 — CJ from the fixture)');
+  const letters0 = await page.$$eval('#page-huddle .person-chip .avatar:not(.avatar--img)', (els) => els.length);
+  if (letters0 !== 3) errors.push('start screen shows ' + letters0 + ' initial avatars (want 3)');
+  // Upload: a generated PNG goes through the canvas resize and out as a small JPEG data URI.
+  const png1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const beforeUp = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.setInputFiles('input.tm-file[data-tmfile="Alex"]', { name: 'alex.png', mimeType: 'image/png', buffer: png1 });
+  await page.waitForTimeout(700);
+  const upCall = await page.evaluate((n) => window.__GS_CALLS.slice(n).find((c) => c.fn === 'l10_setTeamPhoto'), beforeUp);
+  if (!upCall) errors.push('photo upload never called l10_setTeamPhoto');
+  else if (upCall.args[0] !== 'Alex' || !/^data:image\/jpeg;base64,/.test(String(upCall.args[1]))) errors.push('l10_setTeamPhoto got unexpected args: ' + JSON.stringify(upCall.args).slice(0, 80));
+  else if (String(upCall.args[1]).length > 45000) errors.push('resized photo is ' + upCall.args[1].length + ' chars — over the cell budget');
+  if (!(await page.$('.tm-row[data-tmrow="Alex"] .avatar--img'))) errors.push('uploaded photo did not appear on the Settings row');
+  const imgs1 = await page.$$eval('#page-huddle .person-chip .avatar--img', (els) => els.length);
+  if (imgs1 !== 2) errors.push('after upload the start screen shows ' + imgs1 + ' photo avatars (want 2)');
+  // Remove: CJ's photo goes and the initial comes back everywhere.
+  await page.click('[data-tmremove="CJ"]');
+  await page.waitForTimeout(300);
+  if (!(await page.evaluate(() => window.__GS_CALLS.some((c) => c.fn === 'l10_removeTeamPhoto')))) errors.push('remove photo never called l10_removeTeamPhoto');
+  const imgs2 = await page.$$eval('#page-huddle .person-chip .avatar--img', (els) => els.length);
+  if (imgs2 !== 1) errors.push('after remove the start screen shows ' + imgs2 + ' photo avatars (want 1 — Alex)');
 
   // --- In-app guide: nav ? opens the iframe modal ---
   await page.click('#btn-guide');
