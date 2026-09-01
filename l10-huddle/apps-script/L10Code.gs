@@ -755,6 +755,7 @@ function l10BootCore_() {
     // Cache-only: a cold hub cache returns {pending:true} and the client
     // fetches the live counts AFTER first paint (l10_hubCounts) — openByUrl on
     // the foreign workbook costs seconds and must never gate the first render.
+    photos: l10TeamPhotos_(),
     hub: l10HubCounts_(config, false, true),
     // Pre-huddle brief + analysis playbook. Both read as zero rows on a
     // pre-upgrade workbook (missing tab), so old deployments keep working.
@@ -768,6 +769,43 @@ function l10BootCore_() {
 // first-paint core slice on every boot for a page most sessions never visit.
 function l10_settingsData() {
   return { notify: l10_getNotifyPrefs(), digests: l10_getDigests() };
+}
+
+// ---------------------------------------------------------------------------
+// Team photos — one small image per roster name, kept as a data URI in the
+// L10_Team tab (the Settings page resizes to a 128px square JPEG before
+// sending, a few KB). Read on every boot; a missing tab (pre-upgrade
+// workbook) reads as no photos, so the initials keep working until Setup runs.
+// ---------------------------------------------------------------------------
+function l10TeamPhotos_() {
+  var out = {};
+  l10ReadTab_(L10.TABS.TEAM).rows.forEach(function (r) {
+    var name = String(r['Name'] || '').trim(), photo = String(r['Photo'] || '').trim();
+    if (name && photo.indexOf('data:image/') === 0) out[name] = photo;
+  });
+  return out;
+}
+var L10_PHOTO_MAX_ = 45000; // characters — under the 50,000-per-cell limit, with headroom
+function l10_setTeamPhoto(name, dataUri) {
+  name = String(name || '').trim();
+  dataUri = String(dataUri || '');
+  var team = String(l10Config_().TEAM || '').split(',').map(function (s) { return s.trim(); });
+  if (!name || team.indexOf(name) === -1) return { ok: false, error: 'Not on the roster: ' + name };
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(dataUri)) return { ok: false, error: 'That is not an image the app can store.' };
+  if (dataUri.length > L10_PHOTO_MAX_) return { ok: false, error: 'Image too large to store (' + dataUri.length + ' characters, max ' + L10_PHOTO_MAX_ + ').' };
+  if (!l10Ss_().getSheetByName(L10.TABS.TEAM)) return { ok: false, error: 'Run Setup / repair tabs once (it adds the ' + L10.TABS.TEAM + ' tab), then retry.' };
+  var now = l10Now_();
+  if (!l10SetCells_(L10.TABS.TEAM, name, { 'Photo': dataUri, 'Updated At': now })) {
+    l10Append_(L10.TABS.TEAM, [name, dataUri, now]);
+  }
+  return { ok: true, name: name };
+}
+function l10_removeTeamPhoto(name) {
+  name = String(name || '').trim();
+  if (!name) return { ok: false, error: 'No name given.' };
+  if (!l10Ss_().getSheetByName(L10.TABS.TEAM)) return { ok: true, name: name };
+  l10SetCells_(L10.TABS.TEAM, name, { 'Photo': '', 'Updated At': l10Now_() });
+  return { ok: true, name: name };
 }
 
 // Work: the week-to-week lists. Five tab reads.

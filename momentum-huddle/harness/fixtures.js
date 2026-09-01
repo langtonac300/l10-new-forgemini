@@ -24,6 +24,8 @@
   for (let i = 12; i >= 0; i--) WEEKS.push(fmt(shiftDays(MON, -7 * i)));
 
   const TEAM = ['Alex', 'Courtney', 'CJ', 'Scott'];
+  // A 1×1 PNG: the smallest thing avatar() will accept as a team photo.
+  const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
   const CONFIG = {
     TEAM: TEAM.join(', '),
@@ -79,7 +81,8 @@
       { 'Week Of': WEEK_OF, 'Section': 'DOCKET', 'Rank': 1, 'Title': 'PDC feed disapprovals climbing', 'Body': '412 SKUs disapproved; ~$18K/mo spend at risk.', 'Dollars At Stake': '18000', 'Accounts': 'PDC', 'Caveat': '', 'Playbook Ref': 'PB-002', 'Promoted To': '', 'Received At': WEEK_OF + ' 08:31' },
       { 'Week Of': WEEK_OF, 'Section': 'WATCHLIST', 'Rank': 1, 'Title': 'Seton CA CPL drift', 'Body': 'CPL +22% WoW on brand.', 'Dollars At Stake': '', 'Accounts': 'Seton', 'Caveat': 'GTM defect skews CA conversions', 'Playbook Ref': '', 'Promoted To': '', 'Received At': WEEK_OF + ' 08:31' }
     ],
-    user: 'alex@bradycorp.com'
+    user: 'alex@bradycorp.com',
+    photos: { 'CJ': TINY_PNG }
   };
 
   // Settings-page data — rides OFF the boot payload now (l10_settingsData is
@@ -234,6 +237,9 @@
       };
     },
     l10_hubCounts: { running: 7, needDecision: 6 },
+    // Team photos (Settings → Team)
+    l10_setTeamPhoto: function (name, uri) { return { ok: true, name: name }; },
+    l10_removeTeamPhoto: function (name) { return { ok: true, name: name }; },
 
     // Meetings — `row` mirrors the real server's shape (the client splices it
     // into state.boot.openMeeting and paints the first segment immediately).

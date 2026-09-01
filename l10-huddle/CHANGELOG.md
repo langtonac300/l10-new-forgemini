@@ -5,7 +5,38 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.12.1 (2026-09-01)** · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.13 (2026-09-01)** · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.13 (2026-09-01) — Team photos in the avatar bubbles
+
+Anyone on the roster can put a picture where their initial shows — on every
+owner chip, to-do group, metrics owner, "Who's here" pill, 1:1 page and Team
+stats row — from **Settings → Team**.
+
+- **New `L10_Team` tab** (`Name`, `Photo`, `Updated At`), one row per roster
+  name, created by **Setup / repair tabs**. `Photo` is a data URI: the browser
+  centre-crops the chosen picture to a square and shrinks it to 128px JPEG (a
+  few KB, second pass at 96px if needed), so nothing is uploaded anywhere but
+  the sheet and every row stays well under the 50,000-character cell limit.
+  The server re-checks the format and size before writing.
+- **Boot carries the map** (`photos` on the core slice, embedded in the page
+  like the rest of core); `avatar()` prefers the picture and falls back to the
+  initial. A pre-upgrade workbook (no tab) reads as no photos, so nothing
+  changes until someone adds one.
+- **Settings → Team** now lists each person with Add photo / Change photo /
+  Remove. Removing blanks the cell (the row stays as the audit trail).
+- **Out of scope, on purpose:** the recap and digest emails keep initials —
+  Gmail strips embedded images — and the sheet-menu quick-add dialog keeps the
+  initial chips.
+
+**Harness:** the Settings pass now asserts four photo rows, that the fixture
+photo replaces exactly one initial on the start screen, that an uploaded PNG
+goes through the canvas resize and reaches `l10_setTeamPhoto` as a JPEG data
+URI under budget and appears on the row, and that Remove restores the initial.
+
+**Paste sequence:** re-paste `L10Setup.gs`, `L10Code.gs`, `L10Css.html`,
+`L10Js.html`; run **L10 Huddle → Setup / repair tabs** once (adds `L10_Team`);
+redeploy.
 
 ## v2.12.1 (2026-09-01) — Team stats hardening (adversarial review findings)
 
