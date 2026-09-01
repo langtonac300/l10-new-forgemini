@@ -3970,7 +3970,7 @@ function setTodoStatus_(id, status, opts) {
   if (t) {
     var wasOpen = todoOpen_(t['Status']);
     t['Status'] = status;
-    t['Done At'] = status === 'DONE' ? localToday() : '';
+    t['Done At'] = (status === 'DONE' || status === 'DROPPED') ? localToday() : ''; // server twin: l10_setTodoStatus
     if (status === 'BLOCKED') t['Blocked On'] = opts.blockedOn || '';
     else if (t['Blocked On']) t['Blocked On'] = '';
     // Leaving (or entering) the owed set moves the row between lists — only
@@ -4090,7 +4090,7 @@ function runTodoBulk_(action) {
   var before = {};
   ids.forEach(function (id) {
     var t = findRow(state.boot.todos, 'ID', id);
-    if (t) { before[id] = t['Status']; t['Status'] = action; t['Done At'] = action === 'DONE' ? localToday() : ''; }
+    if (t) { before[id] = t['Status']; t['Status'] = action; t['Done At'] = (action === 'DONE' || action === 'DROPPED') ? localToday() : ''; }
   });
   state.todoSel = {};
   rerenderLists();
@@ -5799,7 +5799,8 @@ function teamStatsCompute_(data, opts) {
     steps: 0, notes: 0, withSteps: 0, withNotes: 0 };
   var O = { n: 0, overdue: 0, blocked: 0, working: 0, stale: 0, ages: [], noDue: 0, oldest: null,
     buckets: [{ label: '0–7 days', min: 0, max: 7, n: 0, owners: {} }, { label: '8–14 days', min: 8, max: 14, n: 0, owners: {} },
-      { label: '15–28 days', min: 15, max: 28, n: 0, owners: {} }, { label: '29+ days', min: 29, max: 1e9, n: 0, owners: {} }] };
+      { label: '15–28 days', min: 15, max: 28, n: 0, owners: {} }, { label: '29+ days', min: 29, max: 1e9, n: 0, owners: {} },
+      { label: 'no Created date', min: -1, max: -1, n: 0, owners: {} }] };
   var weekly = keys.map(function (k) { return { week: k, created: 0, done: 0, dropped: 0 }; });
   var owners = {};
   function own(name) {
@@ -5856,7 +5857,11 @@ function teamStatsCompute_(data, opts) {
     if (open) {
       O.n++; o.open++; s.open++;
       var age = created ? Math.max(0, statsDays_(created, today)) : null;
-      if (age !== null) {
+      if (age === null) {
+        var nb = O.buckets[O.buckets.length - 1];
+        nb.n++;
+        nb.owners[o.name] = (nb.owners[o.name] || 0) + 1;
+      } else {
         O.ages.push(age);
         if (O.oldest === null || age > O.oldest) O.oldest = age;
         for (var b = 0; b < O.buckets.length; b++) {
@@ -5894,7 +5899,10 @@ function teamStatsCompute_(data, opts) {
     s.completionPct = statsPct_(s.done, s.closed);
     s.medianCycle = statsQuantile_(s.cycles, 0.5);
   });
-  var weeksElapsed = keys.filter(function (k) { return k <= weekOf; }).length || 1;
+  // Per-week rates divide by the whole window, current (partial) week included
+  // — stated on the page rather than pro-rated, so the number stays a plain
+  // count ÷ weeks that anyone can re-check.
+  var weeksElapsed = weeks;
   return {
     weeks: weeks, keys: keys, winStart: winStart, today: today, weekOf: weekOf, staleAt: staleAt,
     n: rows.length, repeatsExcluded: (data.todos || []).length - rows.length,
@@ -6054,8 +6062,8 @@ function renderTeamStats() {
       '</div>';
   // Flow tiles
   html += '<h3 class="st-h">Flow <span class="h3-sub">per week, over ' + weeks + ' weeks</span></h3><div class="tiles">' +
-      statsTile_(statsNum_(S.donePerWeek), 'finished per week', S.done + ' in the window') +
-      statsTile_(statsNum_(S.createdPerWeek), 'added per week', S.created + ' in the window' + (S.noDue ? ' · ' + S.noDue + ' (' + statsNum_(S.noDuePct, '%') + ') added without a due date' : '')) +
+      statsTile_(statsNum_(S.donePerWeek), 'finished per week', S.done + ' ÷ ' + weeks + ' weeks, current week counted whole') +
+      statsTile_(statsNum_(S.createdPerWeek), 'added per week', S.created + ' ÷ ' + weeks + ' weeks' + (S.noDue ? ' · ' + S.noDue + ' (' + statsNum_(S.noDuePct, '%') + ') added without a due date' : '')) +
       statsTile_((S.net > 0 ? '+' : '') + S.net, 'backlog change', S.net > 0 ? 'added outpaced closed — the list grew' : (S.net < 0 ? 'closed outpaced added — the list shrank' : 'added and closed balanced')) +
       statsTile_(String(S.open.n), 'open right now', S.open.overdue + ' overdue · ' + S.open.blocked + ' blocked · ' + S.open.stale + ' stale (≥' + S.staleAt + ' carries)' + (S.openMedianAge !== null ? ' · median age ' + S.openMedianAge + ' days' : '')) +
       '</div>';
@@ -6106,14 +6114,15 @@ function renderTeamStats() {
       '<div class="help">' + (S.withSteps || S.withNotes ? S.withSteps + ' finished with sub-steps, ' + S.withNotes + ' with a note on the trail.' : 'No finished to-do used sub-steps or notes in this window.') + '</div></div>';
   html += '</div>';
   html += '<div class="card"><h3>Open work by age <span class="h3-sub">days since created, right now</span></h3><table class="data"><tr><th>Age</th><th>To-dos</th><th>Who</th></tr>' +
-      S.open.buckets.map(function (b) {
+      S.open.buckets.filter(function (b) { return b.min !== -1 || b.n; }).map(function (b) {
         var names = Object.keys(b.owners).sort().map(function (n) { return esc(n) + (b.owners[n] > 1 ? ' ×' + b.owners[n] : ''); }).join(', ');
         return '<tr><td>' + esc(b.label) + '</td><td>' + b.n + '</td><td>' + (names || '<span class="muted">—</span>') + '</td></tr>';
       }).join('') + '</table>' +
       (S.open.oldest !== null ? '<div class="help">Oldest open to-do: ' + S.open.oldest + ' days. ' + (S.open.noDue ? S.open.noDue + ' open with no due date.' : 'Every open to-do has a due date.') + '</div>' : '') + '</div>';
   // Definitions
   html += '<div class="card st-defs"><h3>How these are computed</h3><ul>' +
-      '<li><b>Window.</b> Monday-keyed weeks ending with the current week. "Added" keys on Created, "Done" and "Dropped" on Done At (a dropped row with no Done At falls back to Created). Still-open to-dos count whatever their age.</li>' +
+      '<li><b>Window.</b> Monday-keyed weeks ending with the current week. "Added" keys on Created, "Done" and "Dropped" on Done At. Rows dropped before this version carry no Done At and fall back to Created, so an old drop can sit in the week it was added rather than the week it was dropped. Still-open to-dos count whatever their age.</li>' +
+      '<li><b>Per week.</b> Count ÷ the window length. The current week is counted whole, so a Monday read runs low until the week fills in.</li>' +
       '<li><b>Completion rate.</b> Done ÷ (Done + Dropped) among to-dos closed in the window. Open ones are not in the denominator — they are shown separately, so a busy week can\'t look like a bad one.</li>' +
       '<li><b>Done by the next huddle.</b> Finished with a Carried Over of 0. The carry counter advances once per calendar week on the first open of the app, so a week nobody opened it under-counts carries.</li>' +
       '<li><b>Days to done.</b> Done At minus Created, calendar days. Median and 90th percentile; nothing is interpolated where a stamp is missing.</li>' +

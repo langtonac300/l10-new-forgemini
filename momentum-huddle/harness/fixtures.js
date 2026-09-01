@@ -224,9 +224,9 @@
       td('TD-208', 'Scott', -21, 7, 'DONE', 5, 0);
       td('TD-209', 'Alex', -14, 7, 'DONE', 13, 3);
       td('TD-210', 'CJ', -14, 3, 'DONE', 2, 0, 'MANUAL');
-      // Older than any window under test — must not leak into the 13-week numbers.
+      // Older than any 13-week window — must not leak into those numbers.
       td('TD-001', 'Alex', -120, 7, 'DONE', 3, 0);
-      td('TD-002', 'Scott', -110, 7, 'DROPPED', 10, 2);
+      td('TD-002', 'Scott', -110, 7, 'DROPPED', null, 2); // pre-v2.12 drop: no Done At, keys on Created
       return {
         ok: true, asOf: TODAY + ' 09:00', today: TODAY, weekOf: WEEK_OF, team: TEAM,
         target: 90, staleAt: 3, perPerson: true, todos: rows,

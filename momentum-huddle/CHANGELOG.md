@@ -5,7 +5,41 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.12 (2026-09-01)** · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.12.1 (2026-09-01)** · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.12.1 (2026-09-01) — Team stats hardening (adversarial review findings)
+
+A line-by-line adversarial read of the v2.12 diff found one data-contract gap
+and two honesty gaps in the numbers. All three fixed; the smoke suite covers
+the first.
+
+- **Dropped to-dos now carry a `Done At` stamp.** `l10_setTodoStatus` (and the
+  bulk path through it) wrote `Done At` only for DONE, so every DROPPED row had
+  no terminal date and the stats page could only key a drop on `Created` — a
+  to-do added in week 1 and dropped in week 8 showed as dropped in week 1, and
+  one added before the window and dropped inside it was invisible. `Done At` is
+  now the terminal stamp for DONE and DROPPED alike; reopening still clears it.
+  The client's local splices mirror the rule. Nothing else read `Done At` on a
+  dropped row (the boot age-out already treated it as "stamp or Created"), and
+  rows dropped before this version are unchanged — the page's definitions card
+  says so, and the stats keep the `Created` fallback for them. **Data-contract
+  note:** `Done At` on a DROPPED row is new; anything downstream that assumed
+  "`Done At` set ⇒ DONE" must test `Status` instead (nothing in this repo did).
+- **Per-week rates say what they divide by.** The divisor was silently the full
+  window with the partial current week counted whole; the tiles now print
+  `n ÷ N weeks`, and the definitions card states that a Monday read runs low.
+  (A dead "weeks elapsed" filter that always equalled the window is gone.)
+- **Open work by age sums to the open tile.** An open to-do with no `Created`
+  date was counted as open but fell out of every age bucket; it now lands in a
+  "no Created date" row (shown only when non-empty).
+
+**Harness:** the To-dos flow now clicks ✕ drop and asserts the row flips to
+DROPPED *with* a `Done At`; the stats fixture carries one pre-v2.12 drop with no
+stamp so the `Created` fallback stays exercised. Numbers asserted in v2.12 are
+unchanged.
+
+**Paste sequence:** re-paste `L10Code.gs` and `L10Js.html`; redeploy. No tab or
+config changes.
 
 ## v2.12 (2026-09-01) — Team stats page (to-do completion analytics)
 
