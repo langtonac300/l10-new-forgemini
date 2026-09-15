@@ -5,7 +5,28 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.14.2 (2026-09-15)** · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.14.3 (2026-09-15)** · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.14.3 (2026-09-15) — Strategy: the archive, by fiscal month
+
+Alex: *"Underneath it all on the Strategy tab, a 'Completed & Rolled Out'
+graveyard — a historical archive of what we have tested — split into buckets like
+the board, by month for the new fiscal."* Both copies; harness green in both.
+
+- **Archive section** at the bottom of the page (`initArchiveHtml_`): every ADOPTED
+  or KILLED initiative, bucketed by the fiscal month of `Decided At` on the same
+  Aug–Jul calendar the header uses (`FISCAL_START_MONTH`). The current fiscal year
+  shows all twelve buckets with future months dimmed; earlier years show only the
+  months with entries; undated decisions get their own bucket. Filter chips All /
+  Adopted / Killed. Entries: title, stage pill (reopen from here), lead, shift,
+  decided date, per-account outcome counts, and the verdict — or a nudge to write
+  one. The inline "Decided" card on the board is gone; the archive replaces it in
+  every view.
+- **Back-dating history:** the drawer editor shows **Decided on** and the verdict
+  once an initiative is decided, so a test from last spring can be added, killed
+  with its learning, and dated to the month it really happened. Server:
+  `l10_editInitiative` accepts `decidedAt` / `decision` only for a decided row.
+- No schema change, no repair-tabs step. **Re-paste**: `L10Code.gs`, `L10Css`, `L10Js`.
 
 ## v2.14.2 (2026-09-15) — Strategy: her own clock, a pitch line, room for the verdict
 

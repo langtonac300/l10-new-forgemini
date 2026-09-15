@@ -239,7 +239,24 @@ async function clickNav(page, target) {
   if (lanes.length !== 2) errors.push('group-by-shift should render 2 lanes (Shift 1, Shift 2), got ' + lanes.length);
   await page.click('[data-sigroup="stage"]');
   await page.waitForTimeout(120);
-  if (!/Decided/.test(siText)) errors.push('strategy page did not list the killed initiative under Decided');
+  // The archive sits underneath everything: both decided initiatives, in fiscal-month buckets, with verdicts.
+  if (!/Completed, rolled out & killed/.test(siText)) errors.push('strategy page has no archive section');
+  const archTxt = await page.$eval('.si-archive', (el) => el.textContent);
+  if (!/Apple Ads for the catalog brands/.test(archTxt) || !/Brand tROAS on Seton/.test(archTxt)) errors.push('archive is missing a decided initiative');
+  if (!/No volume outside Brady US/.test(archTxt)) errors.push('archive entry does not carry its verdict');
+  const monthCols = await page.$$('.si-archive .si-board--months .si-col');
+  if (monthCols.length < 13) errors.push('archive should show the current fiscal year as 12 month buckets plus the prior year\'s used month(s), got ' + monthCols.length);
+  const fyHeads = await page.$$eval('.si-archive .si-arch-fy', (els) => els.map((e) => e.textContent.trim().slice(0, 4)));
+  if (fyHeads.length < 2) errors.push('archive should group two fiscal years (a 30-day-old kill and a 100-day-old adopt), got ' + JSON.stringify(fyHeads));
+  await page.click('[data-siarch="KILLED"]');
+  await page.waitForTimeout(150);
+  const killedOnly = await page.$eval('.si-archive', (el) => el.textContent);
+  if (/Brand tROAS on Seton/.test(killedOnly) || !/Apple Ads/.test(killedOnly)) errors.push('archive Killed filter did not hide the adopted one');
+  await page.click('[data-siarch="ALL"]');
+  await page.waitForTimeout(120);
+  // The last-line order: the add form comes before the archive ("underneath it all").
+  const order = await page.$eval('#page-strategy', (el) => { const h = el.innerHTML; return h.indexOf('Add an initiative') < h.indexOf('si-archive'); });
+  if (!order) errors.push('archive is not the last section on the page');
   // Matrix view: one cell per (initiative, account) with a glyph + word, never colour alone.
   await page.click('[data-siview="matrix"]');
   await page.waitForTimeout(150);

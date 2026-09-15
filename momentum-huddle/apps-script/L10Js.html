@@ -101,7 +101,7 @@ var state = {
   ctxIssue: null, ctxRock: null,
   // Strategy page: the open initiative drawer (SI id) + its edit mode, the
   // add-form draft (survives re-renders), and the trail note draft.
-  siOpen: null, siEdit: false, siCompose: null, siNoteDraft: '',
+  siOpen: null, siEdit: false, siCompose: null, siNoteDraft: '', siArchive: 'ALL',
   // The in-progress issue voting round: { order, idx, left, issueOrder } or null.
   // Client-side by design — the huddle is driven from one shared screen, and
   // the votes themselves persist to the sheet on every tap.
@@ -3604,6 +3604,88 @@ function initCardHtml_(init) {
         '<button type="button" class="btn mini subtle" data-siopen="' + esc(id) + '">Open</button></div>' +
       '</div>';
 }
+// --- Archive: completed, rolled out & killed, bucketed by fiscal month ------
+// The graveyard. Every decided initiative (ADOPTED or KILLED) lives here for
+// good, in the month it was decided, on the same Aug–Jul fiscal calendar the
+// header uses. The current fiscal year shows all twelve buckets (empty ones
+// too, like the board); earlier years show only the months that have entries.
+var MONTH_ABBR_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function initFyStart_() {
+  var s = Number(state.boot && state.boot.config && state.boot.config.FISCAL_START_MONTH) || 1;
+  return (s >= 1 && s <= 12) ? s : 1;
+}
+// {fyNum: 2027, fy: 'FY27', idx: 0..11} for a yyyy-mm(-dd) string, or null.
+function initFyOf_(ymd) {
+  var m = String(ymd || '').match(/^(\d{4})-(\d{2})/);
+  if (!m) return null;
+  var y = Number(m[1]), mo = Number(m[2]), s = initFyStart_();
+  var fyNum = y + (s > 1 && mo >= s ? 1 : 0);
+  return { fyNum: fyNum, fy: 'FY' + String(fyNum).slice(-2), idx: (mo - s + 12) % 12 };
+}
+function initFyMonthLabel_(fyNum, idx) {
+  var s = initFyStart_();
+  var mo = ((s - 1 + idx) % 12) + 1;
+  var y = fyNum - (s > 1 && mo >= s ? 1 : 0);
+  return MONTH_ABBR_[mo - 1] + ' ' + y;
+}
+function initArchiveEntryHtml_(r) {
+  var id = String(r['ID']);
+  var stage = String(r['Stage'] || '').toUpperCase();
+  var counts = initCells_(id).length ? initCellSummary_(id) : '';
+  return '<div class="si-arch-item' + (stage === 'KILLED' ? ' si-arch-killed' : '') + '">' +
+      '<div class="si-arch-t"><button type="button" class="si-open" data-siopen="' + esc(id) + '">' + esc(r['Initiative']) + '</button> ' + initStagePill_(r, true) + '</div>' +
+      '<div class="m">' + who(r['Lead']) + ' ' + tagList(r['Shift'], 'shift') + ' · decided ' + esc(d10(r['Decided At']) || 'undated') +
+        (counts ? ' · ' + counts : '') + '</div>' +
+      (r['Decision'] ? '<div class="si-arch-verdict">' + esc(r['Decision']) + '</div>' : '<div class="si-arch-verdict muted">no verdict written — open it and add the learning</div>') +
+      '</div>';
+}
+function initArchiveHtml_(decided) {
+  var filter = state.siArchive || 'ALL';
+  var rows = decided.filter(function (r) {
+    var st = String(r['Stage'] || '').toUpperCase();
+    return filter === 'ALL' || st === filter;
+  });
+  var adopted = decided.filter(function (r) { return String(r['Stage']).toUpperCase() === 'ADOPTED'; }).length;
+  var killed = decided.length - adopted;
+  function chip(key, label, n) {
+    return '<button type="button" class="pill pill--btn pill--sm' + (filter === key ? ' on' : '') + '" data-siarch="' + key + '" aria-pressed="' + (filter === key) + '">' + label + ' ' + n + '</button>';
+  }
+  var html = '<div class="card si-archive"><h3>Completed, rolled out &amp; killed <span class="h3-sub">the archive — every decision, in the month it was made</span></h3>' +
+      '<div class="row row--mid mb-3"><span class="ownerpick-lbl">Show</span>' + chip('ALL', 'All', decided.length) + chip('ADOPTED', '✓ Adopted', adopted) + chip('KILLED', '✕ Killed', killed) +
+      '<span class="help help--after">Nothing here is deleted. Reopen one from its stage pill if it deserves another go.</span></div>';
+  if (!decided.length) {
+    return html + '<div class="empty">Nothing decided yet. When an initiative is adopted or killed it lands here, in the month it was decided, with its verdict.</div></div>';
+  }
+  // Bucket by fiscal year → month index.
+  var years = {}, undated = [];
+  rows.forEach(function (r) {
+    var f = initFyOf_(d10(r['Decided At']));
+    if (!f) { undated.push(r); return; }
+    var yr = years[f.fyNum] = years[f.fyNum] || { fyNum: f.fyNum, fy: f.fy, months: {} };
+    (yr.months[f.idx] = yr.months[f.idx] || []).push(r);
+  });
+  var cur = initFyOf_(localToday());
+  if (cur && !years[cur.fyNum]) years[cur.fyNum] = { fyNum: cur.fyNum, fy: cur.fy, months: {} };
+  Object.keys(years).map(Number).sort(function (a, b) { return b - a; }).forEach(function (fyNum) {
+    var yr = years[fyNum];
+    var isCur = cur && fyNum === cur.fyNum;
+    var idxs = isCur ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : Object.keys(yr.months).map(Number).sort(function (a, b) { return a - b; });
+    var n = Object.keys(yr.months).reduce(function (t, k) { return t + yr.months[k].length; }, 0);
+    html += '<div class="si-arch-fy">' + esc(yr.fy) + ' <span class="h3-sub">' + esc(initFyMonthLabel_(fyNum, 0)) + ' – ' + esc(initFyMonthLabel_(fyNum, 11)) + ' · ' + n + ' decided' + (isCur ? ' · this fiscal year' : '') + '</span></div>' +
+        '<div class="si-board si-board--months">' + idxs.map(function (idx) {
+          var list = yr.months[idx] || [];
+          var future = isCur && idx > cur.idx;
+          return '<div class="si-col' + (future ? ' si-col--future' : '') + '"><div class="si-col-h">' + esc(initFyMonthLabel_(fyNum, idx)) + ' <span class="td-group-n">' + list.length + '</span></div>' +
+              (list.length ? list.sort(function (a, b) { return String(a['Decided At']) < String(b['Decided At']) ? 1 : -1; }).map(initArchiveEntryHtml_).join('') : '<div class="si-col-empty">—</div>') + '</div>';
+        }).join('') + '</div>';
+  });
+  if (undated.length) {
+    html += '<div class="si-arch-fy">Undated <span class="h3-sub">decided, but no date recorded — open and set "Decided on"</span></div>' +
+        '<div class="si-board si-board--months"><div class="si-col">' + undated.map(initArchiveEntryHtml_).join('') + '</div></div>';
+  }
+  if (!rows.length) html += '<div class="empty">Nothing matches that filter.</div>';
+  return html + '</div>';
+}
 function initBoardHtml_(live, decided) {
   var cols = INIT_STAGES.slice(0, 4);
   var html = '<div class="si-board">' + cols.map(function (st) {
@@ -3611,14 +3693,6 @@ function initBoardHtml_(live, decided) {
     return '<div class="si-col"><div class="si-col-h">' + esc(st[1]) + ' <span class="td-group-n">' + rows.length + '</span></div>' +
         (rows.length ? rows.map(initCardHtml_).join('') : '<div class="si-col-empty">—</div>') + '</div>';
   }).join('') + '</div>';
-  if (decided.length) {
-    html += '<div class="card"><h3>Decided <span class="h3-sub">' + decided.length + ' adopted or killed</span></h3>' +
-        decided.map(function (r) {
-          return '<div class="itemline"><div class="grow"><div class="t"><button type="button" class="si-open" data-siopen="' + esc(r['ID']) + '">' + esc(r['Initiative']) + '</button></div>' +
-              '<div class="m">' + who(r['Lead']) + ' · decided ' + esc(d10(r['Decided At']) || '—') +
-              (r['Decision'] ? ' · ' + esc(r['Decision']) : '') + '</div></div>' + initStagePill_(r, true) + '</div>';
-        }).join('') + '</div>';
-  }
   return html;
 }
 // Board grouped by shift / theme instead of stage — the view for goal-setting,
@@ -3635,7 +3709,6 @@ function initBoardByShiftHtml_(live, decided) {
     return '<div class="si-col"><div class="si-col-h">' + esc(k) + ' <span class="td-group-n">' + lanes[k].length + '</span></div>' +
         lanes[k].map(initCardHtml_).join('') + '</div>';
   }).join('') : '<div class="si-col"><div class="si-col-empty">—</div></div>') + '</div>';
-  if (decided.length) html += initBoardHtml_([], decided);
   return html;
 }
 function siGroupGet_() { try { return localStorage.getItem('l10SiGroup') === 'shift' ? 'shift' : 'stage'; } catch (e) { return 'stage'; } }
@@ -3744,13 +3817,15 @@ function renderStrategy() {
     html += '<div class="card"><div class="empty"><div class="e">🧭</div>No initiatives yet — add the first one below. A good first row is the thing that already worked somewhere and should be tried elsewhere.</div></div>';
   } else if (view === 'matrix') {
     html += initMatrixHtml_(live, initAccounts_());
-    if (decided.length) html += initBoardHtml_([], decided);
   } else if (group === 'shift') {
     html += initBoardByShiftHtml_(live, decided);
   } else {
     html += initBoardHtml_(live, decided);
   }
   html += initAddCardHtml_();
+  // Underneath it all: the archive — completed, rolled out and killed, by
+  // fiscal month. Always present, even empty, so the page has a memory.
+  html += initArchiveHtml_(decided);
   page.innerHTML = html;
   wireStrategy_(page);
 }
@@ -3760,6 +3835,9 @@ function wireStrategy_(scope) {
   });
   scope.querySelectorAll('[data-sigroup]').forEach(function (btn) {
     btn.addEventListener('click', function () { siGroupSet_(btn.dataset.sigroup); renderStrategy(); });
+  });
+  scope.querySelectorAll('[data-siarch]').forEach(function (btn) {
+    btn.addEventListener('click', function () { state.siArchive = btn.dataset.siarch; renderStrategy(); });
   });
   scope.querySelectorAll('[data-siopen]').forEach(function (btn) {
     btn.addEventListener('click', function () { openInitiative(btn.dataset.siopen); });
@@ -4008,6 +4086,9 @@ function renderInitiativeDrawer_() {
         '<div class="field f-1"><label>Effort</label><select class="js-sie-effort"><option value="">—</option>' +
           ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (String(init['Effort'] || '') === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div></div>' +
         initFieldRow_('js-sie-impact', 'Expected impact', init['Expected Impact'], 'what the business gets, in its own terms') +
+        (stage === 'ADOPTED' || stage === 'KILLED' ?
+          '<div class="row"><div class="field f-1"><label>Decided on <span class="muted">(back-date to when it really happened — the archive buckets by this)</span></label><input class="js-sie-decided" type="date" value="' + esc(d10(init['Decided At'] || '')) + '"></div></div>' +
+          '<div class="field"><label>' + (stage === 'ADOPTED' ? 'Verdict — what we learned' : 'Why it was killed') + '</label><textarea class="js-sie-decision">' + esc(init['Decision'] || '') + '</textarea></div>' : '') +
         initFieldRow_('js-sie-thesis', 'Thesis', init['Thesis'], 'what we believe, and why it should transfer') +
         initFieldRow_('js-sie-origin', 'Origin', init['Origin'], 'where it was proven') +
         '<div class="field"><label>Notes</label><textarea class="js-sie-notes">' + esc(init['Notes'] || '') + '</textarea></div>' +
@@ -4089,6 +4170,9 @@ function wireInitiativeDrawer_(o, init) {
       nextCheck: o.querySelector('.js-sie-next').value, effort: o.querySelector('.js-sie-effort').value,
       impact: o.querySelector('.js-sie-impact').value.trim()
     };
+    var decEl = o.querySelector('.js-sie-decided'), verEl = o.querySelector('.js-sie-decision');
+    if (decEl) p.decidedAt = decEl.value;
+    if (verEl) p.decision = verEl.value.trim();
     if (!p.title) { notify('Give the initiative a title.', 'warn'); return; }
     save.disabled = true;
     gs('l10_editInitiative', id, p).then(function (res) {
@@ -4096,6 +4180,8 @@ function wireInitiativeDrawer_(o, init) {
       init['Initiative'] = p.title; init['Lead'] = p.lead; init['Shift'] = p.shift; init['Target Quarter'] = p.quarter;
       init['Thesis'] = p.thesis; init['Origin'] = p.origin; init['Notes'] = p.notes;
       init['Next Check-in'] = p.nextCheck; init['Effort'] = p.effort; init['Expected Impact'] = p.impact;
+      if (p.decidedAt !== undefined) init['Decided At'] = p.decidedAt;
+      if (p.decision !== undefined) init['Decision'] = p.decision;
       initApplyTouch_(id, res);
       state.siEdit = false;
       notify('Saved', 'ok');

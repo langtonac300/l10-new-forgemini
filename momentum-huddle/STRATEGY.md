@@ -115,7 +115,8 @@ brief strip (Alex's call, off for v1), auto-pulling results from Google Ads.
 2. View toggle **Board** / **Matrix** (client-only, remembered per browser).
 3. **Board**: grouped by **stage** (one column per live stage: Idea, Scoping, Piloting,
    Rolling out) or by **shift / theme** (one lane per distinct Shift value — the
-   goal-setting view, v2.14.2); a collapsed **Decided** list for Adopted / Killed.
+   goal-setting view, v2.14.2). Decided initiatives are not on the board — they
+   live in the archive (7).
    Card = title · thesis · expected impact · lead · shift tag · effort · next check-in ·
    flags · account-state summary · stage pill (menu) · Open.
 4. **Matrix**: rows = live initiatives, columns = `ACCOUNT_TAGS`. Each cell shows an
@@ -123,6 +124,16 @@ brief strip (Alex's call, off for v1), auto-pulling results from Google Ads.
    clicking opens a state picker. Colour is secondary to the glyph (Alex is colorblind).
 5. **Add an initiative** card: title, lead, shift (free text), thesis, origin, expected
    impact, effort, next check-in, accounts (multi-chip).
+7. **Archive — "Completed, rolled out & killed"** (v2.14.3), underneath everything:
+   every ADOPTED / KILLED initiative, bucketed by the **fiscal month of `Decided At`**
+   on the same Aug–Jul calendar as the header. The current fiscal year shows all
+   twelve buckets (future months dimmed, like the board); earlier years show only
+   the months with entries; undated ones get their own bucket. Filter chips All /
+   Adopted / Killed. Entries carry lead, shift, decided date, the per-account
+   outcome counts and the verdict; the stage pill still works, so a killed idea can
+   be reopened. Nothing is ever deleted. To back-fill history, add the initiative,
+   move it to Adopted / Killed with its verdict, then edit **Decided on** in the
+   drawer to the month it really happened.
 6. **Drawer** (overlay, editable): thesis / origin / quarter / notes; per-account rows
    with state, note, **Make it a test** (→ hub Ideas with the initiative id in the
    note), **Promote to priority** (→ `L10_Rocks` with `Source = SI-###`); to-dos +
@@ -133,7 +144,7 @@ brief strip (Alex's call, off for v1), auto-pulling results from Google Ads.
 | Function | Does |
 |---|---|
 | `l10_addInitiative(p)` | title, thesis, lead, shift, origin, quarter, notes, accounts[] → SI row + a NOT STARTED cell per account |
-| `l10_editInitiative(id, p)` | title / thesis / lead / shift / origin / quarter / notes |
+| `l10_editInitiative(id, p)` | title / thesis / lead / shift / origin / quarter / notes / next check-in / impact / effort; `decidedAt` + `decision` only once the stage is ADOPTED or KILLED |
 | `l10_setInitiativeStage(id, stage, decision)` | stage; ADOPTED/KILLED stamp `Decided At` + `Decision` |
 | `l10_setInitiativeAccount(p)` | upsert one cell: state / hubRef / rockId / note |
 | `l10_addInitiativeLog(p)` | a trail note |
