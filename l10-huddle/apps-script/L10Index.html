@@ -32,6 +32,7 @@
     <button data-page="huddle" class="active">Huddle</button>
     <button data-page="scorecard">Scorecard</button>
     <button data-page="rocks">Rocks</button>
+    <button data-page="strategy">Strategy</button>
     <button data-page="headlines">Headlines</button>
     <button data-page="todos">To-dos</button>
     <button data-page="issues">Issues</button>
@@ -48,6 +49,7 @@
   <div id="page-huddle" class="page visible"><div class="spinner">Setting up the room…</div></div>
   <div id="page-scorecard" class="page"></div>
   <div id="page-rocks" class="page"></div>
+  <div id="page-strategy" class="page"></div>
   <div id="page-headlines" class="page"></div>
   <div id="page-todos" class="page"></div>
   <div id="page-issues" class="page"></div>
@@ -85,6 +87,7 @@
     <div class="card">
       <h3>Where everything lives</h3>
       <p>This app reads and writes the <b>L10_*</b> tabs in this spreadsheet — they are the database and the audit trail. Edit definitions there (scorecard metrics, config, events); run the meeting here.</p>
+      <p>The <b>Strategy</b> page is deliberately <i>not</i> on the agenda: it holds the cross-account initiatives the strategist works between huddles (<span class="mono">L10_Initiatives</span> and its matrix / trail tabs). What it spawns — to-dos, hub tests, rocks — shows up here through the normal doors.</p>
       <p>Issue forms match what you type against your <b>analysis playbook</b> (<span class="mono">L10_Playbook</span>) and past decisions, so recurring problems start from the record instead of memory. The Conclude segment circles back on solved issues to ask whether the fix held — that verdict builds the <b>decision ledger</b> on the History page.</p>
     </div>
   </div>
