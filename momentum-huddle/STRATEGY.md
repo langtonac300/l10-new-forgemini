@@ -33,7 +33,7 @@ with the page showing a "run Setup / repair tabs" notice; nothing else breaks.
 | `Initiative` | Title — the theme, e.g. "Demand Gen campaigns across Google accounts" |
 | `Thesis` | One sentence: what we believe and why it should transfer |
 | `Lead` | Roster name. Defaults to `INITIATIVE_LEAD` (Courtney) |
-| `Shift` | FY27 four-shifts tag (`Shift 1`…`Shift 4`), same vocabulary as Priorities |
+| `Shift` | Free text — the strategic shift or theme this serves. The field suggests the current FY27 four shifts (`Shift 1`…`Shift 4`, the same vocabulary as Priorities) plus anything already typed, but nothing is forced: next year's themes get named here while the goals are still being generated (Alex, 2026-09-15) |
 | `Stage` | `IDEA` → `SCOPING` → `PILOTING` → `ROLLING OUT` → `ADOPTED` / `KILLED` |
 | `Origin` | Where it was first proven (free text or a hub `EXP-`/`IDEA-` ref) |
 | `Target Quarter` | e.g. `FY27 Q2` — free text, optional |

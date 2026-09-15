@@ -3513,6 +3513,16 @@ function initAccounts_() {
   return String((state.boot && state.boot.config && state.boot.config.ACCOUNT_TAGS) || '')
       .split(',').map(function (s) { return s.trim(); }).filter(String);
 }
+// Shift / theme is free text on this page (the strategist names next year's
+// themes here while the goals are still being generated). The datalist offers
+// the current four shifts plus whatever has already been typed, so the
+// vocabulary stays consistent without being forced.
+function initShiftListHtml_() {
+    var seen = {}, opts = [];
+    ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'].concat(initRows_().map(function (r) { return String(r['Shift'] || '').trim(); }))
+        .forEach(function (v) { if (v && !seen[v]) { seen[v] = 1; opts.push(v); } });
+    return '<datalist id="si-shift-list">' + opts.map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
+}
 function initStaleDays_() {
   var n = Number(state.boot && state.boot.config && state.boot.config.INITIATIVE_STALE_DAYS);
   return n > 0 ? n : 14;
@@ -3643,8 +3653,7 @@ function initAddCardHtml_() {
       '<div class="field field--tight"><select class="js-si-lead">' + b.team.map(function (p) {
         return '<option' + (p === (c.lead || lead) ? ' selected' : '') + '>' + esc(p) + '</option>';
       }).join('') + '</select></div>' +
-      '<div class="field field--tight"><select class="js-si-shift"><option value="">shift…</option>' +
-        ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'].map(function (s) { return '<option' + (c.shift === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field field--tight"><input class="js-si-shift" list="si-shift-list" value="' + esc(c.shift || '') + '" placeholder="shift / theme (free text)" title="Which strategic shift or theme this serves — type your own, or pick one of the current four"></div>' + initShiftListHtml_() +
       '<button class="btn js-si-add">Add</button></div>' +
       '<div class="row row--follow"><div class="field field--tight f-2"><input class="js-si-thesis" value="' + esc(c.thesis || '') + '" placeholder="thesis — what we believe, and why it should transfer (one sentence)"></div>' +
       '<div class="field field--tight f-1"><input class="js-si-origin" value="' + esc(c.origin || '') + '" placeholder="origin — where it was proven (account, hub id…)"></div></div>' +
@@ -3730,8 +3739,8 @@ function wireStrategy_(scope) {
   });
   var leadSel = scope.querySelector('.js-si-lead');
   if (leadSel) leadSel.addEventListener('change', function () { c.lead = leadSel.value; });
-  var shiftSel = scope.querySelector('.js-si-shift');
-  if (shiftSel) shiftSel.addEventListener('change', function () { c.shift = shiftSel.value; });
+  var shiftIn = scope.querySelector('.js-si-shift');
+  if (shiftIn) shiftIn.addEventListener('input', function () { c.shift = shiftIn.value; });
   scope.querySelectorAll('.js-si-acct').forEach(function (chip) {
     chip.addEventListener('click', function () {
       var on = chip.classList.toggle('on');
@@ -3926,8 +3935,7 @@ function renderInitiativeDrawer_() {
         '<div class="field f-1"><label>Lead</label><select class="js-sie-lead">' + state.boot.team.map(function (p) {
           return '<option' + (p === String(init['Lead']) ? ' selected' : '') + '>' + esc(p) + '</option>';
         }).join('') + '</select></div>' +
-        '<div class="field f-1"><label>Shift</label><select class="js-sie-shift"><option value="">—</option>' +
-          ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'].map(function (s) { return '<option' + (String(init['Shift']) === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field f-1"><label>Shift / theme</label><input class="js-sie-shift" list="si-shift-list" value="' + esc(init['Shift'] || '') + '" placeholder="free text — or pick one of the current four"></div>' + initShiftListHtml_() +
         '<div class="field f-1"><label>Target quarter</label><input class="js-sie-quarter" value="' + esc(init['Target Quarter'] || '') + '" placeholder="FY27 Q2"></div></div>' +
         initFieldRow_('js-sie-thesis', 'Thesis', init['Thesis'], 'what we believe, and why it should transfer') +
         initFieldRow_('js-sie-origin', 'Origin', init['Origin'], 'where it was proven') +
