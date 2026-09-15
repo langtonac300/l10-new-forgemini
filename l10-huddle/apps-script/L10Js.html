@@ -39,7 +39,8 @@ var state = {
   // only (never the sheet, never localStorage), the huddle segment doesn't
   // consult it at all, and applyPresent_ wipes it on the way into the room view.
   // Same spirit as lensOwnerOrder_ (which only reorders, never filters).
-  todoFilter: { q: '', mine: false, overdue: false, week: false },
+  todoFilter: { q: '', people: [], blocked: false, carried: false, day: '' },
+  tdOpen: null, tdEdit: false, tdAdding: false, tdDoneOpen: false, tdQuick: '',
   // Ids ticked for a bulk action, and which to-dos have their detail drawer open.
   todoSel: {}, todoOpenDrawer: {}, todoSelectMode: false,
   // The composer's sticky fields. Held in state (not just the DOM) so a
@@ -841,7 +842,7 @@ document.addEventListener('keydown', function (ev) {
   t.click();
 });
 
-// To-dos page hotkeys: "/" jumps to the filter, "n" to the composer. Both are
+// To-dos page hotkeys: "/" jumps to the search, "n" to the quick-add line. Both are
 // suppressed while typing (and while any modifier is held) so they can never
 // swallow a character mid-sentence.
 document.addEventListener('keydown', function (ev) {
@@ -851,7 +852,7 @@ document.addEventListener('keydown', function (ev) {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
   var page = $('page-todos');
   if (!page || !page.classList.contains('visible')) return;
-  var el = page.querySelector(ev.key === '/' ? '#todo-q' : '.js-td-text');
+  var el = page.querySelector(ev.key === '/' ? '#todo-q' : '.js-tdq-text');
   if (!el) return;
   ev.preventDefault();
   el.focus();
@@ -884,7 +885,7 @@ function applyPresent_(on) {
   // projected list is the whole list, always — nobody has to remember to clear
   // a search box before screen-sharing.
   if (on) {
-    state.todoFilter = { q: '', mine: false, overdue: false, week: false };
+    state.todoFilter = { q: '', people: [], blocked: false, carried: false, day: '' };
     state.todoSel = {};
     if (hyd('work')) renderTodos();
   }
@@ -1991,37 +1992,6 @@ function todoLogFor_(id) {
       .sort(function (a, b) { return String(a['At']) < String(b['At']) ? 1 : -1; });
 }
 
-// --- The desk filter --------------------------------------------------------
-function todoFilterActive_() {
-  var f = state.todoFilter;
-  return !!(f.q || f.mine || f.overdue || f.week);
-}
-// Matches text, notes, owner and id, so "TD-014", "amazon" and "courtney" all
-// find the same row without the user having to know which field they're in.
-function todoMatches_(t) {
-  var f = state.todoFilter;
-  if (f.mine) {
-    var me = lensGet_();
-    // No lens set yet: "Mine" can't mean anything, so it must not silently hide
-    // the whole list. It matches nothing and the empty state says why.
-    if (!me || String(t['Owner'] || '').trim() !== me) return false;
-  }
-  var due = d10(t['Due']);
-  if (f.overdue && !(due && due < localToday())) return false;
-  if (f.week) {
-    if (!due) return false;
-    if (due > localDaysAhead(7)) return false;
-  }
-  if (f.q) {
-    var hay = [t['To-Do'], t['Notes'], t['Owner'], t['ID'], t['Blocked On']].join(' ').toLowerCase();
-    // Every whitespace-separated term must appear (AND, not OR) — typing more
-    // words narrows, which is what everyone expects from a search box.
-    var terms = f.q.toLowerCase().split(/\s+/).filter(Boolean);
-    for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) === -1) return false;
-  }
-  return true;
-}
-
 // Re-render exactly ONE to-do row in place. Marking something done used to call
 // rerenderLists(), which rebuilds six pages with innerHTML: focus was destroyed,
 // the list reflowed under the pointer, and any half-typed inline edit elsewhere
@@ -2031,6 +2001,7 @@ function todoMatches_(t) {
 function spliceTodoRow_(id) {
   var t = findRow(state.boot.todos, 'ID', id);
   if (!t) return false;
+  todoPageRefresh_();
   var nodes = document.querySelectorAll('[data-todorow="' + String(id).replace(/"/g, '') + '"]');
   if (!nodes.length) return false;
   nodes.forEach(function (node) {
@@ -4937,51 +4908,6 @@ function pruneHiddenSelection_() {
   todoSelectedVisible_().forEach(function (id) { keep[id] = 1; });
   state.todoSel = keep;
 }
-function wireTodoControls(scope) {
-  // Search: debounced so the list doesn't rebuild on every keystroke, and the
-  // caret is restored afterwards because the re-render replaces the input.
-  var q = scope.querySelector('#todo-q');
-  if (q) {
-    var qt = null;
-    q.addEventListener('input', function () {
-      clearTimeout(qt);
-      var val = q.value, pos = q.selectionStart;
-      qt = setTimeout(function () {
-        state.todoFilter.q = val;
-        pruneHiddenSelection_();
-        renderTodos();
-        var again = $('todo-q');
-        if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (e) {} }
-      }, 160);
-    });
-  }
-  scope.querySelectorAll('[data-tdfilter]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var key = btn.dataset.tdfilter;
-      if (key === 'clear') state.todoFilter = { q: '', mine: false, overdue: false, week: false };
-      else state.todoFilter[key] = !state.todoFilter[key];
-      pruneHiddenSelection_();
-      renderTodos();
-    });
-  });
-  scope.querySelectorAll('[data-tdsel]').forEach(function (box) {
-    box.addEventListener('change', function () {
-      var id = box.dataset.tdsel;
-      if (box.checked) state.todoSel[id] = 1; else delete state.todoSel[id];
-      renderTodos();
-    });
-  });
-  scope.querySelectorAll('[data-tdbulk]').forEach(function (btn) {
-    btn.addEventListener('click', function () { runTodoBulk_(btn.dataset.tdbulk); });
-  });
-  var selMode = scope.querySelector('[data-tdselmode]');
-  if (selMode) selMode.addEventListener('click', function () {
-    state.todoSelectMode = !state.todoSelectMode;
-    if (!state.todoSelectMode) state.todoSel = {};  // leaving the mode drops the selection
-    renderTodos();
-  });
-}
-
 // Bulk actions: ONE request for the whole selection, one toast, one Undo.
 // Doing five completions as five round-trips was five server calls and five
 // full re-renders.
@@ -5332,11 +5258,12 @@ function wireShared(scope) {
       gs('l10_addTodoStep', { todoId: id, text: text }).then(function (res) {
         btn.disabled = false;
         if (!res || res.ok === false) { errToast(res || 'Add failed'); return; }
-        (state.boot.todoSteps = state.boot.todoSteps || []).push(res.row);
+        if (res.row) (state.boot.todoSteps = state.boot.todoSteps || []).push(res.row);
         input.value = '';
         // Keep typing steps without reaching for the mouse.
         if (!spliceTodoRow_(id)) renderTodos();
-        focusInVisible_('[data-todorow="' + id + '"] .js-tdstep-text');
+        var inDrawer = document.querySelector('#td-overlay .js-tdstep-text');
+        if (inDrawer) inDrawer.focus(); else focusInVisible_('[data-todorow="' + id + '"] .js-tdstep-text');
       }).catch(function (e) { btn.disabled = false; errToast(e); });
     };
     btn.addEventListener('click', run);
@@ -5355,10 +5282,11 @@ function wireShared(scope) {
       gs('l10_addTodoLog', { todoId: id, note: note }).then(function (res) {
         btn.disabled = false;
         if (!res || res.ok === false) { errToast(res || 'Note failed'); return; }
-        (state.boot.todoLog = state.boot.todoLog || []).push(res.row);
+        if (res.row) (state.boot.todoLog = state.boot.todoLog || []).push(res.row);
         input.value = '';
         if (!spliceTodoRow_(id)) renderTodos();
-        focusInVisible_('[data-todorow="' + id + '"] .js-tdlog-text');
+        var inDrawer = document.querySelector('#td-overlay .js-tdlog-text');
+        if (inDrawer) inDrawer.focus(); else focusInVisible_('[data-todorow="' + id + '"] .js-tdlog-text');
       }).catch(function (e) { btn.disabled = false; errToast(e); });
     };
     btn.addEventListener('click', run);
@@ -6419,59 +6347,242 @@ function renderHeadlines() {
   wireHeadlineAdd(page);
 }
 
-// NOTE: the To-dos PAGE deliberately has no stat tiles (Alex, 2026-07-27: "this is
-// kind of useless and takes up space, I never look at it"). A passive number row
-// above a working list is chrome that never earns its height — the list itself is
-// the information. The same figures still appear where they're actually read: the
-// ≥90% completion number in the huddle's To-do segment (segTodos) and on the
-// Scorecard. Don't reintroduce tiles here.
-
-// Desk controls. Transient by design — see the state.todoFilter note. The room
-// never sees these (applyPresent_ clears them), so they can be as personal as
-// they need to be.
-function todoFilterHtml_(shown, total) {
+// --- To-dos page (v2.16 layout) ------------------------------------------------
+// Week progress + a day spine that filters, grouping by when it's owed (Owner as a
+// toggle), one compact row per to-do with a per-person filter, a right-hand drawer
+// for steps / trail / edit, a docked bulk bar, and the composer in a side sheet —
+// plus a quick-add line that never leaves the page. todoLine() is untouched: the
+// huddle segment, the 1:1 page and the initiative drawer still render with it.
+var TODO_ROW_STATES = {
+  OPEN: { g: '○', w: 'open', cls: 'tds-open' },
+  WORKING: { g: '◐', w: 'working', cls: 'tds-working' },
+  BLOCKED: { g: '⏸', w: 'blocked', cls: 'tds-blocked' }
+};
+var DAY_ABBR_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function todoFilterActive_() {
   var f = state.todoFilter;
-  var chip = function (key, label, title) {
-    return '<button type="button" class="fchip' + (f[key] ? ' on' : '') + '" data-tdfilter="' + key +
-        '" aria-pressed="' + (f[key] ? 'true' : 'false') + '" title="' + esc(title) + '">' + esc(label) + '</button>';
-  };
-  return '<div class="td-filters">' +
-      '<input id="todo-q" class="td-q" placeholder="find a to-do — text, note, owner or ID" value="' + esc(f.q) + '" aria-label="Filter to-dos">' +
-      chip('mine', '👤 Mine', 'Only the to-dos owned by whoever this browser is set to (the lens chip)') +
-      chip('overdue', '⚠ Overdue', 'Past its due date and still owed') +
-      chip('week', '📅 Next 7 days', 'Due within a week') +
-      (todoFilterActive_() ?
-        '<button type="button" class="fchip clear" data-tdfilter="clear">✕ Clear</button>' +
-        '<span class="td-count">showing ' + shown + ' of ' + total + '</span>' : '') +
-      // Bulk select is a mode, not a permanent column. Off by default the rows
-      // carry no checkbox at all, which is both calmer and unambiguous.
-      '<button type="button" class="fchip' + (state.todoSelectMode ? ' on' : '') +
-        '" data-tdselmode="1" aria-pressed="' + (state.todoSelectMode ? 'true' : 'false') +
-        '" title="Tick several to-dos and act on them together">' +
-        (state.todoSelectMode ? '✕ Done selecting' : '☑ Select') + '</button>' +
-      '</div>';
+  return !!(f.q || (f.people && f.people.length) || f.blocked || f.carried || f.day);
 }
-// Appears only while something is ticked. One request per action, one Undo.
+function todoDaysFromToday_(ymd) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ''))) return null;
+  return Math.round((new Date(ymd + 'T12:00:00').getTime() - new Date(localToday() + 'T12:00:00').getTime()) / 86400000);
+}
+function todoWeekStart_() { return d10(state.boot.weekOf) || localToday(); }
+function todoWeekEnd_() { return addDays_(todoWeekStart_(), 6); }
+function todoIsLate_(t) { var d = todoDaysFromToday_(d10(t['Due'])); return d !== null && d < 0; }
+function todoCarriedN_(t) { return Number(t['Carried Over']) || 0; }
+function todoMatches_(t) {
+  var f = state.todoFilter;
+  if (f.people && f.people.length && f.people.indexOf(String(t['Owner'] || '').trim()) === -1) return false;
+  if (f.blocked && String(t['Status']).toUpperCase() !== 'BLOCKED') return false;
+  if (f.carried && todoCarriedN_(t) < todoStaleAt_()) return false;
+  var due = d10(t['Due']);
+  if (f.day === 'late' && !todoIsLate_(t)) return false;
+  if (f.day === 'none' && due) return false;
+  if (f.day === 'later' && !(due && due > todoWeekEnd_())) return false;
+  if (f.day && /^\d{4}-\d{2}-\d{2}$/.test(f.day) && due !== f.day) return false;
+  if (f.q) {
+    var hay = [t['To-Do'], t['Notes'], t['Owner'], t['ID'], t['Blocked On'], t['Source']].join(' ').toLowerCase();
+    // Every whitespace-separated term must appear (AND, not OR) — typing more
+    // words narrows, which is what everyone expects from a search box.
+    var terms = f.q.toLowerCase().split(/\s+/).filter(Boolean);
+    for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) === -1) return false;
+  }
+  return true;
+}
+// The due chip: a word or a short date, never a raw ISO string on the row.
+function todoDueChip_(t) {
+  var due = d10(t['Due']);
+  if (!due) return { label: 'no date', cls: 'tdd-none', title: 'No due date — blank means next Monday' };
+  var d = todoDaysFromToday_(due);
+  var dt = new Date(due + 'T12:00:00');
+  var pretty = DAY_ABBR_[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTH_ABBR_[dt.getMonth()];
+  if (d < 0) return { label: (-d) + 'd late', cls: 'tdd-late', title: 'Due ' + pretty + ' — past due' };
+  if (d === 0) return { label: 'today', cls: 'tdd-today', title: 'Due today' };
+  if (d === 1) return { label: 'tomorrow', cls: 'tdd-soon', title: 'Due ' + pretty };
+  if (d <= 6) return { label: DAY_ABBR_[dt.getDay()] + ' ' + dt.getDate(), cls: 'tdd-soon', title: 'Due ' + pretty };
+  return { label: MONTH_ABBR_[dt.getMonth()] + ' ' + dt.getDate(), cls: 'tdd-far', title: 'Due ' + pretty };
+}
+function todoDueLong_(t) {
+  var due = d10(t['Due']);
+  if (!due) return 'no due date';
+  var dt = new Date(due + 'T12:00:00');
+  return 'due ' + DAY_ABBR_[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTH_ABBR_[dt.getMonth()];
+}
+// Days until the next huddle (HUDDLE_DAY in L10_Config; today counts as 0).
+function todoDaysToHuddle_() {
+  var names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var want = names.indexOf(String((state.boot.config || {}).HUDDLE_DAY || 'Monday'));
+  if (want === -1) want = 1;
+  var now = new Date(localToday() + 'T12:00:00');
+  return (want - now.getDay() + 7) % 7;
+}
+function todoPeople_() {
+  var team = (state.boot.team || []).slice();
+  state.boot.todos.forEach(function (t) {
+    var o = String(t['Owner'] || '').trim();
+    if (o && team.indexOf(o) === -1 && todoOpen_(t['Status'])) team.push(o);
+  });
+  return team;
+}
+// The week card: the one number the page's promise depends on (the same
+// numerator / denominator as the huddle's To-do segment — todoStats_), the
+// attention chips, and the day spine.
+function todoWeekCardHtml_(open) {
+  var s = todoStats_();
+  var target = Number(state.boot.config.TODO_DONE_TARGET) || 90;
+  var f = state.todoFilter;
+  var toHuddle = todoDaysToHuddle_();
+  var lateN = open.filter(todoIsLate_).length;
+  var blockedN = open.filter(function (t) { return String(t['Status']).toUpperCase() === 'BLOCKED'; }).length;
+  var carriedN = open.filter(function (t) { return todoCarriedN_(t) >= todoStaleAt_(); }).length;
+  function att(key, n, label, title, on, tone) {
+    return '<button type="button" class="tdw-att ' + tone + (on ? ' on' : '') + (n ? '' : ' tdw-att--zero') + '" data-tdatt="' + key + '" aria-pressed="' + on + '" title="' + esc(title) + '"><b>' + n + '</b>' + label + '</button>';
+  }
+  var pct = s.pct;
+  var html = '<div class="card tdw"><div class="tdw-l">' +
+      '<div class="tdw-pct"><span class="tdw-n">' + (pct === null ? '—' : pct + '%') + '</span><span class="tdw-lbl">done this week</span></div>' +
+      '<div class="tdw-bar"><div class="tdw-fill' + (pct !== null && pct < target ? ' tdw-fill--under' : '') + '" style="width:' + (pct || 0) + '%"></div><div class="tdw-tick" style="left:' + target + '%" title="Team target ' + target + '%"></div></div>' +
+      '<div class="tdw-cap">' + s.done + ' done · ' + s.open + ' still owed from this week\'s list · target ' + target + '% by the huddle' +
+        (toHuddle === 0 ? ' today' : ' in ' + toHuddle + ' day' + (toHuddle === 1 ? '' : 's')) + '</div></div>' +
+      '<div class="tdw-r"><div class="tdw-rh"><span class="si-kicker tdw-k">When it\'s owed</span><div class="tdw-atts">' +
+      att('late', lateN, 'late', 'Past the due date and still owed', f.day === 'late', 'tone-red') +
+      att('blocked', blockedN, 'blocked', 'Waiting on something or someone', !!f.blocked, 'tone-red') +
+      att('carried', carriedN, 'carried', 'Carried over ' + todoStaleAt_() + '+ huddles', !!f.carried, 'tone-amber') +
+      '</div></div><div class="tdw-spine">';
+  var ws = todoWeekStart_();
+  var cells = [{ key: 'late', label: 'Late', n: lateN, title: lateN + ' past their due date' }];
+  for (var i = 0; i < 7; i++) {
+    var d = addDays_(ws, i);
+    var n = open.filter(function (t) { return d10(t['Due']) === d; }).length;
+    var dt = new Date(d + 'T12:00:00');
+    cells.push({ key: d, label: DAY_ABBR_[dt.getDay()] + ' ' + dt.getDate(), n: n, today: d === localToday(), title: DAY_ABBR_[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTH_ABBR_[dt.getMonth()] + ' — ' + n + ' due' });
+  }
+  var laterN = open.filter(function (t) { var due = d10(t['Due']); return due && due > todoWeekEnd_(); }).length;
+  var noneN = open.filter(function (t) { return !d10(t['Due']); }).length;
+  cells.push({ key: 'later', label: 'Later', n: laterN, title: laterN + ' due after this week' });
+  cells.push({ key: 'none', label: 'No date', n: noneN, title: noneN + ' with no due date' });
+  html += cells.map(function (c) {
+    var on = f.day === c.key;
+    return '<button type="button" class="tdw-day' + (on ? ' on' : '') + (c.today ? ' tdw-day--today' : '') + (c.n ? '' : ' tdw-day--zero') + '" data-tdday="' + esc(c.key) + '" aria-pressed="' + on + '" title="' + esc(c.title) + '">' +
+        '<span class="tdw-day-l">' + esc(c.label) + '</span><span class="tdw-day-n">' + (c.n || '–') + '</span></button>';
+  }).join('');
+  return html + '</div></div></div>';
+}
+function todoToolbarHtml_(open, shown) {
+  var f = state.todoFilter;
+  var lens = lensGet_();
+  var people = todoPeople_();
+  var html = '<div class="tdl-bar">' +
+      '<input id="todo-q" class="td-q" placeholder="find a to-do — text, note, owner or ID" value="' + esc(f.q) + '" aria-label="Filter to-dos">' +
+      '<span class="tdl-who"><span class="tdl-lbl">Who</span>' + people.map(function (p) {
+        var on = f.people.indexOf(p) !== -1;
+        var n = open.filter(function (t) { return String(t['Owner'] || '').trim() === p; }).length;
+        return '<button type="button" class="person-chip person-chip--sm' + (on ? ' on' : '') + '" data-tdperson="' + esc(p) + '" aria-pressed="' + on + '" title="' + esc((on ? 'Stop showing ' : 'Show ') + p + ' — ' + n + ' open') + '">' + avatar(p) + esc(p) + (p === lens ? ' (you)' : '') + '</button>';
+      }).join('') + (f.people.length ? '<button type="button" class="si-link tdl-reset" data-tdperson="">everyone</button>' : '') + '</span>' +
+      '<button type="button" class="fchip' + (f.blocked ? ' on' : '') + '" data-tdfilter="blocked" aria-pressed="' + !!f.blocked + '" title="Waiting on something or someone">⏸ Blocked</button>' +
+      '<button type="button" class="fchip' + (f.carried ? ' on' : '') + '" data-tdfilter="carried" aria-pressed="' + !!f.carried + '" title="Survived ' + todoStaleAt_() + ' or more huddles">×' + todoStaleAt_() + '+ carried</button>' +
+      (todoFilterActive_() ? '<button type="button" class="fchip clear" data-tdfilter="clear" title="Clear every filter">✕ Clear</button>' : '') +
+      '<span class="tdl-right"><span class="tdl-count">' + (shown === open.length ? open.length + ' open' : 'showing ' + shown + ' of ' + open.length) + '</span>' +
+      '<span class="si-seg si-seg--b"><span class="si-seg-l">Group</span>' +
+        '<button type="button" class="pill pill--btn pill--sm' + (tdGroupGet_() === 'when' ? ' on' : '') + '" data-tdgroup="when" aria-pressed="' + (tdGroupGet_() === 'when') + '">When</button>' +
+        '<button type="button" class="pill pill--btn pill--sm' + (tdGroupGet_() === 'owner' ? ' on' : '') + '" data-tdgroup="owner" aria-pressed="' + (tdGroupGet_() === 'owner') + '">Owner</button></span>' +
+      '<button type="button" class="fchip' + (state.todoSelectMode ? ' on' : '') + '" data-tdselmode="1" aria-pressed="' + !!state.todoSelectMode + '" title="Tick several to-dos and act on them together">' + (state.todoSelectMode ? '✕ Done selecting' : '☑ Select') + '</button></span></div>';
+  // The quick-add line: never leaves the page. Enter adds for you (the lens
+  // holder); no lens, or the full form wanted → the sheet opens with the text.
+  html += '<div class="tdl-quick"><span class="tdl-quick-g">＋</span>' +
+      '<input class="js-tdq-text" value="' + esc(state.tdQuick || '') + '" placeholder="' + esc(lens ? 'add a to-do for you (' + lens + ') — Enter adds, due next Monday' : 'add a to-do — Enter opens the form') + '" aria-label="Quick add a to-do">' +
+      '<button type="button" class="btn mini subtle" data-tdnew="quick" title="Open the full form: owner, date, note, weekly">Full form</button></div>';
+  return html;
+}
+function todoRow2Html_(t) {
+  var id = String(t['ID']);
+  var status = String(t['Status'] || 'OPEN').toUpperCase();
+  var st = TODO_ROW_STATES[status] || TODO_ROW_STATES.OPEN;
+  var carried = todoCarriedN_(t);
+  var stale = carried >= todoStaleAt_();
+  var steps = todoSteps_(id);
+  var stepsDone = steps.filter(function (s) { return String(s['Status']).toUpperCase() === 'DONE'; }).length;
+  var notes = todoLogFor_(id);
+  var due = todoDueChip_(t);
+  var bits = [];
+  if (t['Source']) bits.push(sourceRefHtml_(t['Source']));
+  if (status === 'BLOCKED' && String(t['Blocked On'] || '').trim()) bits.push('waiting on ' + esc(String(t['Blocked On']).trim()));
+  if (t['Notes']) bits.push(linkify(t['Notes']));
+  if (notes.length) bits.push(notes.length + (notes.length === 1 ? ' note' : ' notes'));
+  var jira = todoJiraHtml_(t);
+  if (jira) bits.push(jira.trim());
+  var selectable = !!state.todoSelectMode;
+  return '<div class="tdr' + (stale ? ' tdr--stale' : '') + '" data-tdrow="' + esc(id) + '">' +
+      (selectable ? '<input type="checkbox" class="td-check" data-tdsel="' + esc(id) + '"' + (state.todoSel[id] ? ' checked' : '') + ' aria-label="' + esc('Select ' + t['To-Do']) + '">' : '') +
+      '<button type="button" class="tdr-state ' + st.cls + '" data-tdstate="' + esc(id) + '" title="' + esc('State: ' + st.w + ' — click to change') + '">' + st.g + '</button>' +
+      '<div class="tdr-main" data-tdopen="' + esc(id) + '" role="button" tabindex="0">' +
+        '<div class="tdr-t">' + esc(t['To-Do']) + '</div>' +
+        (bits.length ? '<div class="tdr-s">' + bits.join(' · ') + '</div>' : '') +
+        (stale ? '<div class="tdr-nudge">Carried ' + carried + ' weeks — probably not a seven-day commitment. ' +
+          '<button type="button" class="td-nudge-a" data-tdpromote="' + esc(id) + '|rock">make it a rock</button><span class="td-nudge-sep">·</span>' +
+          '<button type="button" class="td-nudge-a" data-tdpromote="' + esc(id) + '|issue">take it to IDS</button></div>' : '') +
+      '</div>' +
+      '<div class="tdr-r">' +
+        (steps.length ? '<button type="button" class="tdr-steps" data-tdopen="' + esc(id) + '" title="' + stepsDone + ' of ' + steps.length + ' steps done">☑ ' + stepsDone + '/' + steps.length + '</button>' : '') +
+        (stale ? '<span class="tdr-flag flag-amber" title="Carried over ' + carried + ' huddles">×' + carried + ' carried</span>' : '') +
+        (String(t['Repeat'] || '').toUpperCase() === 'WEEKLY' ? '<span class="tdr-flag" title="Repeats weekly — completing it queues next week\'s copy">↻</span>' : '') +
+        '<span class="tdr-owner">' + who(t['Owner']) + '</span>' +
+        '<span class="tdr-due ' + due.cls + '" title="' + esc(due.title) + '">' + esc(due.label) + '</span>' +
+        '<button type="button" class="tdr-more" data-tdmore="' + esc(id) + '" aria-label="More actions" title="Push, edit, schedule, promote, drop">⋯</button>' +
+        btnH_('mini ghost td-done', '✓ Done', { 'data-todo': id + '|DONE' }) +
+      '</div></div>';
+}
+function todoGroups_(shown) {
+  var group = tdGroupGet_();
+  var today = localToday(), we = todoWeekEnd_();
+  var out = [];
+  if (group === 'owner') {
+    var order = lensOwnerOrder_(todoPeople_().filter(function (p) { return shown.some(function (t) { return String(t['Owner'] || '').trim() === p; }); }));
+    var unassigned = shown.filter(function (t) { return !String(t['Owner'] || '').trim(); });
+    order.forEach(function (p) {
+      var rows = sortTodos_(shown.filter(function (t) { return String(t['Owner'] || '').trim() === p; }));
+      var late = rows.filter(todoIsLate_).length;
+      out.push({ label: p, cls: 'tdg-blue', count: rows.length, hint: late ? late + ' late' : '', rows: rows, who: true });
+    });
+    if (unassigned.length) out.push({ label: 'Unassigned', cls: 'tdg-grey', count: unassigned.length, hint: 'one owner each — pick one', rows: sortTodos_(unassigned) });
+    return out;
+  }
+  var buckets = [
+    ['Late', 'tdg-red', 'owed before today — clear these first', function (t) { return todoIsLate_(t); }],
+    ['Due today', 'tdg-amber', '', function (t) { return d10(t['Due']) === today; }],
+    ['Rest of this week', 'tdg-blue', '', function (t) { var d = d10(t['Due']); return d && d > today && d <= we; }],
+    ['Next week and later', 'tdg-grey', '', function (t) { var d = d10(t['Due']); return d && d > we; }],
+    ['No due date', 'tdg-grey', 'a to-do without a date is a wish', function (t) { return !d10(t['Due']); }]
+  ];
+  buckets.forEach(function (b) {
+    var rows = sortTodos_(shown.filter(b[3]));
+    if (rows.length) out.push({ label: b[0], cls: b[1], count: rows.length, hint: b[2], rows: rows });
+  });
+  return out;
+}
+function tdGroupGet_() { try { return localStorage.getItem('l10TdGroup') === 'owner' ? 'owner' : 'when'; } catch (e) { return 'when'; } }
+function tdGroupSet_(v) { try { localStorage.setItem('l10TdGroup', v); } catch (e) {} }
 function todoBulkBarHtml_(n) {
   if (!n) return '';
-  return '<div class="td-bulk" role="region" aria-label="Bulk actions">' +
+  return '<div class="td-bulkdock" role="region" aria-label="Bulk actions">' +
       '<span class="td-bulk-n">' + n + ' selected</span>' +
-      btnH_('mini', '✓ Done', { 'data-tdbulk': 'DONE' }) +
-      btnH_('mini subtle', '◐ Working', { 'data-tdbulk': 'WORKING' }) +
-      btnH_('mini subtle', '📅 +7 days', { 'data-tdbulk': 'push' }) +
-      btnH_('mini subtle', 'Drop', { 'data-tdbulk': 'DROPPED' }) +
-      btnH_('mini ghost', 'Clear selection', { 'data-tdbulk': 'clear' }) +
+      btnH_('mini td-bulk-b', '✓ Done', { 'data-tdbulk': 'DONE' }) +
+      btnH_('mini td-bulk-b', '◐ Working', { 'data-tdbulk': 'WORKING' }) +
+      btnH_('mini td-bulk-b', '📅 Push 7 days', { 'data-tdbulk': 'push' }) +
+      btnH_('mini td-bulk-b', '✕ Drop', { 'data-tdbulk': 'DROPPED' }) +
+      btnH_('mini td-bulk-clear', 'Clear selection', { 'data-tdbulk': 'clear' }) +
       '</div>';
 }
-
 function renderTodos() {
   if (!hyd('work') || !hyd('core')) return pageLoading_('page-todos');
   var b = state.boot;
   var open = b.todos.filter(function (t) { return todoOpen_(t['Status']); });
   var shown = open.filter(todoMatches_);
-  var target = Number(b.config.TODO_DONE_TARGET) || 90;
   var selN = shown.filter(function (t) { return state.todoSel[String(t['ID'])]; }).length;
-  var html = '<h2 class="page-title">To-dos</h2><p class="page-sub">Seven-day commitments, one owner each. Team target: ' + target + '% done by the next huddle.</p>';
+  var html = '<div class="si-head"><div class="grow"><h2 class="page-title">To-dos</h2>' +
+      '<p class="page-sub page-sub--tight">Seven-day commitments, one owner each.</p></div>' +
+      '<div class="si-head-r"><button type="button" class="btn si-cta" data-tdnew="1">+ New to-do</button></div></div>';
   // One honest banner beats four features that quietly do nothing. Without the
   // repair step, steps/notes have nowhere to save, "waiting on" text is dropped,
   // and the carry sweep can't run — all of which otherwise look like the app
@@ -6482,38 +6593,388 @@ function renderTodos() {
         'have nowhere to save, a blocked to-do won\'t keep what it\'s waiting on, and the carry-over ' +
         'counter can\'t advance. It only adds two tabs and two columns — nothing existing changes.</div>';
   }
-  // Composer first: adding is the most-used write on this page, and it used to
-  // sit below every owner card — i.e. below an unbounded list.
-  html += addTodoCard();
-  html += todoFilterHtml_(shown.length, open.length);
-  html += todoBulkBarHtml_(selN);
-  var byOwner = {};
-  shown.forEach(function (t) {
-    var o = String(t['Owner'] || '—');
-    (byOwner[o] = byOwner[o] || []).push(t);
-  });
-  lensOwnerOrder_(Object.keys(byOwner)).forEach(function (o) {
-    // The group header is a label, not a headline — the to-do text is what the
-    // eye should land on first.
-    html += '<div class="card td-card"><h3 class="td-group">' + who(o) +
-        '<span class="td-group-n">' + byOwner[o].length + '</span></h3>' +
-        sortTodos_(byOwner[o]).map(function (t) {
-          return todoLine(t, true, false, { selectable: !!state.todoSelectMode, hideOwner: true });
-        }).join('') + '</div>';
-  });
+  html += todoWeekCardHtml_(open);
+  html += '<div class="card tdl">' + todoToolbarHtml_(open, shown.length);
+  var groups = todoGroups_(shown);
+  html += groups.map(function (g) {
+    return '<div class="tdg"><div class="tdg-h ' + g.cls + '"><span class="tdg-l">' + (g.who ? who(g.label) : esc(g.label)) + '</span>' +
+        '<span class="tdg-n">' + g.count + '</span>' + (g.hint ? '<span class="tdg-hint">' + esc(g.hint) + '</span>' : '') + '</div>' +
+        g.rows.map(todoRow2Html_).join('') + '</div>';
+  }).join('');
   if (!shown.length) {
     // Never let a filter masquerade as an empty list — say which it is.
-    html += '<div class="card"><div class="empty"><div class="e">' + (open.length ? '🔍' : '✅') + '</div>' +
-        (open.length ?
-          (state.todoFilter.mine && !lensGet_() ?
-            'Set your name in the lens chip (top right) before using Mine.' :
-            'No to-do matches this filter — ' + open.length + ' are open.') :
-          'Nothing open.') + '</div></div>';
+    html += '<div class="si-empty">' + (open.length ? 'No to-do matches this filter — ' + open.length + ' are open.' : 'Nothing open. Every commitment this week is closed.') + '</div>';
   }
-  html += doneThisWeekCardHtml_();
+  // Done this week: the week's evidence, folded away; reopen is the only action.
+  var done = weekTodos_().done;
+  html += '<div class="tdl-done"><button type="button" class="tdl-done-h" data-tddonetoggle="1" aria-expanded="' + !!state.tdDoneOpen + '">' +
+      '<span class="tdl-done-c">' + (state.tdDoneOpen ? '▾' : '▸') + '</span><span class="si-kicker tdl-done-k">Done this week</span>' +
+      '<span class="tdg-n">' + done.length + '</span>' + (state.tdDoneOpen ? '' : '<span class="tdg-hint">the week\'s evidence — reopen is the only action</span>') + '</button>' +
+      (state.tdDoneOpen ? '<div class="tdl-done-b">' + (done.length ? done.map(function (t) {
+        var dt = d10(t['Done At']);
+        return '<div class="tdl-done-r"><span class="tdl-done-g">✓</span><span class="tdl-done-t">' + esc(t['To-Do']) + '</span>' +
+            '<span class="tdl-done-m">' + esc(t['Owner'] || '—') + (dt ? ' · ' + esc(dt) : '') + '</span>' +
+            btnH_('mini subtle', '↩ Reopen', { 'data-todo': String(t['ID']) + '|OPEN', title: 'Move it back to the open list' }) + '</div>';
+      }).join('') : '<div class="si-empty si-empty--sm">Nothing finished this week yet.</div>') + '</div>' : '') + '</div>';
+  html += '</div>';
+  html += todoBulkBarHtml_(selN);
   $('page-todos').innerHTML = html;
   wireShared($('page-todos'));
   wireTodoControls($('page-todos'));
+  if (state.tdAdding) renderTodoSheet_();
+  if (state.tdOpen) renderTodoDrawer_();
+}
+function wireTodoControls(scope) {
+  // Search: debounced so the list doesn't rebuild on every keystroke, and the
+  // caret is restored afterwards because the re-render replaces the input.
+  var q = scope.querySelector('#todo-q');
+  if (q) {
+    var qt = null;
+    q.addEventListener('input', function () {
+      clearTimeout(qt);
+      var val = q.value, pos = q.selectionStart;
+      qt = setTimeout(function () {
+        state.todoFilter.q = val;
+        pruneHiddenSelection_();
+        renderTodos();
+        var again = $('todo-q');
+        if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (e) {} }
+      }, 160);
+    });
+  }
+  scope.querySelectorAll('[data-tdfilter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.dataset.tdfilter;
+      if (key === 'clear') state.todoFilter = { q: '', people: [], blocked: false, carried: false, day: '' };
+      else state.todoFilter[key] = !state.todoFilter[key];
+      pruneHiddenSelection_();
+      renderTodos();
+    });
+  });
+  scope.querySelectorAll('[data-tdperson]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var p = btn.dataset.tdperson;
+      var list = state.todoFilter.people;
+      if (!p) list.length = 0;
+      else { var i = list.indexOf(p); if (i === -1) list.push(p); else list.splice(i, 1); }
+      pruneHiddenSelection_();
+      renderTodos();
+    });
+  });
+  scope.querySelectorAll('[data-tdatt]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var k = btn.dataset.tdatt;
+      if (k === 'late') state.todoFilter.day = state.todoFilter.day === 'late' ? '' : 'late';
+      else state.todoFilter[k] = !state.todoFilter[k];
+      pruneHiddenSelection_();
+      renderTodos();
+    });
+  });
+  scope.querySelectorAll('[data-tdday]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.todoFilter.day = state.todoFilter.day === btn.dataset.tdday ? '' : btn.dataset.tdday;
+      pruneHiddenSelection_();
+      renderTodos();
+    });
+  });
+  scope.querySelectorAll('[data-tdgroup]').forEach(function (btn) {
+    btn.addEventListener('click', function () { tdGroupSet_(btn.dataset.tdgroup); renderTodos(); });
+  });
+  scope.querySelectorAll('[data-tddonetoggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () { state.tdDoneOpen = !state.tdDoneOpen; renderTodos(); });
+  });
+  scope.querySelectorAll('[data-tdnew]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (btn.dataset.tdnew === 'quick') {
+        var qi = scope.querySelector('.js-tdq-text');
+        if (qi && qi.value.trim()) state.todoCompose.text = qi.value.trim();
+      }
+      state.tdQuick = '';
+      openTodoSheet_();
+    });
+  });
+  var quick = scope.querySelector('.js-tdq-text');
+  if (quick) {
+    quick.addEventListener('input', function () { state.tdQuick = quick.value; });
+    quick.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      var text = quick.value.trim();
+      if (!text) return;
+      var lens = lensGet_();
+      if (!lens) { state.todoCompose.text = text; state.tdQuick = ''; openTodoSheet_(); return; }
+      quick.disabled = true;
+      gs('l10_addTodoMulti', { text: text, owners: [lens], due: '', source: '', notes: '', repeat: false, checkDupe: true, allowDupe: false }).then(function (res) {
+        quick.disabled = false;
+        if (res && res.needsConfirm) {
+          var d = res.dupes[0];
+          notify('Already open: "' + d.text + '" (' + (d.owner || 'unassigned') + ').', 'warn', 12000,
+              { label: 'Add anyway', fn: function () { gs('l10_addTodoMulti', { text: text, owners: [lens], allowDupe: true }).then(function (r2) { (r2.items || []).forEach(function (it) { if (it.row) state.boot.todos.push(it.row); }); state.tdQuick = ''; rerenderLists(); }); } });
+          return;
+        }
+        if (!res || res.ok === false) { errToast(res || 'Add failed'); return; }
+        (res.items || []).forEach(function (it) { if (it.row) state.boot.todos.push(it.row); });
+        state.tdQuick = '';
+        notify('To-do added for ' + lens, 'ok');
+        rerenderLists();
+        var again = $('page-todos').querySelector('.js-tdq-text');
+        if (again) again.focus();
+      }).catch(function (e) { quick.disabled = false; errToast(e); });
+    });
+  }
+  scope.querySelectorAll('[data-tdopen]').forEach(function (el) {
+    el.addEventListener('click', function (ev) {
+      // An inner control (the "from SI-###" reference, a Jira link) keeps its own job.
+      var inner = ev.target && ev.target.closest ? ev.target.closest('button, a') : null;
+      if (inner && inner !== el) return;
+      ev.stopPropagation(); openTodo_(el.dataset.tdopen);
+    });
+    el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openTodo_(el.dataset.tdopen); } });
+  });
+  scope.querySelectorAll('[data-tdmore]').forEach(function (btn) {
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var id = btn.dataset.tdmore;
+      openMenu_(btn, [['📅 Push 7 days', 'push'], ['✎ Edit', 'edit'], ['📅 Schedule a meeting', 'sched'], ['▲ Make it a rock', 'rock'], ['→ Take it to IDS', 'issue'], ['✕ Drop', 'drop']], function (v) {
+        var t = findRow(state.boot.todos, 'ID', id);
+        if (!t) return;
+        if (v === 'push') setTodoDue_(id, addDays_(d10(t['Due']), 7) || localDaysAhead(7));
+        else if (v === 'edit') openTodo_(id, 'edit');
+        else if (v === 'sched') openScheduler({ title: String(t['To-Do'] || '') });
+        else if (v === 'rock' || v === 'issue') promoteStaleTodo_(id, v);
+        else if (v === 'drop') todoFlip_(id, 'DROPPED');
+      });
+    });
+  });
+  scope.querySelectorAll('[data-tdsel]').forEach(function (box) {
+    box.addEventListener('change', function () {
+      var id = box.dataset.tdsel;
+      if (box.checked) state.todoSel[id] = 1; else delete state.todoSel[id];
+      renderTodos();
+    });
+  });
+  scope.querySelectorAll('[data-tdbulk]').forEach(function (btn) {
+    btn.addEventListener('click', function () { runTodoBulk_(btn.dataset.tdbulk); });
+  });
+  var selMode = scope.querySelector('[data-tdselmode]');
+  if (selMode) selMode.addEventListener('click', function () {
+    state.todoSelectMode = !state.todoSelectMode;
+    if (!state.todoSelectMode) state.todoSel = {};  // leaving the mode drops the selection
+    renderTodos();
+  });
+}
+// A status flip from a menu (no row button to hand focus from) — same optimistic
+// write, revert and Undo as the row's ✓ Done.
+function todoFlip_(id, status) {
+  var t = findRow(state.boot.todos, 'ID', id);
+  var prev = t ? t['Status'] : 'OPEN';
+  var snap = todoStatusSnap_(id);
+  serverSync(setTodoStatus_(id, status), undefined, todoStatusRevert_(id, snap));
+  if (t && prev !== status) {
+    notifyUndo('To-do marked ' + status.toLowerCase(), function () {
+      var snapU = todoStatusSnap_(id);
+      serverSync(setTodoStatus_(id, prev), undefined, todoStatusRevert_(id, snapU));
+      notify('Undone', 'ok');
+    });
+  }
+}
+// The page's rows are not todoLine() rows, so a splice elsewhere (huddle
+// segment, 1:1 page, initiative drawer) must also repaint this page and its
+// drawer. Called from spliceTodoRow_ and the step / note handlers.
+function todoPageRefresh_() {
+  var page = $('page-todos');
+  if (page && page.querySelector('[data-tdrow]')) renderTodos();
+  else if (state.tdOpen) renderTodoDrawer_();
+}
+
+// --- The to-do drawer (right-hand sheet) --------------------------------------
+function ensureTdOverlay_() {
+  if ($('td-overlay')) return;
+  var div = document.createElement('div');
+  div.id = 'td-overlay';
+  div.style.display = 'none';
+  document.body.appendChild(div);
+  var sheet = document.createElement('div');
+  sheet.id = 'td-new';
+  sheet.style.display = 'none';
+  document.body.appendChild(sheet);
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || document.querySelector('.l10pop')) return;
+    if (state.tdAdding) closeTodoSheet_();
+    else if (state.tdOpen) closeTodo_();
+  });
+}
+function openTodo_(id, mode) {
+  if (!findRow(state.boot.todos, 'ID', id)) { notify('To-do ' + id + ' isn\'t on the list anymore.', 'warn'); return; }
+  ensureTdOverlay_();
+  if (!state.tdOpen) dlgOpened_('td-overlay');
+  state.tdOpen = String(id);
+  state.tdEdit = mode === 'edit';
+  renderTodoDrawer_();
+}
+function closeTodo_() {
+  var was = state.tdOpen;
+  state.tdOpen = null; state.tdEdit = false;
+  var o = $('td-overlay');
+  if (o) o.style.display = 'none';
+  if (was) dlgClosed_('td-overlay');
+}
+function renderTodoDrawer_() {
+  var o = $('td-overlay');
+  var t = state.tdOpen ? findRow(state.boot.todos, 'ID', state.tdOpen) : null;
+  if (!o) return;
+  // Done / dropped from the drawer's own footer: the row has left the open set,
+  // so the drawer closes with it.
+  if (!t || !todoOpen_(t['Status'])) { closeTodo_(); return; }
+  var id = String(t['ID']);
+  var status = String(t['Status'] || 'OPEN').toUpperCase();
+  var st = TODO_ROW_STATES[status] || TODO_ROW_STATES.OPEN;
+  var due = todoDueChip_(t);
+  var steps = todoSteps_(id);
+  var stepsDone = steps.filter(function (s) { return String(s['Status']).toUpperCase() === 'DONE'; }).length;
+  var notes = todoLogFor_(id);
+  var head = '<div class="si-sheet-h"><div class="si-sheet-top"><div class="grow"><div class="si-kicker">To-do · ' + esc(id) + '</div>' +
+      '<div class="si-sheet-title si-sheet-title--md" id="td-title-h">' + esc(t['To-Do']) + '</div></div>' +
+      '<div class="si-head-acts">' + (state.tdEdit ? '' : '<button type="button" class="btn mini subtle" id="td-edit">Edit</button>') +
+      '<button type="button" class="btn mini subtle" id="td-close">Close</button></div></div>' +
+      '<div class="si-chips mt-2">' + who(t['Owner']) +
+        '<button type="button" class="tdr-state tdr-state--pill ' + st.cls + '" data-tdstate="' + esc(id) + '" title="Click to change the state">' + st.g + ' ' + st.w + ' ▾</button>' +
+        '<span class="tdr-due ' + due.cls + '">' + esc(todoDueLong_(t)) + '</span>' +
+        (t['Source'] ? '<span class="si-chip-m">' + sourceRefHtml_(t['Source']) + '</span>' : '') +
+        (String(t['Repeat'] || '').toUpperCase() === 'WEEKLY' ? '<span class="tdr-flag" title="Repeats weekly">↻ weekly</span>' : '') +
+        (todoCarriedN_(t) ? '<span class="tdr-flag flag-amber">×' + todoCarriedN_(t) + ' carried</span>' : '') +
+        (todoJiraHtml_(t) || '') + '</div>' +
+      (status === 'BLOCKED' && String(t['Blocked On'] || '').trim() ? '<div class="banner bad mt-2 m-0">Waiting on ' + esc(String(t['Blocked On']).trim()) + '</div>' : '') +
+      (t['Notes'] && !state.tdEdit ? '<div class="si-chip-m mt-2">' + linkify(t['Notes']) + '</div>' : '') + '</div>';
+  var body;
+  if (state.tdEdit) {
+    body = '<div class="si-sheet-b si-editor">' +
+        '<div class="field"><label>What needs doing</label><input class="js-tde-text" value="' + esc(t['To-Do']) + '"></div>' +
+        '<div class="row"><div class="field f-1"><label>Owner</label><select class="js-tde-owner">' + state.boot.team.map(function (p) {
+          return '<option' + (p === String(t['Owner']) ? ' selected' : '') + '>' + esc(p) + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="field f-1"><label>Due</label><input class="js-tde-due" type="date" value="' + esc(d10(t['Due'])) + '"></div></div>' +
+        '<div class="field"><label>Link or note</label><input class="js-tde-notes" value="' + esc(t['Notes'] || '') + '" placeholder="a dashboard, a doc, one line of context"></div>' +
+        '<label class="ck-lbl"><input type="checkbox" class="js-tde-repeat"' + (String(t['Repeat'] || '').toUpperCase() === 'WEEKLY' ? ' checked' : '') + '> ↻ Repeat weekly <span class="muted">— completing it queues next week\'s copy; untick to end the chain</span></label>' +
+        '</div><div class="si-sheet-f"><button type="button" class="btn si-cta" id="td-save">Save</button><button type="button" class="btn subtle" id="td-cancel">Cancel</button></div>';
+  } else {
+    body = '<div class="si-sheet-b">' +
+        (state.boot.todoTabsReady === false ? '<div class="banner warn mt-2"><b>Steps and notes aren\'t set up yet.</b> Run <b>L10 Huddle → Setup / repair tabs</b> once, then reload.</div>' : '') +
+        '<div class="tdd-sh"><span class="si-lbl m-0">Steps</span><span class="tdg-hint">' + (steps.length ? stepsDone + ' of ' + steps.length + ' done' : 'none yet') + '</span></div>' +
+        (steps.length ? '<div class="td-steps">' + steps.map(function (s) {
+          var done = String(s['Status']).toUpperCase() === 'DONE';
+          return '<label class="td-step' + (done ? ' done' : '') + '"><input type="checkbox" data-tdstep="' + esc(s['ID']) + '"' + (done ? ' checked' : '') + '><span>' + esc(s['Step']) + '</span>' +
+              '<button type="button" class="td-step-x" data-tdstepdel="' + esc(s['ID']) + '" aria-label="Delete step">✕</button></label>';
+        }).join('') + '</div>' : '') +
+        '<div class="row td-subadd"><div class="field field--tight f-1"><input class="js-tdstep-text" data-for="' + esc(id) + '" placeholder="add a step"></div>' +
+        '<button type="button" class="btn mini subtle js-tdstep-add" data-for="' + esc(id) + '">Add step</button></div>' +
+        '<div class="tdd-sh mt-4"><span class="si-lbl m-0">Trail</span><span class="tdg-hint">' + (notes.length ? notes.length + (notes.length === 1 ? ' note' : ' notes') : 'posting a note never changes the state') + '</span></div>' +
+        (notes.length ? '<div class="td-log tdd-log">' + notes.map(function (l) {
+          return '<div class="tdd-log-r"><div class="tdd-log-t">' + linkify(l['Note']) + '</div><div class="tdd-log-m">' + esc(String(l['Who'] || '').split('@')[0]) + ' · ' + esc(String(l['At']).slice(0, 16)) + '</div></div>';
+        }).join('') + '</div>' : '<div class="si-empty si-empty--sm">Nothing logged yet.</div>') +
+        '<div class="row td-subadd"><div class="field field--tight f-1"><input class="js-tdlog-text" data-for="' + esc(id) + '" placeholder="add a progress note — a blocker, a hand-off, what moved"></div>' +
+        '<button type="button" class="btn mini subtle js-tdlog-add" data-for="' + esc(id) + '">Post</button></div>' +
+        '</div>' +
+        '<div class="si-sheet-f tdd-f">' + btnH_('si-cta td-done', '✓ Done', { 'data-todo': id + '|DONE' }) +
+        btnH_('subtle', '📅 Push', { 'data-tdsnooze': id, title: 'Move the due date' }) +
+        btnH_('subtle', '▲ Make it a rock', { 'data-tdpromote': id + '|rock' }) +
+        btnH_('subtle', '→ Take it to IDS', { 'data-tdpromote': id + '|issue' }) +
+        btnH_('subtle', '✕ Drop', { 'data-todo': id + '|DROPPED' }) + '</div>';
+  }
+  o.innerHTML = '<div class="si-backdrop" id="td-backdrop"></div><div class="si-sheet si-sheet--todo" role="dialog" aria-modal="true" aria-labelledby="td-title-h">' + head + body + '</div>';
+  o.style.display = 'block';
+  $('td-close').addEventListener('click', closeTodo_);
+  $('td-backdrop').addEventListener('click', closeTodo_);
+  var edit = $('td-edit');
+  if (edit) edit.addEventListener('click', function () { state.tdEdit = true; renderTodoDrawer_(); });
+  var cancel = $('td-cancel');
+  if (cancel) cancel.addEventListener('click', function () { state.tdEdit = false; renderTodoDrawer_(); });
+  var save = $('td-save');
+  if (save) save.addEventListener('click', function () {
+    var text = o.querySelector('.js-tde-text').value.trim();
+    if (!text) { notify('Text can\'t be empty.', 'warn'); return; }
+    var owner = o.querySelector('.js-tde-owner').value, dueV = o.querySelector('.js-tde-due').value;
+    var notesV = o.querySelector('.js-tde-notes').value, repeat = o.querySelector('.js-tde-repeat').checked;
+    t['To-Do'] = text; t['Owner'] = owner; t['Due'] = dueV; t['Notes'] = notesV; t['Repeat'] = repeat ? 'WEEKLY' : '';
+    state.tdEdit = false;
+    rerenderLists();
+    serverSync(gs('l10_editTodo', id, { text: text, owner: owner, due: dueV, notes: notesV, repeat: repeat }), 'Updated ' + id);
+  });
+  // Steps, notes, state, snooze, promote and the status buttons: the shared
+  // wirers, exactly as on any other surface.
+  wireShared(o);
+}
+
+// --- The New to-do sheet -------------------------------------------------------
+// The shared composer (same classes, same wireShared path, same duplicate
+// warning) inside a right-hand sheet, with date shortcuts and an owner hint.
+function openTodoSheet_() {
+  ensureTdOverlay_();
+  if (!state.tdAdding) dlgOpened_('td-new');
+  state.tdAdding = true;
+  renderTodoSheet_();
+  var tx = $('td-new').querySelector('.js-td-text');
+  if (tx) { tx.focus(); try { tx.setSelectionRange(tx.value.length, tx.value.length); } catch (e) {} }
+}
+function closeTodoSheet_() {
+  var was = state.tdAdding;
+  state.tdAdding = false;
+  var o = $('td-new');
+  if (o) o.style.display = 'none';
+  if (was) dlgClosed_('td-new');
+}
+function renderTodoSheet_() {
+  var o = $('td-new');
+  if (!o) return;
+  var c = state.todoCompose;
+  var lens = lensGet_();
+  if (!c.owners.length && lens && state.boot.team.indexOf(lens) !== -1) c.owners = [lens];
+  var n = c.owners.length;
+  var quick = [['Today', localToday()], ['Tomorrow', localDaysAhead(1)], ['Friday', (function () { var d = new Date(localToday() + 'T12:00:00'); d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7 || 7)); return fmtLocal(d); })()], ['Next Monday', localNextMonday()]];
+  o.innerHTML = '<div class="si-backdrop" data-tdsheetclose="1"></div>' +
+      '<div class="si-sheet si-sheet--new card td-compose td-open" role="dialog" aria-modal="true" aria-labelledby="td-new-h">' +
+      '<div class="si-sheet-h"><div class="si-sheet-title" id="td-new-h">New to-do</div><div class="si-sheet-sub">A seven-day commitment. Blank date means next Monday.</div></div>' +
+      '<div class="si-sheet-b">' +
+      '<div class="si-step">What needs doing</div>' +
+      '<div class="field"><input class="js-td-text" value="' + esc(c.text || '') + '" placeholder="e.g. Rebuild the CA creative set from the US variants"></div>' +
+      '<div class="field"><input class="js-td-notes" value="' + esc(c.notes || '') + '" placeholder="link or note (optional) — a dashboard, a doc, one line of context"></div>' +
+      '<div class="si-step">Who owns it</div>' +
+      '<div class="si-chipwrap ownerpick">' + state.boot.team.map(function (p) {
+        var on = c.owners.indexOf(p) !== -1;
+        return '<button type="button" class="person-chip js-td-owner' + (on ? ' on' : '') + '" data-name="' + esc(p) + '" aria-pressed="' + on + '">' + avatar(p) + esc(p) + (p === lens ? ' (you)' : '') + '</button>';
+      }).join('') + '</div>' +
+      '<div class="help js-td-ownerhint">' + (n > 1 ? 'Tapping ' + n + ' people creates ' + n + ' separate to-dos — one owner each, never a shared one.' : 'Tap more than one person and you get one to-do each, never a shared one.') + '</div>' +
+      '<div class="si-step">When it\'s owed</div>' +
+      '<div class="si-chipwrap mb-2">' + quick.map(function (qd) {
+        return '<button type="button" class="pill pill--btn pill--sm' + (c.due === qd[1] ? ' on' : '') + '" data-tdquick="' + qd[1] + '">' + qd[0] + '</button>';
+      }).join('') + '<input class="js-td-due" type="date" value="' + esc(c.due || '') + '" title="Or pick any date"></div>' +
+      '<label class="ck-lbl td-repeat"><input type="checkbox" class="js-td-repeat"' + (c.repeat ? ' checked' : '') + '> ↻ Repeat weekly <span class="muted">— completing it queues next week\'s copy</span></label>' +
+      '</div>' +
+      '<div class="si-sheet-f"><button type="button" class="btn si-cta js-td-add" data-source="">' + (n > 1 ? 'Add ' + n + ' to-dos' : 'Add to-do') + '</button>' +
+      '<button type="button" class="btn subtle" data-tdsheetclose="1">Cancel</button>' +
+      '<span class="si-sheet-count">Enter adds and keeps the sheet open</span></div></div>';
+  o.style.display = 'block';
+  o.querySelectorAll('[data-tdsheetclose]').forEach(function (el) { el.addEventListener('click', closeTodoSheet_); });
+  o.querySelectorAll('[data-tdquick]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var dueIn = o.querySelector('.js-td-due');
+      var v = c.due === btn.dataset.tdquick ? '' : btn.dataset.tdquick;
+      c.due = v; if (dueIn) dueIn.value = v;
+      o.querySelectorAll('[data-tdquick]').forEach(function (b) { b.classList.toggle('on', b.dataset.tdquick === v); });
+    });
+  });
+  // Owner taps update the hint + the CTA count without a re-render.
+  o.querySelectorAll('.js-td-owner').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      setTimeout(function () {
+        var k = c.owners.length;
+        var hint = o.querySelector('.js-td-ownerhint'), cta = o.querySelector('.js-td-add');
+        if (hint) hint.textContent = k > 1 ? 'Tapping ' + k + ' people creates ' + k + ' separate to-dos — one owner each, never a shared one.' : 'Tap more than one person and you get one to-do each, never a shared one.';
+        if (cta) cta.textContent = k > 1 ? 'Add ' + k + ' to-dos' : 'Add to-do';
+      }, 0);
+    });
+  });
+  wireShared(o); // the composer: owner chips, date, ↻, Add, Enter — the shared path
 }
 
 function renderIssues() {

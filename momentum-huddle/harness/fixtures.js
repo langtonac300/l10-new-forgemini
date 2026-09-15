@@ -297,10 +297,10 @@
     l10_editTodo: ok,
     l10_setTodoDue: function (id, due) { return { ok: true, id: id, due: due }; },
     l10_pushTodoDue: function (ids, days) { return { ok: true, moved: (ids || []).map(function (id) { return { id: id, due: WEEK_OF }; }), skipped: [] }; },
-    l10_addTodoStep: function (todoId, text) { idSeq++; return { ok: true, step: { 'ID': 'TS-' + idSeq, 'Todo ID': todoId, 'Step': text, 'Status': 'OPEN', 'Done At': '', 'Created': TODAY } }; },
+    l10_addTodoStep: function (todoId, text) { idSeq++; return { ok: true, row: { 'ID': 'TS-' + idSeq, 'Todo ID': todoId, 'Step': text, 'Status': 'OPEN', 'Done At': '', 'Created': TODAY } }; },
     l10_setTodoStepStatus: function (id, status) { return { ok: true, id: id, status: status, todoDone: false }; },
     l10_deleteTodoStep: ok,
-    l10_addTodoLog: function (todoId, note) { idSeq++; return { ok: true, entry: { 'ID': 'TL-' + idSeq, 'Todo ID': todoId, 'At': TODAY + ' 10:00', 'Who': 'Alex', 'Note': note } }; },
+    l10_addTodoLog: function (todoId, note) { idSeq++; return { ok: true, row: { 'ID': 'TL-' + idSeq, 'Todo ID': todoId, 'At': TODAY + ' 10:00', 'Who': 'Alex', 'Note': note } }; },
 
     // Issues / Solve
     l10_addIssue: function (payload) { idSeq++; return { ok: true, issue: { 'ID': 'IS-' + idSeq, 'Issue': (payload && payload.text) || 'New issue', 'Raised By': 'Alex', 'Raised': TODAY, 'Accounts': '', 'Category': '', 'Votes': 0, 'Status': 'OPEN', 'Park With': '', 'Resolution': '', 'Solved In': '', 'Notes': '', 'Identified': '', 'Discussed': '', 'Outcome': '', 'Outcome At': '', 'Review On': '', 'Waiting On': '' } }; },

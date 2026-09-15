@@ -55,28 +55,61 @@ async function clickNav(page, target) {
     await shot(page, 'page-' + p);
   }
 
-  // --- To-dos flows (the daily work surface) ---
+  // --- To-dos page (v2.16 layout): week card + spine, quick add, sheet, rows, drawer, bulk ---
   await clickNav(page, 'todos');
-  // Composer expands on focus, and the typed text survives a filter re-render.
-  await page.click('.js-td-text');
-  const composerOpen = await page.$eval('.td-compose', (el) => el.classList.contains('td-open'));
-  if (!composerOpen) errors.push('composer did not expand on focus');
-  await page.fill('.js-td-text', 'Harness to-do survives re-render');
-  await page.click('[data-tdfilter="mine"]');
+  const tdw = await page.$eval('.tdw', (el) => el.textContent.replace(/\s+/g, ' '));
+  if (!/%\s*done this week|—\s*done this week/.test(tdw)) errors.push('week card missing its percentage: ' + tdw.slice(0, 80));
+  if (!/target 90% by the huddle/.test(tdw)) errors.push('week card caption missing the target line');
+  const spine = await page.$$('.tdw-day');
+  if (spine.length !== 10) errors.push('day spine should have Late + 7 days + Later + No date = 10 cells, got ' + spine.length);
+  const groupsWhen = await page.$$eval('.tdg-h .tdg-l', (els) => els.map((e) => e.textContent.trim()));
+  if (!groupsWhen.includes('Late')) errors.push('grouping by when should start with a Late group: ' + groupsWhen.join('|'));
+  const rows0 = await page.$$('.tdr');
+  if (rows0.length !== 5) errors.push('to-dos page should list the 5 open fixture to-dos, got ' + rows0.length);
+  // The composer lives in a sheet: opens from the header button, the draft survives a page re-render, Enter adds and keeps it open.
+  await page.click('[data-tdnew="1"]');
+  await page.waitForTimeout(200);
+  if (!(await page.$eval('#td-new', (el) => el.style.display !== 'none'))) errors.push('new-to-do sheet did not open');
+  await page.fill('#td-new .js-td-text', 'Harness to-do survives re-render');
+  await page.evaluate(() => renderTodos());
+  await page.waitForTimeout(150);
+  const keptText = await page.$eval('#td-new .js-td-text', (el) => el.value);
+  if (keptText !== 'Harness to-do survives re-render') errors.push('sheet draft lost on re-render: "' + keptText + '"');
+  await page.click('#td-new .js-td-owner[data-name="Courtney"]');
+  const tdAddBefore = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.press('#td-new .js-td-text', 'Enter');
+  await page.waitForTimeout(300);
+  const tdAddCall = (await page.evaluate(() => window.__GS_CALLS.slice())).slice(tdAddBefore).find((c) => c.fn === 'l10_addTodoMulti');
+  if (!tdAddCall) errors.push('sheet Enter did not add through l10_addTodoMulti');
+  else if (tdAddCall.args[0].text !== 'Harness to-do survives re-render' || (tdAddCall.args[0].owners || []).join() !== 'Courtney') errors.push('sheet sent the wrong payload: ' + JSON.stringify(tdAddCall.args[0]).slice(0, 120));
+  if (!(await page.$eval('#td-new', (el) => el.style.display !== 'none'))) errors.push('sheet closed after Enter — it should stay open for a burst');
+  const clearedText = await page.$eval('#td-new .js-td-text', (el) => el.value);
+  if (clearedText !== '') errors.push('sheet text not cleared after adding: "' + clearedText + '"');
+  await page.click('#td-new [data-tdsheetclose]');
+  await page.waitForTimeout(120);
+  // Quick add never leaves the page: with no lens set, Enter opens the sheet with the text carried over.
+  await page.fill('.js-tdq-text', 'Quick one');
+  await page.press('.js-tdq-text', 'Enter');
+  await page.waitForTimeout(200);
+  const quickCarried = await page.$eval('#td-new .js-td-text', (el) => el.value).catch(() => null);
+  if (quickCarried !== 'Quick one') errors.push('quick add did not carry the text into the sheet: ' + JSON.stringify(quickCarried));
+  await page.click('#td-new [data-tdsheetclose]');
+  await page.waitForTimeout(120);
+  // Drawer: opens from the row, shows steps, adds a step through l10_addTodoStep.
+  await page.click('.tdr [data-tdopen="TD-101"]');
+  await page.waitForTimeout(200);
+  if (!(await page.$eval('#td-overlay', (el) => el.style.display !== 'none'))) errors.push('to-do drawer did not open');
+  const tdDrawerTxt = await page.$eval('#td-overlay', (el) => el.textContent);
+  if (!/Export search terms/.test(tdDrawerTxt) || !/1 of 3 done/.test(tdDrawerTxt)) errors.push('drawer does not list the fixture steps');
+  const stepBefore = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.fill('#td-overlay .js-tdstep-text', 'Harness step');
+  await page.click('#td-overlay .js-tdstep-add');
   await page.waitForTimeout(250);
-  await page.click('[data-tdfilter="mine"]');
-  await page.waitForTimeout(250);
-  const keptText = await page.$eval('.js-td-text', (el) => el.value);
-  if (keptText !== 'Harness to-do survives re-render') errors.push('composer text lost on re-render: "' + keptText + '"');
-  // Steps drawer opens from the page.
-  const drawerBtn = await page.$('[data-tddrawer]');
-  if (drawerBtn) {
-    await drawerBtn.click();
-    await page.waitForTimeout(150);
-    const drawer = await page.$('.td-drawer, .todo-drawer, [data-tddrawer][aria-expanded="true"]');
-    if (!drawer) errors.push('steps drawer did not open');
-  } else errors.push('no [data-tddrawer] button found');
-  // Select mode: checkboxes only in the mode; bulk bar counts visible rows.
+  const stepCalls = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+  if (!stepCalls.slice(stepBefore).includes('l10_addTodoStep')) errors.push('drawer step add did not call l10_addTodoStep');
+  await page.click('#td-close');
+  await page.waitForTimeout(120);
+  // Select mode: checkboxes only in the mode; the bulk bar docks when something is ticked.
   await page.click('[data-tdselmode]');
   await page.waitForTimeout(150);
   const checks = await page.$$('.td-check');
@@ -84,14 +117,14 @@ async function clickNav(page, target) {
   else {
     await checks[0].click();
     await page.waitForTimeout(150);
-    const bulk = await page.$('[data-tdbulk]');
-    if (!bulk) errors.push('bulk bar missing after selection');
+    const bulk = await page.$('.td-bulkdock [data-tdbulk]');
+    if (!bulk) errors.push('docked bulk bar missing after selection');
   }
   await page.click('[data-tdselmode]'); // leave the mode
   await page.waitForTimeout(120);
   // A status flip persists: the l10_setTodoStatus gs call must fire.
   const before = await page.evaluate(() => window.__GS_CALLS.length);
-  const doneBtn = await page.$('[data-todo$="|DONE"]');
+  const doneBtn = await page.$('.tdr [data-todo$="|DONE"]');
   if (doneBtn) {
     await doneBtn.click();
     await page.waitForTimeout(250);
@@ -99,13 +132,14 @@ async function clickNav(page, target) {
     if (!calls.slice(before).includes('l10_setTodoStatus')) {
       errors.push('todo DONE click did not persist via l10_setTodoStatus (Jira sync would miss it)');
     }
-  } else errors.push('no ✓ done button found on To-dos page');
-  // Dropping stamps Done At locally, the same as the server now does — the
-  // week-keyed stats would otherwise misplace every drop.
-  const dropBtn = await page.$('[data-todo$="|DROPPED"]');
-  if (dropBtn) {
-    const dropId = await dropBtn.evaluate((el) => el.dataset.todo.split('|')[0]);
-    await dropBtn.click();
+  } else errors.push('no ✓ Done button found on To-dos page');
+  // Dropping (from the drawer footer) stamps Done At locally, the same as the server does, and closes the drawer.
+  const firstOpen = await page.$('.tdr [data-tdopen]');
+  if (firstOpen) {
+    const dropId = await firstOpen.evaluate((el) => el.dataset.tdopen);
+    await firstOpen.click();
+    await page.waitForTimeout(200);
+    await page.click('#td-overlay [data-todo$="|DROPPED"]');
     await page.waitForTimeout(250);
     const dropped = await page.evaluate((id) => {
       const t = (window.state && state.boot.todos || []).find((x) => String(x['ID']) === id);
@@ -113,7 +147,29 @@ async function clickNav(page, target) {
     }, dropId);
     if (!dropped || dropped.s !== 'DROPPED') errors.push('drop click did not flip the row to DROPPED (' + JSON.stringify(dropped) + ')');
     else if (!/^\d{4}-\d{2}-\d{2}/.test(String(dropped.d))) errors.push('dropped to-do carries no Done At stamp locally ("' + dropped.d + '")');
-  } else errors.push('no drop button found on To-dos page');
+    if (await page.$eval('#td-overlay', (el) => el.style.display !== 'none')) errors.push('drawer stayed open after dropping its to-do');
+  } else errors.push('no row to open for the drop test');
+  // Group by owner, then the day spine as a filter, then clear.
+  await page.click('[data-tdgroup="owner"]');
+  await page.waitForTimeout(150);
+  const ownerGroups = await page.$$eval('.tdg-h', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+  if (!ownerGroups.some((g) => /Courtney/.test(g))) errors.push('group-by-owner shows no Courtney group: ' + ownerGroups.join('|'));
+  await page.click('[data-tdgroup="when"]');
+  await page.waitForTimeout(120);
+  await page.click('[data-tdday="late"]');
+  await page.waitForTimeout(150);
+  const lateOnly = await page.$$eval('.tdr .tdr-due', (els) => els.map((e) => e.textContent.trim()));
+  if (!lateOnly.length || !lateOnly.every((t) => /late$/.test(t))) errors.push('Late spine filter shows non-late rows: ' + lateOnly.join('|'));
+  await page.click('[data-tdfilter="clear"]');
+  await page.waitForTimeout(120);
+  // Done this week folds open, with reopen as the only action.
+  await page.click('[data-tddonetoggle]');
+  await page.waitForTimeout(150);
+  const doneRows = await page.$$('.tdl-done-r');
+  if (doneRows.length < 2) errors.push('Done this week should list the fixture done to-do plus the one just completed, got ' + doneRows.length);
+  if (!(await page.$('.tdl-done-r [data-todo$="|OPEN"]'))) errors.push('done rows carry no Reopen action');
+  await page.click('[data-tddonetoggle]');
+  await page.waitForTimeout(100);
   await shot(page, 'todos-after-flows');
 
   // --- Metrics: capture grid opens; sparklines drew ---
@@ -190,9 +246,7 @@ async function clickNav(page, target) {
 
   // --- Cascade regressions the adversarial review caught ---
   // Width utilities must actually beat `.row > .field` (computed, not classes).
-  const flexOK = await page.$eval('.td-compose .js-td-text', (el) => {
-    return getComputedStyle(el.closest('.field')).flexGrow;
-  });
+  const flexOK = await page.$eval('.row > .field.f-3', (el) => getComputedStyle(el).flexGrow);
   if (flexOK !== '3') errors.push('composer f-3 field computes flex-grow ' + flexOK + ' (want 3) — .row > .field is winning again');
   // The skip link must not inherit <base target="_top">.
   const skipTarget = await page.$eval('.skip-link', (el) => el.getAttribute('target'));
@@ -320,7 +374,9 @@ async function clickNav(page, target) {
   const addBefore = await page.evaluate(() => window.__GS_CALLS.length);
   await page.click('#si-overlay .js-td-text');
   await page.fill('#si-overlay .js-td-text', 'Harness to-do from the initiative');
-  await page.click('#si-overlay .js-td-owner[data-name="Courtney"]');
+  // Owner chips persist across composers by design (state.todoCompose) — make sure she is ON, don't blindly toggle.
+  const cChip = await page.$('#si-overlay .js-td-owner[data-name="Courtney"]');
+  if (!(await cChip.evaluate((el) => el.classList.contains('on')))) await cChip.click();
   await page.click('#si-overlay .js-td-add');
   await page.waitForTimeout(300);
   const addCalls = await page.evaluate(() => window.__GS_CALLS.slice());

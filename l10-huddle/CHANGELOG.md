@@ -5,7 +5,48 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.15 (2026-09-15)** · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.16 (2026-09-15)** · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.16 (2026-09-15) — To-dos page redesigned to the UX canvas
+
+The second page in Alex's Claude Design canvas ("To-dos Page Redesign"), applied
+the same way as v2.15: same data, same endpoints, the page rebuilt around when
+work is owed. `todoLine()` is untouched — the huddle segment, the 1:1 page and
+the initiative drawer still render with it. Both copies; harness green in both.
+
+- **Week card** leads: the completion % (the same numerator / denominator as the
+  huddle's To-do segment, `todoStats_` — never a second definition), a bar with
+  the target tick, "n done · m still owed · target 90% by the huddle in N days"
+  (`HUDDLE_DAY`), attention chips **late / blocked / carried** that filter, and a
+  **day spine** — Late · Mon…Sun · Later · No date — each a filter with a count.
+- **One compact row** per to-do: state glyph (○ ◐ ⏸, click to change), text +
+  "from SI-### · waiting on … · 2 notes", the carried nudge with its two doors,
+  steps badge, flags, owner, a **due chip in words** (3d late · today · tomorrow
+  · Thu 17 · Sep 29 · no date), a ⋯ menu (push 7 days, edit, schedule, make it a
+  rock, take it to IDS, drop) and ✓ Done.
+- **Grouped by when it's owed** (Late → Due today → Rest of this week → Next week
+  and later → No due date; empty groups hidden) or by **Owner** (toggle, remembered).
+  Toolbar: search, **Who** chips (lens holder tagged "(you)", "everyone" resets),
+  ⏸ Blocked, ×N+ carried, Clear, the shown / open count, Select.
+- **Adding never leaves the page.** A quick-add line at the top of the list: Enter
+  adds for the lens holder, due next Monday; with no lens (or "Full form") it opens
+  the **New to-do sheet** — the shared composer (same duplicate warning, same
+  one-owner-each fan-out) with date shortcuts (Today · Tomorrow · Friday · Next
+  Monday), an owner hint, ↻ weekly; Enter adds and keeps the sheet open. **+ New
+  to-do** in the header and the `n` hotkey open the same sheet.
+- **Drawer** (right-hand sheet) per to-do: owner, state pill, due in words, the
+  source reference, waiting-on banner, steps (tick / add / delete), the trail with
+  a Post box, Edit (text, owner, due, note, ↻) and a footer: ✓ Done · Push · Make
+  it a rock · Take it to IDS · Drop. Done / drop closes it.
+- **Done this week** folds away under the list; reopen is the only action.
+  **Bulk bar docks** to the bottom of the window while anything is ticked.
+- Rows on this page are not `todoLine()` rows, so `spliceTodoRow_` now also
+  repaints this page and its drawer (`todoPageRefresh_`) whenever a row is
+  spliced elsewhere; step / note adds refocus inside the drawer.
+- Harness: the `l10_addTodoStep` / `l10_addTodoLog` stubs returned `step` / `entry`
+  where the server returns `row` (the old smoke never added one); fixed, and the
+  client now ignores a reply without a row instead of pushing `undefined`.
+- No schema change, no repair-tabs step. **Re-paste**: `L10Css`, `L10Js`.
 
 ## v2.15 (2026-09-15) — Strategy page redesigned to the UX canvas
 
