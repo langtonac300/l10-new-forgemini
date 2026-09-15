@@ -2774,6 +2774,16 @@ function l10_editInitiative(id, p) {
     if (ef && L10.INITIATIVE_EFFORTS.indexOf(ef) === -1) return { ok: false, error: 'Effort is S, M or L.' };
     u['Effort'] = ef;
   }
+  // The decision fields are editable only once the initiative IS decided —
+  // the archive buckets by Decided At, and back-dating a past test to the
+  // month it really happened is how the graveyard gets its history.
+  var init = l10InitFind_(id);
+  var decided = init && ['ADOPTED', 'KILLED'].indexOf(String(init['Stage'] || '').toUpperCase()) !== -1;
+  if (p.decidedAt !== undefined && decided) {
+    if (p.decidedAt && !l10DueOk_(p.decidedAt)) return { ok: false, error: 'Decided on must be a date (yyyy-mm-dd).' };
+    u['Decided At'] = String(p.decidedAt || '');
+  }
+  if (p.decision !== undefined && decided) u['Decision'] = String(p.decision || '').trim().slice(0, 500);
   if (!Object.keys(u).length) return { ok: true, id: id };
   u['Last Touched'] = l10Now_();
   if (!l10SetCells_(L10.TABS.INITIATIVES, id, u)) return { ok: false, error: 'Initiative ' + id + ' not found.' };
