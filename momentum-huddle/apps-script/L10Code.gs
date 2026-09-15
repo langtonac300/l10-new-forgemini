@@ -2672,8 +2672,10 @@ function l10InitiativeTouch_(id, note, who) {
 }
 
 // The two anti-decay rules, server twin of initFlags_ (L10Js.html) — change
-// one, change both. stale: nothing touched it in INITIATIVE_STALE_DAYS;
-// noNext: piloting/rolling out with zero open to-dos.
+// one, change both. noNext: piloting/rolling out with zero open to-dos.
+// stale: the lead's own Next Check-in date has passed (any live stage); with
+// no date set, the INITIATIVE_STALE_DAYS timer applies ONLY while piloting or
+// rolling out — an idea parked during goal-setting is never nagged.
 function l10InitiativeFlags_(init, todos, staleDays, today) {
   var stage = String(init['Stage'] || '').toUpperCase();
   var live = L10.INITIATIVE_LIVE_STAGES.indexOf(stage) !== -1;
@@ -2686,12 +2688,17 @@ function l10InitiativeFlags_(init, todos, staleDays, today) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(touched)) {
     days = Math.floor((new Date(today + 'T12:00:00').getTime() - new Date(touched + 'T12:00:00').getTime()) / 86400000);
   }
+  var moving = stage === 'PILOTING' || stage === 'ROLLING OUT';
+  var next = String(init['Next Check-in'] || '').slice(0, 10);
+  var overdue = live && /^\d{4}-\d{2}-\d{2}$/.test(next) && next < today;
   return {
     live: live,
     openTodos: openTodos,
     days: days,
-    stale: live && days !== null && days >= staleDays,
-    noNext: (stage === 'PILOTING' || stage === 'ROLLING OUT') && openTodos === 0
+    nextCheck: /^\d{4}-\d{2}-\d{2}$/.test(next) ? next : '',
+    overdue: overdue,
+    stale: overdue || (live && moving && !next && days !== null && days >= staleDays),
+    noNext: moving && openTodos === 0
   };
 }
 function l10InitStaleDays_(config) {
@@ -2706,13 +2713,23 @@ function l10_addInitiative(p) {
   var now = l10Now_(), today = l10Today_();
   var stage = String(p.stage || 'IDEA').toUpperCase();
   if (L10.INITIATIVE_STAGES.indexOf(stage) === -1) stage = 'IDEA';
-  var row = l10Append_(L10.TABS.INITIATIVES, [
-    id, String(p.title).trim().slice(0, 200), String(p.thesis || '').trim().slice(0, 500),
-    String(p.lead || '').trim(), String(p.shift || '').trim(), stage,
-    String(p.origin || '').trim().slice(0, 200), String(p.quarter || '').trim().slice(0, 20),
-    String(p.notes || '').trim().slice(0, 1000), today, now, '', ''
-  ]);
-  row['Last Touched'] = now;
+  var effort = String(p.effort || '').trim().toUpperCase();
+  if (L10.INITIATIVE_EFFORTS.indexOf(effort) === -1) effort = '';
+  var vals = {
+    'ID': id, 'Initiative': String(p.title).trim().slice(0, 200), 'Thesis': String(p.thesis || '').trim().slice(0, 500),
+    'Lead': String(p.lead || '').trim(), 'Shift': String(p.shift || '').trim().slice(0, 60), 'Stage': stage,
+    'Origin': String(p.origin || '').trim().slice(0, 200), 'Target Quarter': String(p.quarter || '').trim().slice(0, 20),
+    'Notes': String(p.notes || '').trim().slice(0, 1000), 'Created': today, 'Last Touched': now,
+    'Decided At': '', 'Decision': '',
+    'Next Check-in': l10DueOk_(p.nextCheck) ? String(p.nextCheck) : '',
+    'Expected Impact': String(p.impact || '').trim().slice(0, 300), 'Effort': effort
+  };
+  // Write by the sheet's OWN headers so a pre-repair tab (13 columns) still
+  // gets a row exactly as wide as it is — same rule as l10_addRock.
+  var headers = l10ReadTab_(L10.TABS.INITIATIVES).headers;
+  if (!headers.length) headers = L10.HEADERS.L10_Initiatives;
+  var row = l10Append_(L10.TABS.INITIATIVES, headers.map(function (h) { return vals[h] === undefined ? '' : vals[h]; }));
+  Object.keys(vals).forEach(function (h) { row[h] = vals[h]; });
   // One matrix cell per account named on the form, all NOT STARTED.
   var cells = [];
   (Array.isArray(p.accounts) ? p.accounts : String(p.accounts || '').split(','))
@@ -2741,6 +2758,22 @@ function l10_editInitiative(id, p) {
   if (p.origin !== undefined) u['Origin'] = String(p.origin || '').trim().slice(0, 200);
   if (p.quarter !== undefined) u['Target Quarter'] = String(p.quarter || '').trim().slice(0, 20);
   if (p.notes !== undefined) u['Notes'] = String(p.notes || '').trim().slice(0, 1000);
+  // The appended columns need the repaired tab — fail loudly, never a silent
+  // drop (l10WriteRowCells_ skips headers it can't find).
+  var headers = l10ReadTab_(L10.TABS.INITIATIVES).headers;
+  if (p.nextCheck !== undefined || p.impact !== undefined || p.effort !== undefined) {
+    if (headers.indexOf('Next Check-in') === -1) return { ok: false, error: L10.TABS.INITIATIVES + ' has no Next Check-in column yet — run Setup / repair tabs once, then retry.' };
+  }
+  if (p.nextCheck !== undefined) {
+    if (p.nextCheck && !l10DueOk_(p.nextCheck)) return { ok: false, error: 'Next check-in must be a date (yyyy-mm-dd).' };
+    u['Next Check-in'] = String(p.nextCheck || '');
+  }
+  if (p.impact !== undefined) u['Expected Impact'] = String(p.impact || '').trim().slice(0, 300);
+  if (p.effort !== undefined) {
+    var ef = String(p.effort || '').trim().toUpperCase();
+    if (ef && L10.INITIATIVE_EFFORTS.indexOf(ef) === -1) return { ok: false, error: 'Effort is S, M or L.' };
+    u['Effort'] = ef;
+  }
   if (!Object.keys(u).length) return { ok: true, id: id };
   u['Last Touched'] = l10Now_();
   if (!l10SetCells_(L10.TABS.INITIATIVES, id, u)) return { ok: false, error: 'Initiative ' + id + ' not found.' };

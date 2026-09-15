@@ -3548,16 +3548,24 @@ function initFlags_(init) {
   var touched = initTouched_(init);
   var days = /^\d{4}-\d{2}-\d{2}$/.test(touched) ?
       Math.floor((new Date(localToday() + 'T12:00:00').getTime() - new Date(touched + 'T12:00:00').getTime()) / 86400000) : null;
+  // Server twin: l10InitiativeFlags_. The lead's own Next Check-in date wins;
+  // with none set, the timer applies ONLY while piloting / rolling out — an
+  // idea parked during goal-setting is never nagged.
+  var moving = stage === 'PILOTING' || stage === 'ROLLING OUT';
+  var next = d10(init['Next Check-in'] || '');
+  var overdue = live && /^\d{4}-\d{2}-\d{2}$/.test(next) && next < localToday();
   return {
     live: live, stage: stage, openTodos: openTodos, days: days, touched: touched,
-    stale: live && days !== null && days >= initStaleDays_(),
-    noNext: (stage === 'PILOTING' || stage === 'ROLLING OUT') && openTodos === 0
+    nextCheck: /^\d{4}-\d{2}-\d{2}$/.test(next) ? next : '', overdue: overdue,
+    stale: overdue || (live && moving && !next && days !== null && days >= initStaleDays_()),
+    noNext: moving && openTodos === 0
   };
 }
 function initFlagsHtml_(f) {
   var out = '';
   if (f.noNext) out += ' <span class="tag stale" title="Piloting or rolling out with no open to-do — give it a next action">⚠ no next action</span>';
-  if (f.stale) out += ' <span class="tag warn" title="Nothing has touched this initiative in ' + f.days + ' days">⏳ stale ' + f.days + 'd</span>';
+  if (f.overdue) out += ' <span class="tag warn" title="The check-in date the lead set has passed">⏳ check-in overdue ' + esc(f.nextCheck) + '</span>';
+  else if (f.stale) out += ' <span class="tag warn" title="Piloting or rolling out and nothing has touched it in ' + f.days + ' days — set a next check-in date to run it on your own clock">⏳ stale ' + f.days + 'd</span>';
   return out;
 }
 function initStagePill_(init, interactive) {
@@ -3584,7 +3592,10 @@ function initCardHtml_(init) {
   return '<div class="si-card' + (f.stale || f.noNext ? ' si-flagged' : '') + '" data-sicard="' + esc(id) + '">' +
       '<div class="si-card-t"><button type="button" class="si-open" data-siopen="' + esc(id) + '">' + esc(init['Initiative']) + '</button></div>' +
       (init['Thesis'] ? '<div class="si-thesis">' + esc(init['Thesis']) + '</div>' : '') +
+      (init['Expected Impact'] ? '<div class="si-impact"><b>Expected:</b> ' + esc(init['Expected Impact']) + '</div>' : '') +
       '<div class="si-card-m">' + who(init['Lead']) + ' ' + tagList(init['Shift'], 'shift') +
+        (init['Effort'] ? '<span class="tag" title="Effort">' + esc(init['Effort']) + ' effort</span>' : '') +
+        (f.nextCheck && !f.overdue ? '<span class="tag" title="Next check-in the lead set">📅 ' + esc(f.nextCheck) + '</span>' : '') +
         (init['Target Quarter'] ? '<span class="tag">' + esc(init['Target Quarter']) + '</span>' : '') +
         initFlagsHtml_(f) + '</div>' +
       '<div class="si-card-m">' + (initCells_(id).length ? initCellSummary_(id) : '<span class="muted">no accounts yet</span>') +
@@ -3610,6 +3621,25 @@ function initBoardHtml_(live, decided) {
   }
   return html;
 }
+// Board grouped by shift / theme instead of stage — the view for goal-setting,
+// when the question is "what do we have under each theme", not "how far along".
+function initBoardByShiftHtml_(live, decided) {
+  var lanes = {}, order = [];
+  live.forEach(function (r) {
+    var k = String(r['Shift'] || '').trim() || '— no shift yet';
+    if (!lanes[k]) { lanes[k] = []; order.push(k); }
+    lanes[k].push(r);
+  });
+  order.sort(function (a, b) { return a.indexOf('—') === 0 ? 1 : b.indexOf('—') === 0 ? -1 : (a < b ? -1 : 1); });
+  var html = '<div class="si-board si-board--lanes">' + (order.length ? order.map(function (k) {
+    return '<div class="si-col"><div class="si-col-h">' + esc(k) + ' <span class="td-group-n">' + lanes[k].length + '</span></div>' +
+        lanes[k].map(initCardHtml_).join('') + '</div>';
+  }).join('') : '<div class="si-col"><div class="si-col-empty">—</div></div>') + '</div>';
+  if (decided.length) html += initBoardHtml_([], decided);
+  return html;
+}
+function siGroupGet_() { try { return localStorage.getItem('l10SiGroup') === 'shift' ? 'shift' : 'stage'; } catch (e) { return 'stage'; } }
+function siGroupSet_(v) { try { localStorage.setItem('l10SiGroup', v); } catch (e) {} }
 function initMatrixHtml_(live, accounts) {
   if (!accounts.length) return '<div class="card"><div class="empty">No account tags — set ACCOUNT_TAGS in L10_Config.</div></div>';
   // Accounts already on a cell but no longer in ACCOUNT_TAGS still get a column
@@ -3657,6 +3687,10 @@ function initAddCardHtml_() {
       '<button class="btn js-si-add">Add</button></div>' +
       '<div class="row row--follow"><div class="field field--tight f-2"><input class="js-si-thesis" value="' + esc(c.thesis || '') + '" placeholder="thesis — what we believe, and why it should transfer (one sentence)"></div>' +
       '<div class="field field--tight f-1"><input class="js-si-origin" value="' + esc(c.origin || '') + '" placeholder="origin — where it was proven (account, hub id…)"></div></div>' +
+      '<div class="row row--follow"><div class="field field--tight f-2"><input class="js-si-impact" value="' + esc(c.impact || '') + '" placeholder="expected impact — what the business gets, in its own terms (e.g. −15% CPL on Brady CA ≈ $40K/yr)"></div>' +
+      '<div class="field field--tight"><select class="js-si-effort" title="Effort"><option value="">effort…</option>' +
+        ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (c.effort === e ? ' selected' : '') + '>' + e + ' effort</option>'; }).join('') + '</select></div>' +
+      '<div class="field field--tight"><input class="js-si-next" type="date" value="' + esc(c.nextCheck || '') + '" title="Next check-in — the date you want to look at this again (optional)"></div></div>' +
       '<div class="ownerpick"><span class="ownerpick-lbl">Accounts in scope</span>' + initAccounts_().map(function (a) {
         var on = c.accounts.indexOf(a) !== -1;
         return '<button type="button" class="pill pill--btn pill--sm js-si-acct' + (on ? ' on' : '') + '" data-acct="' + esc(a) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(a) + '</button>';
@@ -3688,7 +3722,7 @@ function renderStrategy() {
   var all = initRows_();
   var live = all.filter(function (r) { return !!INIT_LIVE[String(r['Stage'] || 'IDEA').toUpperCase()]; });
   var decided = all.filter(function (r) { return !INIT_LIVE[String(r['Stage'] || 'IDEA').toUpperCase()]; });
-  var view = siViewGet_();
+  var view = siViewGet_(), group = siGroupGet_();
   var html = '<h2 class="page-title">Strategy</h2><p class="page-sub page-sub--tight">Cross-account initiatives — ' +
       'the bets that span more than one account and more than one quarter. Not part of the weekly huddle: this page ' +
       'is where the strategist works between meetings. Each initiative spawns ordinary to-dos, sends tests to the ' +
@@ -3701,12 +3735,18 @@ function renderStrategy() {
   html += initStripHtml_(live);
   html += '<div class="row row--mid mb-3 si-view"><span class="ownerpick-lbl">View</span>' +
       '<button type="button" class="pill pill--btn pill--sm' + (view === 'board' ? ' on' : '') + '" data-siview="board" aria-pressed="' + (view === 'board') + '">▦ Board</button>' +
-      '<button type="button" class="pill pill--btn pill--sm' + (view === 'matrix' ? ' on' : '') + '" data-siview="matrix" aria-pressed="' + (view === 'matrix') + '">▤ Matrix</button></div>';
+      '<button type="button" class="pill pill--btn pill--sm' + (view === 'matrix' ? ' on' : '') + '" data-siview="matrix" aria-pressed="' + (view === 'matrix') + '">▤ Matrix</button>' +
+      (view === 'board' ? '<span class="ownerpick-lbl si-group-lbl">Group by</span>' +
+        '<button type="button" class="pill pill--btn pill--sm' + (group === 'stage' ? ' on' : '') + '" data-sigroup="stage" aria-pressed="' + (group === 'stage') + '">Stage</button>' +
+        '<button type="button" class="pill pill--btn pill--sm' + (group === 'shift' ? ' on' : '') + '" data-sigroup="shift" aria-pressed="' + (group === 'shift') + '">Shift / theme</button>' : '') +
+      '</div>';
   if (!all.length) {
     html += '<div class="card"><div class="empty"><div class="e">🧭</div>No initiatives yet — add the first one below. A good first row is the thing that already worked somewhere and should be tried elsewhere.</div></div>';
   } else if (view === 'matrix') {
     html += initMatrixHtml_(live, initAccounts_());
     if (decided.length) html += initBoardHtml_([], decided);
+  } else if (group === 'shift') {
+    html += initBoardByShiftHtml_(live, decided);
   } else {
     html += initBoardHtml_(live, decided);
   }
@@ -3717,6 +3757,9 @@ function renderStrategy() {
 function wireStrategy_(scope) {
   scope.querySelectorAll('[data-siview]').forEach(function (btn) {
     btn.addEventListener('click', function () { siViewSet_(btn.dataset.siview); renderStrategy(); });
+  });
+  scope.querySelectorAll('[data-sigroup]').forEach(function (btn) {
+    btn.addEventListener('click', function () { siGroupSet_(btn.dataset.sigroup); renderStrategy(); });
   });
   scope.querySelectorAll('[data-siopen]').forEach(function (btn) {
     btn.addEventListener('click', function () { openInitiative(btn.dataset.siopen); });
@@ -3733,10 +3776,14 @@ function wireStrategy_(scope) {
   // Add form — text rides in state so a re-render (a cell flip elsewhere on the
   // page) can't eat a half-typed initiative.
   var c = state.siCompose;
-  ['title', 'thesis', 'origin'].forEach(function (k) {
+  ['title', 'thesis', 'origin', 'impact'].forEach(function (k) {
     var el = scope.querySelector('.js-si-' + k);
     if (el) el.addEventListener('input', function () { c[k] = el.value; });
   });
+  var effortSel = scope.querySelector('.js-si-effort');
+  if (effortSel) effortSel.addEventListener('change', function () { c.effort = effortSel.value; });
+  var nextIn = scope.querySelector('.js-si-next');
+  if (nextIn) nextIn.addEventListener('change', function () { c.nextCheck = nextIn.value; });
   var leadSel = scope.querySelector('.js-si-lead');
   if (leadSel) leadSel.addEventListener('change', function () { c.lead = leadSel.value; });
   var shiftIn = scope.querySelector('.js-si-shift');
@@ -3761,6 +3808,8 @@ function wireStrategy_(scope) {
         title: title, thesis: card.querySelector('.js-si-thesis').value.trim(),
         origin: card.querySelector('.js-si-origin').value.trim(),
         lead: card.querySelector('.js-si-lead').value, shift: card.querySelector('.js-si-shift').value,
+        impact: card.querySelector('.js-si-impact').value.trim(), effort: card.querySelector('.js-si-effort').value,
+        nextCheck: card.querySelector('.js-si-next').value,
         accounts: c.accounts.slice()
       }).then(function (res) {
         if (!res || res.ok === false) { add.disabled = false; errToast(res || 'Add failed'); return; }
@@ -3777,7 +3826,7 @@ function wireStrategy_(scope) {
       }).catch(function (e) { add.disabled = false; errToast(e); });
     };
     add.addEventListener('click', submit);
-    ['.js-si-title', '.js-si-thesis', '.js-si-origin'].forEach(function (sel) {
+    ['.js-si-title', '.js-si-thesis', '.js-si-origin', '.js-si-impact'].forEach(function (sel) {
       var el = scope.querySelector(sel);
       if (el) el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); submit(); } });
     });
@@ -3795,6 +3844,22 @@ function initRerender_() {
   renderOneOnOne();
   if (state.siOpen) renderInitiativeDrawer_();
 }
+// A multi-line popover for the verdict — the learning is the most important
+// sentence in the record and deserves more than a one-line input.
+function promptText_(anchor, label, initial, cb) {
+  var pop = mountPop_(anchor,
+      '<label class="l10pop-lbl">' + esc(label) + '</label>' +
+      '<textarea class="l10pop-ta" rows="4" placeholder="what we learned, and why — this is what the record keeps">' + esc(initial || '') + '</textarea>' +
+      '<div class="l10pop-row"><button type="button" class="btn mini l10pop-ok">Save</button>' +
+      '<button type="button" class="btn mini subtle l10pop-cancel">Cancel</button>' +
+      '<span class="help help--after">Ctrl/⌘+Enter saves</span></div>');
+  var ta = pop.querySelector('.l10pop-ta');
+  var done = function () { var v = ta.value.trim(); closePop_(); cb(v); };
+  pop.querySelector('.l10pop-ok').addEventListener('click', done);
+  pop.querySelector('.l10pop-cancel').addEventListener('click', closePop_);
+  ta.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); done(); } });
+  ta.focus();
+}
 function openInitStageMenu_(anchor, id) {
   var init = initById_(id);
   if (!init) return;
@@ -3805,7 +3870,7 @@ function openInitStageMenu_(anchor, id) {
   openMenu_(anchor, items, function (stage) {
     if (stage === 'ADOPTED' || stage === 'KILLED') {
       // A decision carries its one-line verdict — that line is the learning.
-      promptLine_(anchor, stage === 'ADOPTED' ? 'Adopted — the verdict in one line' : 'Killed — why, in one line', '', function (v) {
+      promptText_(anchor, stage === 'ADOPTED' ? 'Adopted — the verdict' : 'Killed — why', '', function (v) {
         setInitStage_(id, stage, v);
       });
     } else {
@@ -3925,7 +3990,8 @@ function renderInitiativeDrawer_() {
       '<div class="m">' + who(init['Lead']) + ' ' + tagList(init['Shift'], 'shift') +
         (init['Target Quarter'] ? '<span class="tag">' + esc(init['Target Quarter']) + '</span>' : '') +
         ' ' + initStagePill_(init, true) + initFlagsHtml_(f) +
-        ' <span class="muted">· last touched ' + esc(f.touched || '—') + '</span></div></div>' +
+        ' <span class="muted">· last touched ' + esc(f.touched || '—') + '</span>' +
+        (f.nextCheck ? ' <span class="muted">· next check-in ' + esc(f.nextCheck) + '</span>' : '') + '</div></div>' +
       '<div class="si-head-acts">' +
         (editing ? '' : '<button class="btn mini subtle" id="si-edit">✎ Edit</button>') +
         '<button class="btn subtle" id="si-close">✕ Close</button></div></div>';
@@ -3937,6 +4003,11 @@ function renderInitiativeDrawer_() {
         }).join('') + '</select></div>' +
         '<div class="field f-1"><label>Shift / theme</label><input class="js-sie-shift" list="si-shift-list" value="' + esc(init['Shift'] || '') + '" placeholder="free text — or pick one of the current four"></div>' + initShiftListHtml_() +
         '<div class="field f-1"><label>Target quarter</label><input class="js-sie-quarter" value="' + esc(init['Target Quarter'] || '') + '" placeholder="FY27 Q2"></div></div>' +
+        '<div class="row">' +
+        '<div class="field f-1"><label>Next check-in <span class="muted">(your own clock — the stale flag follows this date)</span></label><input class="js-sie-next" type="date" value="' + esc(d10(init['Next Check-in'] || '')) + '"></div>' +
+        '<div class="field f-1"><label>Effort</label><select class="js-sie-effort"><option value="">—</option>' +
+          ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (String(init['Effort'] || '') === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div></div>' +
+        initFieldRow_('js-sie-impact', 'Expected impact', init['Expected Impact'], 'what the business gets, in its own terms') +
         initFieldRow_('js-sie-thesis', 'Thesis', init['Thesis'], 'what we believe, and why it should transfer') +
         initFieldRow_('js-sie-origin', 'Origin', init['Origin'], 'where it was proven') +
         '<div class="field"><label>Notes</label><textarea class="js-sie-notes">' + esc(init['Notes'] || '') + '</textarea></div>' +
@@ -3944,6 +4015,7 @@ function renderInitiativeDrawer_() {
   } else {
     body = '<div class="ctx-sect">' +
         (init['Thesis'] ? '<div class="ids-step"><span class="num">◎</span> Thesis</div><div class="ctx-notes">' + esc(init['Thesis']) + '</div>' : '') +
+        (init['Expected Impact'] ? '<div class="m mt-2"><b>Expected impact:</b> ' + esc(init['Expected Impact']) + (init['Effort'] ? ' <span class="tag">' + esc(init['Effort']) + ' effort</span>' : '') + '</div>' : (init['Effort'] ? '<div class="m mt-2"><span class="tag">' + esc(init['Effort']) + ' effort</span></div>' : '')) +
         (init['Origin'] ? '<div class="m mt-2"><b>Origin:</b> ' + linkify(init['Origin']) + '</div>' : '') +
         (init['Notes'] ? '<div class="m mt-2">' + linkify(init['Notes']) + '</div>' : '') +
         (stage === 'ADOPTED' || stage === 'KILLED' ?
@@ -4013,7 +4085,9 @@ function wireInitiativeDrawer_(o, init) {
       title: o.querySelector('.js-sie-title').value.trim(), lead: o.querySelector('.js-sie-lead').value,
       shift: o.querySelector('.js-sie-shift').value, quarter: o.querySelector('.js-sie-quarter').value.trim(),
       thesis: o.querySelector('.js-sie-thesis').value.trim(), origin: o.querySelector('.js-sie-origin').value.trim(),
-      notes: o.querySelector('.js-sie-notes').value.trim()
+      notes: o.querySelector('.js-sie-notes').value.trim(),
+      nextCheck: o.querySelector('.js-sie-next').value, effort: o.querySelector('.js-sie-effort').value,
+      impact: o.querySelector('.js-sie-impact').value.trim()
     };
     if (!p.title) { notify('Give the initiative a title.', 'warn'); return; }
     save.disabled = true;
@@ -4021,6 +4095,7 @@ function wireInitiativeDrawer_(o, init) {
       if (!res || res.ok === false) { save.disabled = false; errToast(res || 'Save failed'); return; }
       init['Initiative'] = p.title; init['Lead'] = p.lead; init['Shift'] = p.shift; init['Target Quarter'] = p.quarter;
       init['Thesis'] = p.thesis; init['Origin'] = p.origin; init['Notes'] = p.notes;
+      init['Next Check-in'] = p.nextCheck; init['Effort'] = p.effort; init['Expected Impact'] = p.impact;
       initApplyTouch_(id, res);
       state.siEdit = false;
       notify('Saved', 'ok');

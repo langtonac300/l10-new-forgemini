@@ -148,14 +148,17 @@ function l10MailInitiativesHtml_(rows, ctx) {
       .map(function (st) { return counts[st] + ' ' + st.toLowerCase(); }).join(' · ');
     var flags = '';
     if (f.noNext) flags += ' <span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;background:#fef3f2;color:#dc2626;">⚠ NO NEXT ACTION</span>';
-    if (f.stale) flags += ' <span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;background:#fffaeb;color:#93580c;">⏳ STALE ' + f.days + 'd</span>';
+    if (f.stale) flags += ' <span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;background:#fffaeb;color:#93580c;">⏳ ' + (f.overdue ? 'CHECK-IN OVERDUE (' + esc(f.nextCheck) + ')' : 'STALE ' + f.days + 'd') + '</span>';
     var lead = String(r['Lead'] || '').trim();
     return '<div style="margin:8px 0;padding:10px 12px;border:1px solid ' + M.LINE + ';border-left:3px solid ' + (f.noNext || f.stale ? '#d97706' : '#15803d') + ';border-radius:8px;">' +
       '<div style="font-weight:600;color:' + M.INK + ';font-size:14px;">' + esc(r['Initiative']) + flags + '</div>' +
       '<div style="margin-top:3px;color:' + M.MUTED + ';font-size:12px;">' + esc(String(r['Stage'] || '').toLowerCase()) +
         (lead ? ' · ' + esc(lead) : '') + (r['Shift'] ? ' · ' + esc(r['Shift']) : '') +
         ' · ' + f.openTodos + ' open to-do' + (f.openTodos === 1 ? '' : 's') +
+        (f.nextCheck && !f.overdue ? ' · next check-in ' + esc(f.nextCheck) : '') +
+        (r['Effort'] ? ' · effort ' + esc(r['Effort']) : '') +
         (acctLine ? '<br>' + esc(acctLine) : '') + '</div>' +
+      (r['Expected Impact'] ? '<div style="margin-top:4px;color:' + M.INK + ';font-size:13px;"><b>Expected:</b> ' + esc(r['Expected Impact']) + '</div>' : '') +
       (r['Thesis'] ? '<div style="margin-top:4px;color:' + M.INK + ';font-size:13px;">' + esc(r['Thesis']) + '</div>' : '') +
       '</div>';
   }).join('');

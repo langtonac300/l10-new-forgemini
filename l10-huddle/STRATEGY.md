@@ -40,7 +40,10 @@ with the page showing a "run Setup / repair tabs" notice; nothing else breaks.
 | `Notes` | Free text, links allowed |
 | `Created` | date |
 | `Last Touched` | `yyyy-MM-dd HH:mm` — bumped by **every** write against the initiative (edit, stage, cell, log note, to-do added or completed). Drives the staleness flag |
-| `Decided At` / `Decision` | Stamped when the stage lands on ADOPTED or KILLED; `Decision` is the one-line verdict |
+| `Decided At` / `Decision` | Stamped when the stage lands on ADOPTED or KILLED; `Decision` is the verdict — a multi-line text box, this is the learning the record keeps |
+| `Next Check-in` | Optional date the lead sets — "look at this again on…". When set, it is the only staleness clock (v2.14.2) |
+| `Expected Impact` | One line, in the business's own terms ("−15% CPL on Brady CA ≈ $40K/yr") — the pitch line for prioritising ideas (v2.14.2) |
+| `Effort` | `S` / `M` / `L` (v2.14.2) |
 
 ### `L10_Initiative_Accounts` — the matrix cells (`SA-###`)
 
@@ -93,7 +96,8 @@ Computed the same way on the client (`initFlags_`) and the server (`l10Initiativ
 | Flag | Rule | Where it shows |
 |---|---|---|
 | **No next action** | Stage is PILOTING or ROLLING OUT and the initiative has zero open to-dos | badge on the card (icon + words), matrix row, 1:1 page, digest |
-| **Stale Nd** | `today − Last Touched ≥ INITIATIVE_STALE_DAYS` and stage is not ADOPTED/KILLED | same |
+| **Check-in overdue** | The lead's own `Next Check-in` date has passed (any live stage) | same |
+| **Stale Nd** | Only when no `Next Check-in` is set **and** stage is PILOTING or ROLLING OUT: `today − Last Touched ≥ INITIATIVE_STALE_DAYS`. Ideas and scoping are never timer-flagged — an idea parked during goal-setting is not a failure | same |
 
 Surfaces, none of them the huddle:
 - **Strategy page** summary strip: moving / stale / no next action counts.
@@ -109,13 +113,16 @@ brief strip (Alex's call, off for v1), auto-pulling results from Google Ads.
 
 1. Title + sub, summary strip.
 2. View toggle **Board** / **Matrix** (client-only, remembered per browser).
-3. **Board**: one column per live stage (Idea, Scoping, Piloting, Rolling out); a
-   collapsed **Decided** list for Adopted / Killed. Card = title · lead · shift tag ·
-   thesis · flags · account-state summary · stage pill (menu) · Open.
+3. **Board**: grouped by **stage** (one column per live stage: Idea, Scoping, Piloting,
+   Rolling out) or by **shift / theme** (one lane per distinct Shift value — the
+   goal-setting view, v2.14.2); a collapsed **Decided** list for Adopted / Killed.
+   Card = title · thesis · expected impact · lead · shift tag · effort · next check-in ·
+   flags · account-state summary · stage pill (menu) · Open.
 4. **Matrix**: rows = live initiatives, columns = `ACCOUNT_TAGS`. Each cell shows an
    icon + word (`— not started`, `◐ testing`, `✓ adopted`, `✕ rejected`, `n/a`);
    clicking opens a state picker. Colour is secondary to the glyph (Alex is colorblind).
-5. **Add an initiative** card: title, lead, shift, accounts (multi-chip), thesis, origin.
+5. **Add an initiative** card: title, lead, shift (free text), thesis, origin, expected
+   impact, effort, next check-in, accounts (multi-chip).
 6. **Drawer** (overlay, editable): thesis / origin / quarter / notes; per-account rows
    with state, note, **Make it a test** (→ hub Ideas with the initiative id in the
    note), **Promote to rock** (→ `L10_Rocks` with `Source = SI-###`); to-dos +
