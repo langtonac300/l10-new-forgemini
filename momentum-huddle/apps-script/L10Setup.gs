@@ -31,7 +31,12 @@ var L10 = {
     PLAYBOOK: 'L10_Playbook',
     NOTIFY: 'L10_Notify',
     DIGESTS: 'L10_Digests',
-    TEAM: 'L10_Team'
+    TEAM: 'L10_Team',
+    // Strategy page (v2.14): cross-account initiatives, their per-account
+    // rollout cells, and an append-only trail. Documented in the folder README.
+    INITIATIVES: 'L10_Initiatives',
+    INIT_ACCOUNTS: 'L10_Initiative_Accounts',
+    INIT_LOG: 'L10_Initiative_Log'
   },
   // Column-header strings double as row-object keys across the codebase (e.g.
   // r['Rock'], 'Segue (JSON)') — treat them as internal identifiers and do not
@@ -113,7 +118,20 @@ var L10 = {
     // 'Hour' is 0–23 in the SHEET timezone; 'Last Sent' ('yyyy-MM-dd HH', blank =
     // never) is the runner's idempotency stamp. 'ID' (D-001…) is the stable
     // edit/remove handle and lets a resave preserve 'Last Sent'.
-    L10_Digests: ['ID', 'Person', 'Label', 'Content', 'Frequency', 'Weekday', 'Hour', 'Enabled', 'Last Sent', 'Updated At']
+    L10_Digests: ['ID', 'Person', 'Label', 'Content', 'Frequency', 'Weekday', 'Hour', 'Enabled', 'Last Sent', 'Updated At'],
+    // Strategy initiatives (SI-###). 'Last Touched' is bumped by EVERY write
+    // against the initiative (edit, stage, cell, trail note, to-do added or
+    // completed) and drives the staleness flag; 'Decided At'/'Decision' are
+    // stamped when Stage lands on ADOPTED or KILLED.
+    L10_Initiatives: ['ID', 'Initiative', 'Thesis', 'Lead', 'Shift', 'Stage', 'Origin',
+      'Target Quarter', 'Notes', 'Created', 'Last Touched', 'Decided At', 'Decision'],
+    // The initiative × account matrix, one row per pair (upserted, never
+    // duplicated). 'Hub Ref' = the Experiment Hub id this cell's test lives
+    // under; 'Rock ID' = the priority created from this cell.
+    L10_Initiative_Accounts: ['ID', 'Initiative ID', 'Account', 'State', 'Hub Ref', 'Rock ID',
+      'Note', 'Updated At'],
+    // Append-only trail — same shape and rule as L10_Todo_Log.
+    L10_Initiative_Log: ['ID', 'Initiative ID', 'At', 'Who', 'Note']
   },
   ROCK_STATUSES: ['ON TRACK', 'OFF TRACK', 'DONE', 'DROPPED'],
   MILESTONE_STATUSES: ['OPEN', 'DONE'],
@@ -146,7 +164,13 @@ var L10 = {
   // Content is the set of sections a digest carries; Weekday labels are the
   // 3-letter day names the runner matches against.
   DIGEST_FREQS: ['DAILY', 'WEEKDAYS', 'WEEKLY'],
-  DIGEST_CONTENT: ['TODOS', 'ROCKS', 'SCORECARD', 'HEADLINES'],
+  DIGEST_CONTENT: ['TODOS', 'ROCKS', 'SCORECARD', 'HEADLINES', 'INITIATIVES'],
+  // Strategy initiatives: the four live stages in order, then the two decided
+  // ones. An initiative ends on a decision (ADOPTED/KILLED), never on a task count.
+  INITIATIVE_STAGES: ['IDEA', 'SCOPING', 'PILOTING', 'ROLLING OUT', 'ADOPTED', 'KILLED'],
+  INITIATIVE_LIVE_STAGES: ['IDEA', 'SCOPING', 'PILOTING', 'ROLLING OUT'],
+  // Per-account rollout state (the matrix cell).
+  INITIATIVE_ACCOUNT_STATES: ['NOT STARTED', 'TESTING', 'ADOPTED', 'REJECTED', 'N/A'],
   DIGEST_WEEKDAYS: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 };
 
@@ -168,6 +192,8 @@ var L10_CONFIG_DEFAULTS = [
     'Experiment Hub sheet URL — feeds the auto experiment counts on the metrics grid. Blank = off.'],
   ['ACCOUNT_TAGS', 'Brady US, Brady CA/MX/BR, Seton US, EMEDCO, Seton CA, PDC/Wristbands, Amazon, Social/Awareness, Marking, Cross-account',
     'Account tags for priorities + issues (comma-separated).'],
+  ['INITIATIVE_LEAD', 'Courtney', 'Strategy page: the roster name preselected as lead on a new initiative (the team strategist).'],
+  ['INITIATIVE_STALE_DAYS', 14, 'Strategy page: days since an initiative was last touched (any edit, cell change, note or to-do activity) before it is flagged STALE on the page, the 1:1 page and digests.'],
   ['ISSUE_CATEGORIES', 'Tracking/Data, Budget/Pacing, Platform/Engine, Creative/LP, Feeds, Process/SOP, Test idea, Other',
     'Issue categories (comma-separated).'],
   ['PARK_TARGETS', 'Courtney 1:1 (Wed 9:30), CJ 1:1 (Wed 10:30), Scott 1:1 (Fri 11:00), Stuart 1:1 (Thu 10:00), Seton/EMEDCO weekly (Wed 2:00)',
@@ -398,6 +424,24 @@ function l10ApplyValidations_(ss) {
   l10ListValidation_(is, 15, rows, L10.ISSUE_OUTCOMES);
   var br = ss.getSheetByName(L10.TABS.BRIEF);
   l10ListValidation_(br, 2, rows, L10.BRIEF_SECTIONS);
+  // Strategy tabs: Stage (col 6) on initiatives, State (col 4) on the matrix
+  // cells. Decided stages grey out in the tab the way DONE/DROPPED do elsewhere.
+  var si = ss.getSheetByName(L10.TABS.INITIATIVES);
+  if (si) {
+    l10ListValidation_(si, 6, rows, L10.INITIATIVE_STAGES);
+    l10StatusColors_(si, 6, {
+      'IDEA': '#fce8b2', 'SCOPING': '#fce8b2', 'PILOTING': '#c9daf8', 'ROLLING OUT': '#c9daf8',
+      'ADOPTED': '#b7e1cd', 'KILLED': '#d9d9d9'
+    });
+  }
+  var sa = ss.getSheetByName(L10.TABS.INIT_ACCOUNTS);
+  if (sa) {
+    l10ListValidation_(sa, 4, rows, L10.INITIATIVE_ACCOUNT_STATES);
+    l10StatusColors_(sa, 4, {
+      'NOT STARTED': '#f3f3f3', 'TESTING': '#c9daf8', 'ADOPTED': '#b7e1cd',
+      'REJECTED': '#f4c7c3', 'N/A': '#d9d9d9'
+    });
+  }
   var nt = ss.getSheetByName(L10.TABS.NOTIFY);
   l10ListValidation_(nt, 2, rows, ['YES', 'NO']);
   l10ListValidation_(nt, 3, rows, L10.RECAP_CADENCES);

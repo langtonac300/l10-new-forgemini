@@ -118,9 +118,49 @@ function l10MailContext_() {
     dueCutoff: l10Fmt_(c, 'yyyy-MM-dd'),          // this week + overdue
     todos: l10ReadTab_(L10.TABS.TODOS).rows,
     rocks: l10ReadTab_(L10.TABS.ROCKS).rows,
-    milestones: l10ReadTab_(L10.TABS.MILESTONES).rows
+    milestones: l10ReadTab_(L10.TABS.MILESTONES).rows,
+    // Strategy initiatives (v2.14) — zero rows on a workbook without the tabs.
+    initiatives: l10InitRows_(),
+    initiativeAccounts: l10ReadTab_(L10.TABS.INIT_ACCOUNTS).rows
   };
 }
+
+// Strategy initiatives as email cards — flagged ones first, flags as WORDS
+// (never colour alone), one line of per-account state under each. Shared by
+// the 1:1 prep pack (the lead's own) and the custom digest (everyone's live
+// ones). `rows` are raw L10_Initiatives rows; `ctx` is l10MailContext_.
+function l10MailInitiativesHtml_(rows, ctx) {
+  var M = L10_MAIL, esc = l10MailEsc_;
+  var staleDays = l10InitStaleDays_();
+  var live = rows.filter(function (r) {
+    return L10.INITIATIVE_LIVE_STAGES.indexOf(String(r['Stage'] || '').toUpperCase()) !== -1;
+  }).map(function (r) {
+    var f = l10InitiativeFlags_(r, ctx.todos, staleDays, ctx.today);
+    return { r: r, f: f, rank: (f.noNext ? 2 : 0) + (f.stale ? 1 : 0) };
+  }).sort(function (a, b) { return b.rank - a.rank; });
+  if (!live.length) return '<p style="margin:6px 0 0;color:' + M.MUTED + ';font-size:14px;">No live initiatives.</p>';
+  return live.map(function (x) {
+    var r = x.r, f = x.f, id = String(r['ID']).trim();
+    var cells = ctx.initiativeAccounts.filter(function (c) { return String(c['Initiative ID']).trim() === id; });
+    var counts = {};
+    cells.forEach(function (c) { var st = String(c['State'] || 'NOT STARTED').toUpperCase(); counts[st] = (counts[st] || 0) + 1; });
+    var acctLine = L10.INITIATIVE_ACCOUNT_STATES.filter(function (st) { return counts[st]; })
+      .map(function (st) { return counts[st] + ' ' + st.toLowerCase(); }).join(' · ');
+    var flags = '';
+    if (f.noNext) flags += ' <span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;background:#fef3f2;color:#dc2626;">⚠ NO NEXT ACTION</span>';
+    if (f.stale) flags += ' <span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;background:#fffaeb;color:#93580c;">⏳ STALE ' + f.days + 'd</span>';
+    var lead = String(r['Lead'] || '').trim();
+    return '<div style="margin:8px 0;padding:10px 12px;border:1px solid ' + M.LINE + ';border-left:3px solid ' + (f.noNext || f.stale ? '#d97706' : '#15803d') + ';border-radius:8px;">' +
+      '<div style="font-weight:600;color:' + M.INK + ';font-size:14px;">' + esc(r['Initiative']) + flags + '</div>' +
+      '<div style="margin-top:3px;color:' + M.MUTED + ';font-size:12px;">' + esc(String(r['Stage'] || '').toLowerCase()) +
+        (lead ? ' · ' + esc(lead) : '') + (r['Shift'] ? ' · ' + esc(r['Shift']) : '') +
+        ' · ' + f.openTodos + ' open to-do' + (f.openTodos === 1 ? '' : 's') +
+        (acctLine ? '<br>' + esc(acctLine) : '') + '</div>' +
+      (r['Thesis'] ? '<div style="margin-top:4px;color:' + M.INK + ';font-size:13px;">' + esc(r['Thesis']) + '</div>' : '') +
+      '</div>';
+  }).join('');
+}
+
 
 function l10MailDueFor_(person, ctx) {
   var nameLc = person.name.toLowerCase();
@@ -1003,7 +1043,11 @@ function l10SendOneOnOnePreps(force) {
     rocks: l10ReadTab_(L10.TABS.ROCKS).rows,
     milestones: l10ReadTab_(L10.TABS.MILESTONES).rows,
     issues: l10ReadTab_(L10.TABS.ISSUES).rows,
-    headlines: l10ReadTab_(L10.TABS.HEADLINES).rows.filter(l10HeadlineLive_)
+    headlines: l10ReadTab_(L10.TABS.HEADLINES).rows.filter(l10HeadlineLive_),
+    // Strategy initiatives (v2.14) for the "Initiatives they lead" section.
+    today: l10Today_(),
+    initiatives: l10InitRows_(),
+    initiativeAccounts: l10ReadTab_(L10.TABS.INIT_ACCOUNTS).rows
   };
   var fromName = String(config.EMAIL_FROM_NAME || 'Paid Media L10');
   var sent = 0;
@@ -1069,10 +1113,14 @@ function l10MailReportPrepHtml_(o, ctx) {
   var rocks = ctx.rocks.filter(function (r) { return String(r['Owner']).trim().toLowerCase() === nameLc && ['ON TRACK', 'OFF TRACK'].indexOf(String(r['Status']).toUpperCase()) !== -1; });
   var parked = ctx.issues.filter(function (i) { return String(i['Status']).toUpperCase() === 'PARKED' && String(i['Park With'] || '').toLowerCase().indexOf(nameLc) !== -1; });
   var theirOpen = ctx.issues.filter(function (i) { return String(i['Status']).toUpperCase() === 'OPEN' && String(i['Raised By'] || '').toLowerCase().indexOf(nameLc) !== -1; });
+  // Initiatives they lead (Strategy page) — only when they lead any, so the
+  // pack for someone outside that lane doesn't grow an empty section.
+  var leads = (ctx.initiatives || []).filter(function (r) { return String(r['Lead'] || '').trim().toLowerCase() === nameLc; });
   var inner =
     H.sect('Parked for this 1:1') + (H.issueList(parked) || H.empty('Nothing parked for this 1:1.')) +
     H.sect('Their open to-dos') + H.todoList(todos) +
     H.sect('Their rocks') + H.rockList(rocks, ctx.milestones) +
+    (leads.length ? H.sect('Initiatives they lead') + l10MailInitiativesHtml_(leads, ctx) : '') +
     H.sect('Open issues they raised') + (H.issueList(theirOpen) || H.empty('None.'));
   return H.shell('1:1 prep — ' + o.name, 'Quick agenda for your 1:1 today', inner);
 }
@@ -1257,7 +1305,7 @@ function l10DigestRuleMatches_(rule, now, force) {
 
 // Compact human label for a content set, canonical order: "To-dos + Scorecard".
 function l10DigestContentLabel_(set) {
-  var names = { TODOS: 'To-dos', ROCKS: 'Rocks', SCORECARD: 'Scorecard', HEADLINES: 'Headlines' };
+  var names = { TODOS: 'To-dos', ROCKS: 'Rocks', SCORECARD: 'Scorecard', HEADLINES: 'Headlines', INITIATIVES: 'Strategy' };
   var out = [];
   L10.DIGEST_CONTENT.forEach(function (t) { if (set.indexOf(t) !== -1) out.push(names[t] || t); });
   return out.length ? out.join(' + ') : 'Digest';
@@ -1308,6 +1356,14 @@ function l10DigestBuildHtml_(p, set, ctx, config, r) {
   if (set.indexOf('HEADLINES') !== -1) {
     has.HEADLINES = l10DigestHeadlinesHas_();
     parts.push(l10MailSect_('Headlines') + l10MailHeadlinesHtml_());
+  }
+  if (set.indexOf('INITIATIVES') !== -1) {
+    // Every live initiative, flagged (stale / no next action) first — the
+    // anti-decay surface that reaches an inbox without touching the huddle.
+    has.INITIATIVES = ctx.initiatives.some(function (r) {
+      return L10.INITIATIVE_LIVE_STAGES.indexOf(String(r['Stage'] || '').toUpperCase()) !== -1;
+    });
+    parts.push(l10MailSect_('Strategy initiatives') + l10MailInitiativesHtml_(ctx.initiatives, ctx));
   }
   var anyHas = Object.keys(has).some(function (k) { return has[k]; });
 

@@ -35,6 +35,7 @@ so the vocabulary lands upward too.
 > version history & current state → [`CHANGELOG.md`](./CHANGELOG.md) ·
 > email automation → [`EMAIL-AUTOMATION.md`](./EMAIL-AUTOMATION.md) ·
 > Jira sync → [`JIRA-SYNC.md`](./JIRA-SYNC.md) ·
+> Strategy tab (cross-account initiatives, outside the meeting) → [`STRATEGY.md`](./STRATEGY.md) ·
 > pre-huddle brief intake (doPost contract) → [`BRIEF-INTAKE.md`](./BRIEF-INTAKE.md) ·
 > calendar scheduling (Advanced Calendar Service) → [`CALENDAR.md`](./CALENDAR.md) ·
 > Gemini service layer → [`GEMINI.md`](./GEMINI.md).
@@ -69,6 +70,7 @@ never leading with an efficiency cut).
 | **BDay + fiscal chips** | Header shows "BDay n of N" (Stuart's per-business-day framing) and FY/Q on the Aug-1 fiscal calendar; rock due dates display their fiscal quarter |
 | **Events strip** | Seeded with the real calendar: M610/M710 promo, FY27 start, leads-table expiry, Grand Geneva, HR self-eval + year-end windows, the Jun 23 experiment end |
 | **Team-level to-do completion %** | The EOS ≥90% target is computed **for the team, not per person** — deliberate (PIP sensitivity); individual lists are visible, the score is collective |
+| **Strategy tab** (v2.14) | The one page that is **not** part of the meeting: the strategist's cross-account initiatives (`L10_Initiatives`), an initiative × account rollout **matrix** (`L10_Initiative_Accounts`, glyph + word per cell) and an append-only trail (`L10_Initiative_Log`). Each initiative spawns **ordinary to-dos** (`Source = SI-###`, so they ride the To-dos page, huddle review, Jira sync, chat and carry-over), sends a per-account test to the Experiment Hub, and promotes a rock. Two anti-decay flags — **no next action** (piloting / rolling out with zero open to-dos) and **stale Nd** (`INITIATIVE_STALE_DAYS`) — surface on the page, the lead's 1:1 page + prep email, and a `Strategy` digest section. See [`STRATEGY.md`](./STRATEGY.md) |
 | **Team photos** (v2.13) | Settings → Team lets each person add a picture to their avatar bubble; squared and shrunk in the browser, stored as a data URI in the new `L10_Team` tab, shown everywhere the initial was. Emails keep initials |
 | **Team stats page** (v2.12) | Nav tab with to-do completion analytics over a 4/13/26/52-week window: completion rate (done ÷ closed), done-by-next-huddle % (zero carry-overs), on-time %, median + p90 days to done, added/finished per week, backlog change, open-work aging, source mix (IDS / rock / email / direct / ↻ weekly), carry-over distribution, and the huddle-scored `Todo Done %` trend against target. The per-person table carries **counts and durations only — no per-person completion %** (the team-level rule above stands); `STATS_PER_PERSON = NO` hides it. Every tile states its numerator and denominator; a missing stamp shows `—`, never a filled-in value |
 | **To-dos as a daily work surface** (v2.7) | Alex: *"my team is spending 90% of their time in the to-do's section."* The page was built as a 5-minute meeting segment; v2.7 gives it desk-grade controls — **search + Mine/Overdue/Next-7-days filters**, a **top-of-page composer** with Enter-to-add and sticky owner/date, **snooze** (`+1d/+7d/next Monday`), **bulk actions** with a per-row Undo, **sub-steps** (`L10_Todo_Steps`, mirroring rock milestones incl. the last-step roll-up), an **append-only activity trail** (`L10_Todo_Log`), and a **phone breakpoint**. Row updates now splice one row instead of re-rendering six pages |
@@ -96,7 +98,8 @@ never leading with an efficiency cut).
 ┌─ MTD Spend workbook ────────────────────────────────────────────────┐
 │ L10_Meetings · L10_Scorecard (+_Data) · L10_Rocks (+_Milestones)    │
 │ L10_Todos (+_Steps, +_Log) · Issues · Headlines · Events · Config   │
-│ L10_Brief · L10_Playbook                             ← database     │
+│ L10_Brief · L10_Playbook · L10_Initiatives (+_Accounts, +_Log)      │
+│                                                       ← database     │
 │ Financial Dashboard v2  ← read-only source for utilization metrics  │
 └─────────────────────────────────────────────────────────────────────┘
         ▲ bound Apps Script (this folder)            ▲ read/write Ideas, read Experiments
@@ -189,7 +192,7 @@ SOP: [`../../processes/level10-huddle.md`](../../processes/level10-huddle.md).
 | File | What it is |
 |------|------------|
 | [`apps-script/L10Setup.gs`](./apps-script/L10Setup.gs) | Schema, menu builder (no onOpen!), validations, all seeds (scorecard, rocks, issues, events, config) |
-| [`apps-script/L10Code.gs`](./apps-script/L10Code.gs) | Server API: four-slice parallel boot, meeting lifecycle, week capture (RANGE/GA4/hub auto-pulls), the scorecard metric builder, rocks + milestones/todos/issues/headlines, Experiment Hub read+write, pre-huddle brief intake (`doPost`), settings, BDay + fiscal math |
+| [`apps-script/L10Code.gs`](./apps-script/L10Code.gs) | Server API: four-slice parallel boot, meeting lifecycle, week capture (RANGE/GA4/hub auto-pulls), the scorecard metric builder, rocks + milestones/todos/issues/headlines, strategy initiatives (v2.14: matrix cells, trail, hub send, promote), Experiment Hub read+write, pre-huddle brief intake (`doPost`), settings, BDay + fiscal math |
 | [`apps-script/L10Index.html`](./apps-script/L10Index.html) | App shell + the "How it runs" page (the L10 explainer + house rules) |
 | [`apps-script/L10Css.html`](./apps-script/L10Css.html) | Styles (Brady-blue accent, Inter, same component language as the Experiment Hub) |
 | [`apps-script/L10Js.html`](./apps-script/L10Js.html) | The SPA: huddle runner, scorecard grid + sparklines + in-app metric builder, rock milestone timelines, the calm IDS accordion (peek + evidence rail + three solve doors incl. 🧪 Make-it-a-test) + turn-order voting + issue-context modal, pre-huddle brief docket, the Settings page, history |

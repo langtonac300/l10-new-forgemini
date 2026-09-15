@@ -5,7 +5,61 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.13 (2026-09-01)** · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.14 (2026-09-15)** · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.14 (2026-09-15) — Strategy tab: cross-account initiatives, outside the meeting
+
+Courtney's promotion to team strategist created work the app had no home for:
+bets that span several accounts and more than one quarter ("we should test into
+X", "this worked on Brady US, port it to Seton"). Rocks are one owner + one
+quarter; the Experiment Hub is one test + one account. The **Strategy** page
+adds the object above both — the initiative — and keeps it deliberately
+**off the huddle agenda**. Full spec: [`STRATEGY.md`](./STRATEGY.md).
+
+- **Three new tabs**, created by **Setup / repair tabs**: `L10_Initiatives`
+  (`SI-###`: title, thesis, lead, Shift, Stage, origin, target quarter, notes,
+  `Last Touched`, `Decided At` + `Decision`), `L10_Initiative_Accounts` (the
+  initiative × account matrix, one upserted row per pair: State, Hub Ref, Rock
+  ID, Note) and `L10_Initiative_Log` (append-only trail, same shape as
+  `L10_Todo_Log`). Two config rows: `INITIATIVE_LEAD` (Courtney) and
+  `INITIATIVE_STALE_DAYS` (14). A pre-upgrade workbook boots with the page
+  showing the repair notice; nothing else changes.
+- **Page**: summary strip (live / moving / no next action / stale), a **Board**
+  by stage (Idea → Scoping → Piloting → Rolling out, plus a Decided list) and a
+  **Matrix** (initiatives × `ACCOUNT_TAGS`) whose cells carry a glyph and a word
+  — `— not started · ◐ testing · ✓ adopted · ✕ rejected · n/a` — never colour
+  alone. Clicking a cell opens the state picker. Add form starts at Idea and
+  seeds a cell per tapped account.
+- **Drawer** per initiative: editable thesis / origin / quarter / notes, the
+  stage pill (Adopted / Killed ask for the one-line verdict, which lands in
+  `Decision` and the trail), per-account rows with **note**, **🧪 make it a
+  test** (the hub's Ideas tab, via the same writer IDS uses — now
+  `l10HubIdeaAppend_`) and **↑ rock** (`l10_addRock` with `Source = SI-###`),
+  the initiative's **to-dos + the shared composer** (`data-source` = the SI id),
+  and the trail with a note box.
+- **To-dos pair with initiatives.** A to-do added from the drawer is an
+  ordinary `L10_Todos` row with `Source = SI-###`: To-dos page, huddle review,
+  Jira sync, chat line and carry-over all just work. `sourceRefHtml_` renders
+  **from SI-### ↗** (opens the drawer); team stats gain a "From a strategy
+  initiative" bucket. `l10_addTodo` and `l10_setTodoStatus` touch the initiative
+  (trail line + `Last Touched`) when a sourced to-do is added, completed or
+  dropped. An initiative is never auto-closed by its to-dos.
+- **Anti-decay** (client `initFlags_` / server `l10InitiativeFlags_`, change
+  both): **no next action** = piloting or rolling out with zero open to-dos;
+  **stale Nd** = nothing touched it in `INITIATIVE_STALE_DAYS`. The client's
+  clock also reads the initiative's to-do and trail stamps so an optimistic add
+  clears the badge at once. Surfaces: the page, the lead's **1:1 page** card
+  ("Initiatives they lead", flagged first) and **1:1 prep email**, and a new
+  `INITIATIVES` content token (**Strategy**) for custom digests. No nag to-dos,
+  no huddle brief strip (Alex's call, off for v1).
+- **Boot**: the three tabs ride the plan slice (`initiatives`,
+  `initiativeAccounts`, `initiativeLog`, `initiativeTabsReady`). Harness: fixtures
+  + a Strategy flow (board flags, matrix cells and a persisted flip, the drawer,
+  a to-do added through the shared composer with the SI source, a trail note,
+  the 1:1 card, the SI reference on a to-do).
+- **Re-paste**: `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`, `L10Index`, `L10Css`,
+  `L10Js`; then **Setup / repair tabs** once (adds the three tabs + two config
+  rows); redeploy the web app.
 
 ## v2.13 (2026-09-01) — Team photos in the avatar bubbles
 

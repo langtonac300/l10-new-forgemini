@@ -875,6 +875,16 @@ function l10BootWork_() {
 // missing tabs (pre-setup) read as zero rows.
 function l10BootPlan_() {
   return {
+    // Strategy tabs (v2.14) — missing tabs read as zero rows; the flag lets the
+    // page say "run Setup / repair tabs" instead of an innocent empty board.
+    initiativeTabsReady: l10InitTabsReady_(),
+    initiatives: l10InitRows_(),
+    initiativeAccounts: l10ReadTab_(L10.TABS.INIT_ACCOUNTS).rows.map(function (r) {
+      var o = l10Sanitize_(r);
+      o['Updated At'] = r['Updated At'] instanceof Date ? l10Fmt_(r['Updated At'], 'yyyy-MM-dd HH:mm') : String(r['Updated At'] || '');
+      return o;
+    }),
+    initiativeLog: l10InitLogRows_(),
     rocks: l10ReadTab_(L10.TABS.ROCKS).rows.map(function (r) {
       var o = l10Sanitize_(r);
       o.fq = l10FiscalQuarterOf_(o['Due']);
@@ -2042,6 +2052,9 @@ function l10_addTodo(p) {
   // Announce the new to-do to the team space. _silent lets l10_addTodoMulti
   // suppress the per-owner pings and send one grouped line instead.
   if (!p._silent) l10NotifyChat_(l10TodoChatLine_('Added', p.owner, p.text, due));
+  // A to-do born from a strategy initiative is that initiative's next action —
+  // stamp its trail and bump its staleness clock (no-op unless Source is SI-###).
+  if (!p.repeat) l10InitiativeTodoTouch_(p.source, 'To-do ' + id + ' added' + (p.owner ? ' for ' + p.owner : '') + ': ' + String(p.text).slice(0, 140));
   return { ok: true, id: id, due: due, row: row };
 }
 
@@ -2139,6 +2152,13 @@ function l10_setTodoStatus(id, status, opts) {
   // week without anyone writing it up.
   l10TodoLogAppend_(id, was + ' → ' + status +
       (status === 'BLOCKED' && opts.blockedOn ? ' (waiting on ' + String(opts.blockedOn).slice(0, 200) + ')' : ''));
+  // Completing (or dropping) a to-do that came from a strategy initiative
+  // writes the outcome to that initiative's trail — the learnings build
+  // themselves. Reopening is silent. Never auto-closes the initiative.
+  if ((status === 'DONE' && !wasDone) || (status === 'DROPPED' && was !== 'DROPPED')) {
+    l10InitiativeTodoTouch_(todo['Source'], 'To-do ' + id + ' ' + status.toLowerCase() +
+        (todo['Owner'] ? ' (' + todo['Owner'] + ')' : '') + ': ' + String(todo['To-Do']).slice(0, 140));
+  }
   // A weekly to-do completes into next week's copy — typed once, never again.
   var nextRow = null;
   if (status === 'DONE' && !wasDone && String(todo['Repeat'] || '').toUpperCase() === 'WEEKLY') {
@@ -2537,13 +2557,32 @@ function l10_issueNeedsData(id, p) {
 // stamp the issue's Notes with the created idea id. The hub is Alex's own sheet
 // (EXPERIMENT_HUB_URL); failure returns {error}, never throws.
 function l10_sendIssueToHub(id, hypothesis, notes) {
-  var config = l10Config_();
-  var url = String(config.EXPERIMENT_HUB_URL || '').trim();
-  if (!url) return { ok: false, error: 'EXPERIMENT_HUB_URL is not set in L10_Config.' };
   var tab = l10ReadTab_(L10.TABS.ISSUES);
   var issue = null;
   tab.rows.forEach(function (r) { if (String(r['ID']) === String(id)) issue = r; });
   if (!issue) return { ok: false, error: 'Issue not found.' };
+  var res = l10HubIdeaAppend_({
+    by: String(issue['Raised By'] || ''),
+    title: String(issue['Issue']).slice(0, 90),
+    hypothesis: hypothesis || '',
+    accounts: String(issue['Accounts'] || ''),
+    note: 'From huddle issue ' + id
+  });
+  if (!res.ok) return res;
+  l10SetCells_(L10.TABS.ISSUES, id, l10IssueNotes_({
+    'Notes': (String(issue['Notes'] || '') + ' → hub ' + res.ideaId).trim()
+  }, notes));
+  return { ok: true, ideaId: res.ideaId };
+}
+
+// The one writer for the hub's Ideas tab (IDS's "Make it a test" and the
+// Strategy page's per-account send both come through here). Row shape is the
+// hub's own; keep the 16 columns in step with its setup. Returns {ok, ideaId}
+// or {ok:false, error} — never throws.
+function l10HubIdeaAppend_(f) {
+  var config = l10Config_();
+  var url = String(config.EXPERIMENT_HUB_URL || '').trim();
+  if (!url) return { ok: false, error: 'EXPERIMENT_HUB_URL is not set in L10_Config.' };
   try {
     var sheet = SpreadsheetApp.openByUrl(url).getSheetByName('Ideas');
     if (!sheet) return { ok: false, error: 'Hub has no Ideas tab — run its setup first.' };
@@ -2557,18 +2596,278 @@ function l10_sendIssueToHub(id, hypothesis, notes) {
     var n = max + 1;
     var ideaId = 'IDEA-' + (n < 1000 ? ('000' + n).slice(-3) : String(n));
     sheet.appendRow([
-      ideaId, l10Today_(), String(issue['Raised By'] || ''),
-      String(issue['Issue']).slice(0, 90), hypothesis || '', 'OTHER',
-      String(issue['Accounts'] || ''), '', '', '', '', '', '', 'NEW', '',
-      'From huddle issue ' + id
+      ideaId, l10Today_(), String(f.by || ''),
+      String(f.title || '').slice(0, 90), String(f.hypothesis || ''), 'OTHER',
+      String(f.accounts || ''), '', '', '', '', '', '', 'NEW', '',
+      String(f.note || '')
     ]);
-    l10SetCells_(L10.TABS.ISSUES, id, l10IssueNotes_({
-      'Notes': (String(issue['Notes'] || '') + ' → hub ' + ideaId).trim()
-    }, notes));
     return { ok: true, ideaId: ideaId };
   } catch (e) {
     return { ok: false, error: String(e).slice(0, 160) };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Strategy initiatives (v2.14) — cross-account bets that live OUTSIDE the
+// weekly meeting. Three tabs: L10_Initiatives (SI-###), L10_Initiative_Accounts
+// (the initiative × account matrix, SA-###) and L10_Initiative_Log (append-only
+// trail, SL-###). Documented in the folder README. Every write path calls l10InitiativeTouch_
+// so 'Last Touched' (the staleness clock) is bumped and the trail gets a line.
+// A missing tab (pre-upgrade workbook) reads as zero rows on boot and turns
+// every touch into a no-op — the to-do paths that call in here must never fail
+// because the strategy tabs aren't there yet.
+// ---------------------------------------------------------------------------
+
+function l10InitTabsReady_() {
+  var ss = l10Ss_();
+  return !!ss.getSheetByName(L10.TABS.INITIATIVES) && !!ss.getSheetByName(L10.TABS.INIT_ACCOUNTS) &&
+      !!ss.getSheetByName(L10.TABS.INIT_LOG);
+}
+function l10InitNotReady_() {
+  return { ok: false, error: 'Strategy tabs are missing — run L10 Huddle → Setup / repair tabs once, then retry.' };
+}
+function l10InitFind_(id) {
+  var found = null;
+  l10ReadTab_(L10.TABS.INITIATIVES).rows.forEach(function (r) {
+    if (String(r['ID']).trim() === String(id).trim()) found = r;
+  });
+  return found;
+}
+function l10InitIsId_(s) { return /^SI-\d+$/i.test(String(s || '').trim()); }
+
+// The trail is ordered by 'At', so keep the HH:mm that l10Now_ writes (see
+// the note on scopedLog in l10BootWork_ — l10Sanitize_ would drop it).
+function l10InitLogRows_() {
+  return l10ReadTab_(L10.TABS.INIT_LOG).rows.map(function (r) {
+    var o = l10Sanitize_(r);
+    o['At'] = r['At'] instanceof Date ? l10Fmt_(r['At'], 'yyyy-MM-dd HH:mm') : String(r['At'] || '');
+    return o;
+  });
+}
+function l10InitRows_() {
+  return l10ReadTab_(L10.TABS.INITIATIVES).rows.map(function (r) {
+    var o = l10Sanitize_(r);
+    o['Last Touched'] = r['Last Touched'] instanceof Date ? l10Fmt_(r['Last Touched'], 'yyyy-MM-dd HH:mm') : String(r['Last Touched'] || '');
+    return o;
+  });
+}
+
+// Bump the staleness clock + append a trail line. Never throws into a caller's
+// happy path: a to-do completing against an initiative must not fail because
+// the strategy tabs are missing.
+function l10InitiativeTouch_(id, note, who) {
+  try {
+    if (!id || !l10InitTabsReady_()) return null;
+    var now = l10Now_();
+    l10SetCells_(L10.TABS.INITIATIVES, String(id), { 'Last Touched': now });
+    if (!note) return null;
+    var lid = l10NextId_(L10.TABS.INIT_LOG, 'SL');
+    var row = l10Append_(L10.TABS.INIT_LOG, [lid, String(id), now, who || l10User_(), String(note).slice(0, 1000)]);
+    row['At'] = now;
+    return row;
+  } catch (e) {
+    return null;
+  }
+}
+
+// The two anti-decay rules, server twin of initFlags_ (L10Js.html) — change
+// one, change both. stale: nothing touched it in INITIATIVE_STALE_DAYS;
+// noNext: piloting/rolling out with zero open to-dos.
+function l10InitiativeFlags_(init, todos, staleDays, today) {
+  var stage = String(init['Stage'] || '').toUpperCase();
+  var live = L10.INITIATIVE_LIVE_STAGES.indexOf(stage) !== -1;
+  var id = String(init['ID']).trim();
+  var openTodos = todos.filter(function (t) {
+    return String(t['Source'] || '').trim().toUpperCase() === id.toUpperCase() && l10TodoOpen_(t['Status']);
+  }).length;
+  var touched = String(init['Last Touched'] || init['Created'] || '').slice(0, 10);
+  var days = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(touched)) {
+    days = Math.floor((new Date(today + 'T12:00:00').getTime() - new Date(touched + 'T12:00:00').getTime()) / 86400000);
+  }
+  return {
+    live: live,
+    openTodos: openTodos,
+    days: days,
+    stale: live && days !== null && days >= staleDays,
+    noNext: (stage === 'PILOTING' || stage === 'ROLLING OUT') && openTodos === 0
+  };
+}
+function l10InitStaleDays_(config) {
+  var n = Number((config || l10Config_()).INITIATIVE_STALE_DAYS);
+  return n > 0 ? n : 14;
+}
+
+function l10_addInitiative(p) {
+  if (!p || !String(p.title || '').trim()) return { ok: false, error: 'Initiative needs a title.' };
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  var id = l10NextId_(L10.TABS.INITIATIVES, 'SI');
+  var now = l10Now_(), today = l10Today_();
+  var stage = String(p.stage || 'IDEA').toUpperCase();
+  if (L10.INITIATIVE_STAGES.indexOf(stage) === -1) stage = 'IDEA';
+  var row = l10Append_(L10.TABS.INITIATIVES, [
+    id, String(p.title).trim().slice(0, 200), String(p.thesis || '').trim().slice(0, 500),
+    String(p.lead || '').trim(), String(p.shift || '').trim(), stage,
+    String(p.origin || '').trim().slice(0, 200), String(p.quarter || '').trim().slice(0, 20),
+    String(p.notes || '').trim().slice(0, 1000), today, now, '', ''
+  ]);
+  row['Last Touched'] = now;
+  // One matrix cell per account named on the form, all NOT STARTED.
+  var cells = [];
+  (Array.isArray(p.accounts) ? p.accounts : String(p.accounts || '').split(','))
+    .map(function (a) { return String(a).trim(); }).filter(String).forEach(function (acct) {
+      var cid = l10NextId_(L10.TABS.INIT_ACCOUNTS, 'SA');
+      var c = l10Append_(L10.TABS.INIT_ACCOUNTS, [cid, id, acct, 'NOT STARTED', '', '', '', now]);
+      c['Updated At'] = now;
+      cells.push(c);
+    });
+  var log = l10InitiativeTouch_(id, 'Created' + (stage !== 'IDEA' ? ' at ' + stage : ''));
+  return { ok: true, id: id, row: row, cells: cells, log: log };
+}
+
+function l10_editInitiative(id, p) {
+  if (!p) return { ok: false, error: 'Nothing to save.' };
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  if (!l10InitFind_(id)) return { ok: false, error: 'Initiative ' + id + ' not found.' };
+  var u = {};
+  if (p.title !== undefined) {
+    if (!String(p.title).trim()) return { ok: false, error: 'Initiative needs a title.' };
+    u['Initiative'] = String(p.title).trim().slice(0, 200);
+  }
+  if (p.thesis !== undefined) u['Thesis'] = String(p.thesis || '').trim().slice(0, 500);
+  if (p.lead !== undefined) u['Lead'] = String(p.lead || '').trim();
+  if (p.shift !== undefined) u['Shift'] = String(p.shift || '').trim();
+  if (p.origin !== undefined) u['Origin'] = String(p.origin || '').trim().slice(0, 200);
+  if (p.quarter !== undefined) u['Target Quarter'] = String(p.quarter || '').trim().slice(0, 20);
+  if (p.notes !== undefined) u['Notes'] = String(p.notes || '').trim().slice(0, 1000);
+  if (!Object.keys(u).length) return { ok: true, id: id };
+  u['Last Touched'] = l10Now_();
+  if (!l10SetCells_(L10.TABS.INITIATIVES, id, u)) return { ok: false, error: 'Initiative ' + id + ' not found.' };
+  var log = l10InitiativeTouch_(id, 'Edited ' + Object.keys(u).filter(function (k) { return k !== 'Last Touched'; }).join(', ').toLowerCase());
+  return { ok: true, id: id, touched: u['Last Touched'], log: log };
+}
+
+// Stage moves. ADOPTED / KILLED are the decisions — they stamp Decided At and
+// carry the one-line verdict; moving back to a live stage clears both.
+function l10_setInitiativeStage(id, stage, decision) {
+  stage = String(stage || '').toUpperCase();
+  if (L10.INITIATIVE_STAGES.indexOf(stage) === -1) return { ok: false, error: 'Bad stage' };
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  var init = l10InitFind_(id);
+  if (!init) return { ok: false, error: 'Initiative ' + id + ' not found.' };
+  var was = String(init['Stage'] || '').toUpperCase();
+  var decided = stage === 'ADOPTED' || stage === 'KILLED';
+  var now = l10Now_();
+  var u = { 'Stage': stage, 'Last Touched': now };
+  u['Decided At'] = decided ? l10Today_() : '';
+  u['Decision'] = decided ? String(decision || '').trim().slice(0, 500) : '';
+  l10SetCells_(L10.TABS.INITIATIVES, id, u);
+  var log = l10InitiativeTouch_(id, was + ' → ' + stage + (decided && u['Decision'] ? ' — ' + u['Decision'] : ''));
+  return { ok: true, id: id, stage: stage, decidedAt: u['Decided At'], decision: u['Decision'], touched: now, log: log };
+}
+
+// Upsert one matrix cell (initiative × account). Only the fields passed are
+// written, so a state flip never blanks a hub ref someone typed earlier.
+function l10_setInitiativeAccount(p) {
+  if (!p || !p.initiativeId || !String(p.account || '').trim()) return { ok: false, error: 'Cell needs an initiative and an account.' };
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  var init = l10InitFind_(p.initiativeId);
+  if (!init) return { ok: false, error: 'Initiative ' + p.initiativeId + ' not found.' };
+  var acct = String(p.account).trim();
+  var state = p.state === undefined ? undefined : String(p.state || '').toUpperCase();
+  if (state !== undefined && L10.INITIATIVE_ACCOUNT_STATES.indexOf(state) === -1) return { ok: false, error: 'Bad state' };
+  var now = l10Now_();
+  var cell = null;
+  l10ReadTab_(L10.TABS.INIT_ACCOUNTS).rows.forEach(function (r) {
+    if (String(r['Initiative ID']).trim() === String(p.initiativeId).trim() &&
+        String(r['Account']).trim().toLowerCase() === acct.toLowerCase()) cell = r;
+  });
+  var u = { 'Updated At': now };
+  if (state !== undefined) u['State'] = state;
+  if (p.hubRef !== undefined) u['Hub Ref'] = String(p.hubRef || '').trim().slice(0, 40);
+  if (p.rockId !== undefined) u['Rock ID'] = String(p.rockId || '').trim().slice(0, 20);
+  if (p.note !== undefined) u['Note'] = String(p.note || '').trim().slice(0, 300);
+  var row, wasState = '';
+  if (cell) {
+    wasState = String(cell['State'] || '');
+    l10SetCells_(L10.TABS.INIT_ACCOUNTS, String(cell['ID']), u);
+    row = l10Sanitize_(cell);
+    Object.keys(u).forEach(function (k) { row[k] = u[k]; });
+  } else {
+    var cid = l10NextId_(L10.TABS.INIT_ACCOUNTS, 'SA');
+    row = l10Append_(L10.TABS.INIT_ACCOUNTS, [
+      cid, String(p.initiativeId), acct, u['State'] || 'NOT STARTED', u['Hub Ref'] || '', u['Rock ID'] || '', u['Note'] || '', now
+    ]);
+  }
+  row['Updated At'] = now;
+  var what = [];
+  if (state !== undefined && state !== wasState) what.push((wasState || 'new') + ' → ' + state);
+  if (p.note !== undefined && u['Note']) what.push('note: ' + u['Note'].slice(0, 120));
+  if (p.hubRef !== undefined && u['Hub Ref']) what.push('hub ' + u['Hub Ref']);
+  if (p.rockId !== undefined && u['Rock ID']) what.push('rock ' + u['Rock ID']);
+  var log = l10InitiativeTouch_(p.initiativeId, what.length ? acct + ': ' + what.join(' · ') : '');
+  return { ok: true, row: row, touched: now, log: log };
+}
+
+function l10_addInitiativeLog(p) {
+  if (!p || !p.initiativeId) return { ok: false, error: 'Note needs an initiative.' };
+  if (!String(p.note || '').trim()) return { ok: false, error: 'Note needs text.' };
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  if (!l10InitFind_(p.initiativeId)) return { ok: false, error: 'Initiative ' + p.initiativeId + ' not found.' };
+  var row = l10InitiativeTouch_(p.initiativeId, String(p.note).trim(), p.who);
+  if (!row) return { ok: false, error: 'Could not write to ' + L10.TABS.INIT_LOG + '.' };
+  return { ok: true, row: row };
+}
+
+// "Make it a test": the account cell's hypothesis goes to the Experiment Hub's
+// Ideas backlog (same writer the Solve path uses), the IDEA id lands on the cell
+// and the cell flips to TESTING unless it already carries a decided state.
+function l10_sendInitiativeToHub(id, account, hypothesis) {
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  var init = l10InitFind_(id);
+  if (!init) return { ok: false, error: 'Initiative ' + id + ' not found.' };
+  var acct = String(account || '').trim();
+  if (!acct) return { ok: false, error: 'Pick the account the test runs in.' };
+  var res = l10HubIdeaAppend_({
+    by: String(init['Lead'] || ''),
+    title: (String(init['Initiative']) + ' — ' + acct).slice(0, 90),
+    hypothesis: String(hypothesis || init['Thesis'] || '').trim(),
+    accounts: acct,
+    note: 'From strategy initiative ' + id
+  });
+  if (!res.ok) return res;
+  var cell = l10_setInitiativeAccount({ initiativeId: id, account: acct, hubRef: res.ideaId, state: 'TESTING' });
+  return { ok: true, ideaId: res.ideaId, row: cell.row, log: cell.log, touched: cell.touched };
+}
+
+// "Promote to rock": a quarterly commitment for one account, born from the
+// initiative. The rock's Source column carries the SI id (tappable in the
+// app), the cell carries the RK id back.
+function l10_promoteInitiativeToRock(id, account, p) {
+  if (!l10InitTabsReady_()) return l10InitNotReady_();
+  var init = l10InitFind_(id);
+  if (!init) return { ok: false, error: 'Initiative ' + id + ' not found.' };
+  p = p || {};
+  var acct = String(account || '').trim();
+  var rk = l10_addRock({
+    title: String(p.title || (String(init['Initiative']) + (acct ? ' — ' + acct : ''))).slice(0, 200),
+    owner: String(p.owner || init['Lead'] || ''), due: p.due || '',
+    shift: String(init['Shift'] || ''), accounts: acct,
+    done: String(p.done || ''), notes: '', source: String(id)
+  });
+  if (!rk || rk.ok === false) return rk || { ok: false, error: 'Could not create the rock.' };
+  var cell = acct ? l10_setInitiativeAccount({ initiativeId: id, account: acct, rockId: rk.id }) : null;
+  if (!cell) l10InitiativeTouch_(id, 'Promoted to rock ' + rk.id);
+  return { ok: true, rockId: rk.id, rock: rk.row, row: cell ? cell.row : null, log: cell ? cell.log : null, touched: cell ? cell.touched : null };
+}
+
+// A to-do created or completed against an initiative (Source = SI-###) touches
+// it — the initiative's clock is its to-dos' clock. Both callers swallow a
+// missing tab (l10InitiativeTouch_ never throws).
+function l10InitiativeTodoTouch_(source, line) {
+  var s = String(source || '').trim();
+  if (!l10InitIsId_(s)) return;
+  l10InitiativeTouch_(s.toUpperCase(), line);
 }
 
 // ---------------------------------------------------------------------------

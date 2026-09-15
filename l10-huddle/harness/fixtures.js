@@ -38,6 +38,9 @@
     FISCAL_START_MONTH: '8',
     TEAM_EMAILS: '',
     EXPERIMENT_HUB_URL: 'https://docs.google.com/spreadsheets/d/hub-fixture',
+    ACCOUNT_TAGS: 'Brady US, Seton US, EMEDCO, Amazon',
+    INITIATIVE_LEAD: 'Courtney',
+    INITIATIVE_STALE_DAYS: '14',
     GA4_PROPERTY_ID: '',
     BDAYS_OVERRIDE: '',
     DATA_HEALTH: 'ON',
@@ -99,6 +102,7 @@
     { 'ID': 'TD-102', 'To-Do': 'Confirm Amazon SP+SB fix at the mart', 'Owner': 'CJ', 'Due': fmt(shiftDays(MON, -3)), 'Status': 'WORKING', 'Created': fmt(shiftDays(MON, -14)), 'Done At': '', 'Carried Over': 1, 'Source': '', 'Notes': '', 'Jira Key': '', 'Jira Done': '', 'Repeat': '', 'Blocked On': '', 'Last Carried Week': WEEK_OF },
     { 'ID': 'TD-103', 'To-Do': 'Chase IT on GTM internal-IP filter', 'Owner': 'Courtney', 'Due': fmt(shiftDays(MON, -10)), 'Status': 'BLOCKED', 'Created': fmt(shiftDays(MON, -28)), 'Done At': '', 'Carried Over': 3, 'Source': 'IS-014', 'Notes': '', 'Jira Key': 'BNADM-490', 'Jira Done': '', 'Repeat': '', 'Blocked On': 'IT change window approval', 'Last Carried Week': WEEK_OF },
     { 'ID': 'TD-104', 'To-Do': 'Post weekly trend report', 'Owner': 'Alex', 'Due': fmt(shiftDays(MON, 0)), 'Status': 'DONE', 'Created': fmt(shiftDays(MON, -7)), 'Done At': fmt(shiftDays(MON, 0)), 'Carried Over': 0, 'Source': '', 'Notes': '', 'Jira Key': '', 'Jira Done': fmt(shiftDays(MON, 0)), 'Repeat': 'WEEKLY', 'Blocked On': '', 'Last Carried Week': '' },
+    { 'ID': 'TD-106', 'To-Do': 'Build the Seton US Demand Gen campaign shell', 'Owner': 'Courtney', 'Due': fmt(shiftDays(MON, 6)), 'Status': 'OPEN', 'Created': fmt(shiftDays(MON, -1)), 'Done At': '', 'Carried Over': 0, 'Source': 'SI-001', 'Notes': '', 'Jira Key': '', 'Jira Done': '', 'Repeat': '', 'Blocked On': '', 'Last Carried Week': '' },
     { 'ID': 'TD-105', 'To-Do': 'Pull PDC disapproval export', 'Owner': 'Scott', 'Due': fmt(shiftDays(MON, 2)), 'Status': 'OPEN', 'Created': fmt(shiftDays(MON, -2)), 'Done At': '', 'Carried Over': 0, 'Source': '', 'Notes': '', 'Jira Key': '', 'Jira Done': '', 'Repeat': '', 'Blocked On': '', 'Last Carried Week': '' }
   ];
 
@@ -128,6 +132,26 @@
   };
 
   const PLAN = {
+    // Strategy tabs (v2.14). SI-001 is piloting with an open to-do; SI-002 is
+    // rolling out with NO open to-do and last touched 20 days ago (both flags).
+    initiativeTabsReady: true,
+    initiatives: [
+      { 'ID': 'SI-001', 'Initiative': 'Demand Gen campaigns across Google accounts', 'Thesis': 'Demand Gen beat Display on CPL in Brady US; the audience signals should transfer.', 'Lead': 'Courtney', 'Shift': 'Shift 2', 'Stage': 'PILOTING', 'Origin': 'Brady US test EXP-014', 'Target Quarter': 'FY27 Q2', 'Notes': '', 'Created': fmt(shiftDays(MON, -21)), 'Last Touched': fmt(shiftDays(MON, -1)) + ' 10:12', 'Decided At': '', 'Decision': '' },
+      { 'ID': 'SI-002', 'Initiative': 'Port the NB negatives loop to every account', 'Thesis': 'The Seton loop saves ~$700/wk; the same script runs anywhere.', 'Lead': 'Courtney', 'Shift': 'Shift 1', 'Stage': 'ROLLING OUT', 'Origin': 'Seton/Emedco', 'Target Quarter': '', 'Notes': '', 'Created': fmt(shiftDays(MON, -60)), 'Last Touched': fmt(shiftDays(MON, -20)) + ' 09:00', 'Decided At': '', 'Decision': '' },
+      { 'ID': 'SI-003', 'Initiative': 'Broad match + tROAS on brand', 'Thesis': '', 'Lead': 'CJ', 'Shift': 'Shift 1', 'Stage': 'IDEA', 'Origin': '', 'Target Quarter': '', 'Notes': '', 'Created': fmt(shiftDays(MON, -2)), 'Last Touched': fmt(shiftDays(MON, -2)) + ' 14:30', 'Decided At': '', 'Decision': '' },
+      { 'ID': 'SI-004', 'Initiative': 'Apple Ads for the catalog brands', 'Thesis': '', 'Lead': 'Courtney', 'Shift': 'Shift 4', 'Stage': 'KILLED', 'Origin': '', 'Target Quarter': '', 'Notes': '', 'Created': fmt(shiftDays(MON, -90)), 'Last Touched': fmt(shiftDays(MON, -30)) + ' 11:00', 'Decided At': fmt(shiftDays(MON, -30)), 'Decision': 'No volume outside Brady US' }
+    ],
+    initiativeAccounts: [
+      { 'ID': 'SA-001', 'Initiative ID': 'SI-001', 'Account': 'Brady US', 'State': 'ADOPTED', 'Hub Ref': 'EXP-014', 'Rock ID': '', 'Note': 'CPL -18% vs Display', 'Updated At': fmt(shiftDays(MON, -7)) + ' 10:00' },
+      { 'ID': 'SA-002', 'Initiative ID': 'SI-001', 'Account': 'Seton US', 'State': 'TESTING', 'Hub Ref': 'IDEA-051', 'Rock ID': '', 'Note': '', 'Updated At': fmt(shiftDays(MON, -1)) + ' 10:12' },
+      { 'ID': 'SA-003', 'Initiative ID': 'SI-001', 'Account': 'EMEDCO', 'State': 'NOT STARTED', 'Hub Ref': '', 'Rock ID': '', 'Note': '', 'Updated At': fmt(shiftDays(MON, -21)) + ' 09:00' },
+      { 'ID': 'SA-004', 'Initiative ID': 'SI-002', 'Account': 'Seton US', 'State': 'ADOPTED', 'Hub Ref': '', 'Rock ID': 'RK-001', 'Note': '', 'Updated At': fmt(shiftDays(MON, -40)) + ' 09:00' },
+      { 'ID': 'SA-005', 'Initiative ID': 'SI-002', 'Account': 'Brady US', 'State': 'TESTING', 'Hub Ref': '', 'Rock ID': '', 'Note': 'script installed, first apply pending', 'Updated At': fmt(shiftDays(MON, -20)) + ' 09:00' }
+    ],
+    initiativeLog: [
+      { 'ID': 'SL-001', 'Initiative ID': 'SI-001', 'At': fmt(shiftDays(MON, -1)) + ' 10:12', 'Who': 'Courtney', 'Note': 'Seton US: not started → TESTING · hub IDEA-051' },
+      { 'ID': 'SL-002', 'Initiative ID': 'SI-001', 'At': fmt(shiftDays(MON, -21)) + ' 09:00', 'Who': 'Courtney', 'Note': 'Created' }
+    ],
     rocks: [
       { 'ID': 'RK-001', 'Rock': 'Stand up Seton/Emedco negatives loop end-to-end', 'Owner': 'Scott', 'Due': fmt(shiftDays(MON, 32)), 'Shift': 'Shift 2', 'Accounts': 'Seton', 'Status': 'ON TRACK', 'Definition of Done': 'Weekly negatives applied in both MCCs 4 weeks running', 'Notes': '', 'Created': fmt(shiftDays(MON, -42)), 'Status Updated': fmt(shiftDays(MON, -6)), 'Metric ID': 'SC-013', 'Source': '', fq: 'FY27 Q1' },
       { 'ID': 'RK-002', 'Rock': 'Amazon A/S under 15% with advertised-only base', 'Owner': 'CJ', 'Due': fmt(shiftDays(MON, 60)), 'Shift': 'Shift 1', 'Accounts': 'Amazon', 'Status': 'OFF TRACK', 'Definition of Done': 'SC-015 < 15% for a full month', 'Notes': '', 'Created': fmt(shiftDays(MON, -30)), 'Status Updated': fmt(shiftDays(MON, -6)), 'Metric ID': 'SC-015', 'Source': 'IS-014', fq: 'FY27 Q1' }
@@ -184,6 +208,9 @@
     CORE.brief = [];
     PLAN.rocks = [];
     PLAN.milestones = [];
+    PLAN.initiatives = [];
+    PLAN.initiativeAccounts = [];
+    PLAN.initiativeLog = [];
     SCORECARD.scorecard.defs = [];
     SCORECARD.scorecard.values = {};
   }
@@ -315,6 +342,28 @@
     l10_toggleCascade: ok,
     l10_addRock: function (payload) { idSeq++; return { ok: true, rock: { 'ID': 'RK-' + idSeq, 'Rock': (payload && payload.text) || 'New rock', 'Owner': 'Alex', 'Due': '', 'Shift': '', 'Accounts': '', 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': '', fq: '' } }; },
     l10_setRockStatus: ok,
+
+    // Strategy initiatives (v2.14) — shapes mirror L10Code.gs.
+    l10_addInitiative: function (p) {
+      idSeq++;
+      const id = 'SI-' + idSeq, now = TODAY + ' 10:00';
+      return { ok: true, id: id,
+        row: { 'ID': id, 'Initiative': (p && p.title) || 'New initiative', 'Thesis': (p && p.thesis) || '', 'Lead': (p && p.lead) || 'Courtney', 'Shift': (p && p.shift) || '', 'Stage': 'IDEA', 'Origin': (p && p.origin) || '', 'Target Quarter': '', 'Notes': '', 'Created': TODAY, 'Last Touched': now, 'Decided At': '', 'Decision': '' },
+        cells: ((p && p.accounts) || []).map(function (a) { idSeq++; return { 'ID': 'SA-' + idSeq, 'Initiative ID': id, 'Account': a, 'State': 'NOT STARTED', 'Hub Ref': '', 'Rock ID': '', 'Note': '', 'Updated At': now }; }),
+        log: { 'ID': 'SL-' + idSeq, 'Initiative ID': id, 'At': now, 'Who': 'Alex', 'Note': 'Created' } };
+    },
+    l10_editInitiative: function (id) { return { ok: true, id: id, touched: TODAY + ' 10:01', log: { 'ID': 'SL-9', 'Initiative ID': id, 'At': TODAY + ' 10:01', 'Who': 'Alex', 'Note': 'Edited' } }; },
+    l10_setInitiativeStage: function (id, stage, decision) {
+      const decided = stage === 'ADOPTED' || stage === 'KILLED';
+      return { ok: true, id: id, stage: stage, decidedAt: decided ? TODAY : '', decision: decided ? (decision || '') : '', touched: TODAY + ' 10:02', log: { 'ID': 'SL-8', 'Initiative ID': id, 'At': TODAY + ' 10:02', 'Who': 'Alex', 'Note': '→ ' + stage } };
+    },
+    l10_setInitiativeAccount: function (p) {
+      idSeq++;
+      return { ok: true, touched: TODAY + ' 10:03', row: { 'ID': 'SA-' + idSeq, 'Initiative ID': p.initiativeId, 'Account': p.account, 'State': p.state || 'NOT STARTED', 'Hub Ref': p.hubRef || '', 'Rock ID': p.rockId || '', 'Note': p.note || '', 'Updated At': TODAY + ' 10:03' }, log: { 'ID': 'SL-' + idSeq, 'Initiative ID': p.initiativeId, 'At': TODAY + ' 10:03', 'Who': 'Alex', 'Note': p.account + ': → ' + (p.state || '') } };
+    },
+    l10_addInitiativeLog: function (p) { idSeq++; return { ok: true, row: { 'ID': 'SL-' + idSeq, 'Initiative ID': p.initiativeId, 'At': TODAY + ' 10:04', 'Who': 'Alex', 'Note': p.note } }; },
+    l10_sendInitiativeToHub: function (id, acct) { idSeq++; return { ok: true, ideaId: 'IDEA-0' + idSeq, touched: TODAY + ' 10:05', row: { 'ID': 'SA-x', 'Initiative ID': id, 'Account': acct, 'State': 'TESTING', 'Hub Ref': 'IDEA-0' + idSeq, 'Rock ID': '', 'Note': '', 'Updated At': TODAY + ' 10:05' }, log: null }; },
+    l10_promoteInitiativeToRock: function (id, acct, p) { idSeq++; return { ok: true, rockId: 'RK-' + idSeq, touched: TODAY + ' 10:06', rock: { 'ID': 'RK-' + idSeq, 'Rock': (p && p.title) || 'Promoted', 'Owner': 'Courtney', 'Due': '', 'Shift': '', 'Accounts': acct, 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': id, fq: '' }, row: { 'ID': 'SA-y', 'Initiative ID': id, 'Account': acct, 'State': 'TESTING', 'Hub Ref': '', 'Rock ID': 'RK-' + idSeq, 'Note': '', 'Updated At': TODAY + ' 10:06' }, log: null }; },
     l10_editRock: ok,
     l10_addMilestone: function (rockId, text, due) { idSeq++; return { ok: true, milestone: { 'ID': 'MS-' + idSeq, 'Rock ID': rockId, 'Milestone': text, 'Due': due || '', 'Status': 'OPEN', 'Done At': '', 'Created': TODAY, 'Notes': '' }, rockDone: false }; },
     l10_setMilestoneStatus: { ok: true, rockDone: false },

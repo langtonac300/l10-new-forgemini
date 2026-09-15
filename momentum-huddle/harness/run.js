@@ -48,7 +48,7 @@ async function clickNav(page, target) {
   await shot(page, 'start-screen');
 
   // Every page renders without error.
-  for (const p of ['scorecard', 'rocks', 'headlines', 'todos', 'issues', 'oneonone', 'history', 'teamstats', 'settings', 'how']) {
+  for (const p of ['scorecard', 'rocks', 'strategy', 'headlines', 'todos', 'issues', 'oneonone', 'history', 'teamstats', 'settings', 'how']) {
     await clickNav(page, p);
     const empty = await page.$eval('#page-' + p, (el) => el.innerHTML.trim().length);
     if (empty < 40) errors.push(`page-${p} rendered nearly empty (${empty} chars)`);
@@ -223,6 +223,83 @@ async function clickNav(page, target) {
   if (!(await page.evaluate(() => window.__GS_CALLS.some((c) => c.fn === 'l10_removeTeamPhoto')))) errors.push('remove photo never called l10_removeTeamPhoto');
   const imgs2 = await page.$$eval('#page-huddle .person-chip .avatar--img', (els) => els.length);
   if (imgs2 !== 1) errors.push('after remove the start screen shows ' + imgs2 + ' photo avatars (want 1 — Alex)');
+
+  // --- Strategy page (v2.14): board, flags, matrix, drawer, to-do pairing ---
+  await clickNav(page, 'strategy');
+  const siCards = await page.$$('.si-card');
+  if (siCards.length !== 3) errors.push('strategy board should show 3 live initiatives, got ' + siCards.length);
+  const siText = await page.$eval('#page-strategy', (el) => el.textContent);
+  if (!/no next action/.test(siText)) errors.push('strategy page did not flag SI-002 (rolling out, no open to-do) as "no next action"');
+  if (!/stale 2\dd/.test(siText)) errors.push('strategy page did not flag SI-002 as stale (last touched 20 days ago)');
+  if (!/Decided/.test(siText)) errors.push('strategy page did not list the killed initiative under Decided');
+  // Matrix view: one cell per (initiative, account) with a glyph + word, never colour alone.
+  await page.click('[data-siview="matrix"]');
+  await page.waitForTimeout(150);
+  const siCells = await page.$$eval('.si-matrix .sa-cell', (els) => els.map((e) => e.textContent.trim()));
+  if (siCells.length !== 12) errors.push('matrix should have 3 initiatives × 4 accounts = 12 cells, got ' + siCells.length);
+  if (!siCells.some((t) => /✓ adopted/.test(t)) || !siCells.some((t) => /◐ testing/.test(t))) errors.push('matrix cells do not carry glyph + word: ' + JSON.stringify(siCells.slice(0, 4)));
+  // Flipping a cell persists through l10_setInitiativeAccount.
+  const cellBefore = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.click('.si-matrix .sa-cell.sa-none');
+  await page.waitForTimeout(120);
+  const pick = await page.$('.l10pop-item[data-v="TESTING"]');
+  if (!pick) errors.push('matrix cell picker did not open with a TESTING option');
+  else {
+    await pick.click();
+    await page.waitForTimeout(250);
+    const cellCalls = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+    if (!cellCalls.slice(cellBefore).includes('l10_setInitiativeAccount')) errors.push('matrix cell flip did not persist via l10_setInitiativeAccount');
+  }
+  await page.click('[data-siview="board"]');
+  await page.waitForTimeout(150);
+  // Drawer: opens from the card, lists the SI-001 to-do, carries the composer with the SI source.
+  await page.click('[data-siopen="SI-001"]');
+  await page.waitForTimeout(200);
+  const drawerOn = await page.$eval('#si-overlay', (el) => el.style.display !== 'none');
+  if (!drawerOn) errors.push('initiative drawer did not open');
+  const drawerTxt = await page.$eval('#si-overlay', (el) => el.textContent);
+  if (!/Build the Seton US Demand Gen campaign shell/.test(drawerTxt)) errors.push('drawer does not list the to-do sourced from SI-001');
+  if (!/IDEA-051/.test(drawerTxt)) errors.push('drawer does not show the hub ref on the Seton US cell');
+  const siSource = await page.$eval('#si-overlay .js-td-add', (el) => el.dataset.source);
+  if (siSource !== 'SI-001') errors.push('drawer composer is not sourced to the initiative (data-source="' + siSource + '")');
+  // Adding a to-do from the drawer goes through the shared path with the SI source.
+  const addBefore = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.click('#si-overlay .js-td-text');
+  await page.fill('#si-overlay .js-td-text', 'Harness to-do from the initiative');
+  await page.click('#si-overlay .js-td-owner[data-name="Courtney"]');
+  await page.click('#si-overlay .js-td-add');
+  await page.waitForTimeout(300);
+  const addCalls = await page.evaluate(() => window.__GS_CALLS.slice());
+  const addCall = addCalls.slice(addBefore).find((c) => c.fn === 'l10_addTodoMulti');
+  if (!addCall) errors.push('drawer composer did not add through l10_addTodoMulti');
+  else if (!addCall.args[0] || addCall.args[0].source !== 'SI-001') errors.push('drawer composer sent the wrong source: ' + JSON.stringify(addCall.args[0] && addCall.args[0].source));
+  // A trail note posts and re-renders the drawer.
+  await page.fill('#si-overlay .js-silog-text', 'Harness trail note');
+  await page.click('#si-overlay .js-silog-add');
+  await page.waitForTimeout(250);
+  const trailTxt = await page.$eval('#si-overlay', (el) => el.textContent);
+  if (!/Harness trail note/.test(trailTxt)) errors.push('trail note did not appear in the drawer after posting');
+  await page.click('#si-close');
+  await page.waitForTimeout(120);
+  // The 1:1 page carries the lead's initiatives, flagged first.
+  await clickNav(page, 'oneonone');
+  const o11Chip = await page.$('[data-o11="Courtney"]');
+  if (o11Chip) { await o11Chip.click(); await page.waitForTimeout(150); }
+  const o11Txt = await page.$eval('#page-oneonone', (el) => el.textContent);
+  if (!/Initiatives they lead \(2\)/.test(o11Txt)) errors.push('1:1 page for Courtney should list 2 live initiatives she leads');
+  // A to-do's "from SI-###" reference opens the drawer.
+  await clickNav(page, 'todos');
+  const siRef = await page.$('[data-initref="SI-001"]');
+  if (!siRef) errors.push('to-do sourced from SI-001 carries no tappable reference');
+  else {
+    await siRef.click();
+    await page.waitForTimeout(150);
+    const refOpen = await page.$eval('#si-overlay', (el) => el.style.display !== 'none');
+    if (!refOpen) errors.push('SI reference on a to-do did not open the drawer');
+    await page.click('#si-close');
+    await page.waitForTimeout(100);
+  }
+  await shot(page, 'strategy');
 
   // --- In-app guide: nav ? opens the iframe modal ---
   await page.click('#btn-guide');

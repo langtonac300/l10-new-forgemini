@@ -624,6 +624,47 @@ nav #btn-guide:hover { border-color: var(--accent); color: var(--accent-deep); b
   .td-q { flex: 1 1 100%; }
 }
 
+/* ---- Strategy page (v2.14): initiatives board, matrix, drawer ----------- */
+.si-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-3); }
+.si-view { gap: 8px; }
+.si-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.si-col { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; min-height: 120px; }
+.si-col-h { font-size: var(--text-2); font-weight: 800; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; margin: 2px 4px 8px; display: flex; align-items: center; gap: 6px; }
+.si-col-empty { color: var(--faint); text-align: center; padding: 18px 0; }
+.si-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 11px 12px; margin-bottom: 8px; box-shadow: var(--shadow); }
+.si-card.si-flagged { border-left: 3px solid var(--warn); }
+.si-card-t { font-weight: 700; font-size: var(--text-5); line-height: 1.35; }
+.si-open { background: none; border: 0; padding: 0; font: inherit; font-weight: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.si-open:hover { color: var(--accent-deep); text-decoration: underline; }
+.si-thesis { color: var(--soft); font-size: var(--text-3); line-height: 1.45; margin-top: 3px; }
+.si-card-m { color: var(--faint); font-size: var(--text-3); margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.si-card-f { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
+.si-sum { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-2); font-weight: 700; padding: 1px 7px; border-radius: var(--radius-pill); }
+/* Cell tones — the glyph carries the state; the tone only seconds it. */
+.sa-none { background: var(--bg); color: var(--soft); }
+.sa-testing { background: var(--accent-soft); color: var(--accent-deep); }
+.sa-adopted { background: var(--good-soft); color: var(--good); }
+.sa-rejected { background: var(--bad-soft); color: var(--bad); }
+.sa-na { background: #f2f4f7; color: var(--faint); }
+.sa-blank { background: #fff; color: var(--faint); border-style: dashed; }
+.sa-cell { display: inline-flex; align-items: center; gap: 4px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); padding: 5px 9px; font-size: var(--text-3); font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.sa-cell:hover { border-color: var(--accent); }
+.sa-cell .sa-g { font-size: 13px; }
+.sa-cell .sa-ref { margin-left: 4px; font-size: var(--text-1); font-weight: 800; opacity: .8; }
+.sa-inline { padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+.si-matrix-card { padding: 8px 10px; overflow-x: auto; }
+.si-matrix th:first-child, .si-matrix td:first-child { min-width: 220px; }
+.si-matrix td { vertical-align: middle; }
+.si-matrix-t .m { color: var(--faint); font-size: var(--text-2); margin-top: 2px; }
+.si-acct-row .t { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.si-acts { flex-wrap: wrap; justify-content: flex-end; }
+.si-head-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.si-card-dlg { max-width: 820px; }
+.ids-title-in { font-size: 19px; font-weight: 700; }
+.mb-2 { margin-bottom: var(--space-2); }
+@media (max-width: 900px) { .si-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .si-board { grid-template-columns: 1fr; } }
+
 /* ---- Present / Room mode (full-tab view for the shared screen) ---------- */
 /* Over-time signal that does NOT rely on red alone — scales + rings the timer
    so it reads on a projector even in grayscale. */
