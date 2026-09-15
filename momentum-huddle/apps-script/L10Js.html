@@ -101,7 +101,8 @@ var state = {
   ctxIssue: null, ctxRock: null,
   // Strategy page: the open initiative drawer (SI id) + its edit mode, the
   // add-form draft (survives re-renders), and the trail note draft.
-  siOpen: null, siEdit: false, siCompose: null, siNoteDraft: '', siArchive: 'ALL',
+  siOpen: null, siEdit: false, siTab: 'accounts', siAdding: false, siHelp: false,
+  siCompose: null, siNoteDraft: '', siArchive: 'ALL', siArchMonth: '',
   // The in-progress issue voting round: { order, idx, left, issueOrder } or null.
   // Client-side by design — the huddle is driven from one shared screen, and
   // the votes themselves persist to the sheet on every tap.
@@ -3460,16 +3461,27 @@ document.addEventListener('click', function (ev) {
 });
 
 // ---------------------------------------------------------------------------
-// Strategy page (v2.14) — cross-account initiatives, OUTSIDE the weekly
-// meeting. Board (by stage) or matrix (initiative × account) views of the
-// L10_Initiatives / L10_Initiative_Accounts tabs, a drawer per initiative with
-// its to-dos (ordinary L10_Todos rows, Source = SI-###), trail and per-account
-// controls, and the two anti-decay flags (stale / no next action).
+// Strategy page (v2.15 layout) — cross-account initiatives, OUTSIDE the weekly
+// meeting. Top to bottom: a triage card (what needs a nudge, with the fix one
+// click away), the live initiatives as a row-per-initiative table with the
+// account matrix inline (or a dense matrix behind a toggle), and the Decided
+// archive with a fiscal-month strip. A right-hand sheet holds the composer;
+// another holds the open initiative (accounts / to-dos / trail). Data model,
+// endpoints and the flag rules are unchanged from v2.14.x.
 // Server twin of the flag rule: l10InitiativeFlags_ (L10Code.gs).
 // ---------------------------------------------------------------------------
 var INIT_STAGES = [['IDEA', 'Idea'], ['SCOPING', 'Scoping'], ['PILOTING', 'Piloting'],
   ['ROLLING OUT', 'Rolling out'], ['ADOPTED', 'Adopted'], ['KILLED', 'Killed']];
 var INIT_LIVE = { IDEA: 1, SCOPING: 1, PILOTING: 1, 'ROLLING OUT': 1 };
+// Stage tone class + the one-line hint under each lane header.
+var INIT_STAGE_META = {
+  IDEA: { cls: 'st-idea', hint: 'parked until it earns a slot' },
+  SCOPING: { cls: 'st-scoping', hint: 'working out what the test would be' },
+  PILOTING: { cls: 'st-piloting', hint: 'live in at least one account' },
+  'ROLLING OUT': { cls: 'st-rolling', hint: 'proven — porting it everywhere' },
+  ADOPTED: { cls: 'st-adopted', hint: '' },
+  KILLED: { cls: 'st-killed', hint: '' }
+};
 // Glyph + word per cell state — the glyph carries the meaning, the tone only
 // seconds it (Alex is colorblind; never colour alone).
 var INIT_STATES = {
@@ -3485,6 +3497,7 @@ function initStageLabel_(stage) {
   for (var i = 0; i < INIT_STAGES.length; i++) if (INIT_STAGES[i][0] === s) return INIT_STAGES[i][1];
   return s ? s.toLowerCase() : 'idea';
 }
+function initStageCls_(stage) { return (INIT_STAGE_META[String(stage || 'IDEA').toUpperCase()] || INIT_STAGE_META.IDEA).cls; }
 function initState_(st) { return INIT_STATES[String(st || 'NOT STARTED').toUpperCase()] || INIT_STATES['NOT STARTED']; }
 function initRows_() { return (state.boot && state.boot.initiatives) || []; }
 function initIsId_(s) { return /^SI-\d+$/i.test(String(s || '').trim()); }
@@ -3513,24 +3526,39 @@ function initAccounts_() {
   return String((state.boot && state.boot.config && state.boot.config.ACCOUNT_TAGS) || '')
       .split(',').map(function (s) { return s.trim(); }).filter(String);
 }
-// Shift / theme is free text on this page (the strategist names next year's
-// themes here while the goals are still being generated). The datalist offers
-// the current four shifts plus whatever has already been typed, so the
-// vocabulary stays consistent without being forced.
+// Column abbreviations for the matrix header ("Brady US" → BUS, "EMEDCO" → EMD,
+// "PDC/Wristbands" → PDC, "Cross-account" → X-A). The full name rides in the
+// title attribute on every header cell.
+function initAbbr_(name) {
+  var n = String(name || '').trim();
+  if (!n) return '';
+  if (n.indexOf(' ') !== -1) {
+    var w = n.split(/\s+/);
+    return (w[0].charAt(0) + w[1].slice(0, 2)).toUpperCase();
+  }
+  if (n.indexOf('/') !== -1) return n.split('/')[0].slice(0, 3).toUpperCase();
+  if (n.indexOf('-') !== -1) {
+    return n.split('-').map(function (p) { return /^cross$/i.test(p) ? 'X' : p.charAt(0).toUpperCase(); }).join('-');
+  }
+  var first = n.charAt(0), rest = n.slice(1).replace(/[aeiou]/gi, '');
+  return (first + (rest.length >= 2 ? rest.slice(0, 2) : n.slice(1, 3))).toUpperCase();
+}
+// Shift / theme is free text; the datalist offers the current four shifts
+// plus whatever has already been typed, so the vocabulary stays consistent
+// without being forced.
 function initShiftListHtml_() {
-    var seen = {}, opts = [];
-    ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'].concat(initRows_().map(function (r) { return String(r['Shift'] || '').trim(); }))
-        .forEach(function (v) { if (v && !seen[v]) { seen[v] = 1; opts.push(v); } });
-    return '<datalist id="si-shift-list">' + opts.map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
+  var seen = {}, opts = [];
+  ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'].concat(initRows_().map(function (r) { return String(r['Shift'] || '').trim(); }))
+      .forEach(function (v) { if (v && !seen[v]) { seen[v] = 1; opts.push(v); } });
+  return '<datalist id="si-shift-list">' + opts.map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
 }
 function initStaleDays_() {
   var n = Number(state.boot && state.boot.config && state.boot.config.INITIATIVE_STALE_DAYS);
   return n > 0 ? n : 14;
 }
 // Latest activity stamp the client can see: the row's own Last Touched, its
-// to-dos' Created/Done At, and its trail lines. The server stamps the row on
-// every write, but an optimistic add here shouldn't leave a STALE badge up
-// until the next reconcile.
+// to-dos' Created/Done At, and its trail lines — so an optimistic add clears
+// a stale badge at once instead of after the next reconcile.
 function initTouched_(init) {
   var id = String(init['ID']);
   var best = String(init['Last Touched'] || init['Created'] || '').slice(0, 10);
@@ -3539,8 +3567,10 @@ function initTouched_(init) {
   initLog_(id).forEach(function (l) { bump(l['At']); });
   return best;
 }
-// The two anti-decay rules. stale: nothing touched it in INITIATIVE_STALE_DAYS;
-// noNext: piloting / rolling out with zero open to-dos.
+// The anti-decay rules. noNext: piloting / rolling out with zero open to-dos.
+// overdue: the lead's own Next Check-in date has passed. stale: no date set,
+// piloting / rolling out, and nothing touched it in INITIATIVE_STALE_DAYS —
+// an idea parked during goal-setting is never nagged.
 function initFlags_(init) {
   var stage = String(init['Stage'] || '').toUpperCase();
   var live = !!INIT_LIVE[stage];
@@ -3548,35 +3578,36 @@ function initFlags_(init) {
   var touched = initTouched_(init);
   var days = /^\d{4}-\d{2}-\d{2}$/.test(touched) ?
       Math.floor((new Date(localToday() + 'T12:00:00').getTime() - new Date(touched + 'T12:00:00').getTime()) / 86400000) : null;
-  // Server twin: l10InitiativeFlags_. The lead's own Next Check-in date wins;
-  // with none set, the timer applies ONLY while piloting / rolling out — an
-  // idea parked during goal-setting is never nagged.
   var moving = stage === 'PILOTING' || stage === 'ROLLING OUT';
   var next = d10(init['Next Check-in'] || '');
   var overdue = live && /^\d{4}-\d{2}-\d{2}$/.test(next) && next < localToday();
-  return {
+  var f = {
     live: live, stage: stage, openTodos: openTodos, days: days, touched: touched,
     nextCheck: /^\d{4}-\d{2}-\d{2}$/.test(next) ? next : '', overdue: overdue,
     stale: overdue || (live && moving && !next && days !== null && days >= initStaleDays_()),
     noNext: moving && openTodos === 0
   };
+  // Ordered list of the flags that fired — the triage card and the row badge
+  // lead with the first one.
+  f.list = [];
+  if (f.noNext) f.list.push({ kind: 'noNext', glyph: '⚠', text: 'no next action', cls: 'flag-red', reason: 'nothing queued against it' });
+  if (f.overdue) f.list.push({ kind: 'overdue', glyph: '◷', text: 'check-in overdue', cls: 'flag-red', reason: 'the check-in you set passed ' + f.nextCheck });
+  else if (f.stale) f.list.push({ kind: 'stale', glyph: '◷', text: 'stale ' + f.days + 'd', cls: 'flag-amber', reason: 'no touch in ' + f.days + ' days and no check-in date' });
+  return f;
 }
 function initFlagsHtml_(f) {
-  var out = '';
-  if (f.noNext) out += ' <span class="tag stale" title="Piloting or rolling out with no open to-do — give it a next action">⚠ no next action</span>';
-  if (f.overdue) out += ' <span class="tag warn" title="The check-in date the lead set has passed">⏳ check-in overdue ' + esc(f.nextCheck) + '</span>';
-  else if (f.stale) out += ' <span class="tag warn" title="Piloting or rolling out and nothing has touched it in ' + f.days + ' days — set a next check-in date to run it on your own clock">⏳ stale ' + f.days + 'd</span>';
-  return out;
+  return (f.list || []).map(function (fl) {
+    return ' <span class="tag si-flag ' + fl.cls + '" title="' + esc(fl.reason) + '">' + fl.glyph + ' ' + esc(fl.text) + '</span>';
+  }).join('');
 }
+// Stage pill: interactive = opens the stage menu (data-sistage).
 function initStagePill_(init, interactive) {
   var stage = String(init['Stage'] || 'IDEA').toUpperCase();
-  var cls = stage === 'ADOPTED' ? 'ps-ontrack' : stage === 'KILLED' ? 'ps-neutral' :
-      (stage === 'PILOTING' || stage === 'ROLLING OUT') ? 'ps-done' : 'ps-neutral';
-  if (!interactive) return '<span class="pill-status ' + cls + '">' + esc(initStageLabel_(stage)) + '</span>';
-  return '<button type="button" class="pill-status ' + cls + ' rk-pill" data-sistage="' + esc(init['ID']) +
-      '" title="Move to another stage">' + esc(initStageLabel_(stage)) + ' <span class="caret">▾</span></button>';
+  var cls = 'si-stage ' + initStageCls_(stage);
+  if (!interactive) return '<span class="' + cls + '">' + esc(initStageLabel_(stage)) + '</span>';
+  return '<button type="button" class="' + cls + '" data-sistage="' + esc(init['ID']) + '" title="Move to another stage">' + esc(initStageLabel_(stage)) + ' ▾</button>';
 }
-// One-line per-account summary: "2 testing · 1 adopted · 3 not started".
+// "2 testing · 1 adopted · 3 not started" — glyph + word per state.
 function initCellSummary_(id) {
   var counts = {};
   initCells_(id).forEach(function (c) { var st = String(c['State'] || 'NOT STARTED').toUpperCase(); counts[st] = (counts[st] || 0) + 1; });
@@ -3585,208 +3616,265 @@ function initCellSummary_(id) {
     return '<span class="si-sum ' + d.c + '">' + d.g + ' ' + counts[st] + ' ' + d.w + '</span>';
   }).join(' ');
 }
-function initCardHtml_(init) {
-  var f = initFlags_(init);
-  var open = f.openTodos;
-  var id = String(init['ID']);
-  return '<div class="si-card' + (f.stale || f.noNext ? ' si-flagged' : '') + '" data-sicard="' + esc(id) + '">' +
-      '<div class="si-card-t"><button type="button" class="si-open" data-siopen="' + esc(id) + '">' + esc(init['Initiative']) + '</button></div>' +
-      (init['Thesis'] ? '<div class="si-thesis">' + esc(init['Thesis']) + '</div>' : '') +
-      (init['Expected Impact'] ? '<div class="si-impact"><b>Expected:</b> ' + esc(init['Expected Impact']) + '</div>' : '') +
-      '<div class="si-card-m">' + who(init['Lead']) + ' ' + tagList(init['Shift'], 'shift') +
-        (init['Effort'] ? '<span class="tag" title="Effort">' + esc(init['Effort']) + ' effort</span>' : '') +
-        (f.nextCheck && !f.overdue ? '<span class="tag" title="Next check-in the lead set">📅 ' + esc(f.nextCheck) + '</span>' : '') +
-        (init['Target Quarter'] ? '<span class="tag">' + esc(init['Target Quarter']) + '</span>' : '') +
-        initFlagsHtml_(f) + '</div>' +
-      '<div class="si-card-m">' + (initCells_(id).length ? initCellSummary_(id) : '<span class="muted">no accounts yet</span>') +
-        ' <span class="muted">· ' + open + ' open to-do' + (open === 1 ? '' : 's') + '</span></div>' +
-      '<div class="si-card-f">' + initStagePill_(init, true) +
-        '<button type="button" class="btn mini subtle" data-siopen="' + esc(id) + '">Open</button></div>' +
+function initImpactGood_(s) { return /[%$]|[−-]\d|\bhold|\breclaim/i.test(String(s || '')); }
+function initCellBtnHtml_(init, acct, dense) {
+  var c = initCellFor_(init['ID'], acct);
+  var st = c ? String(c['State'] || 'NOT STARTED').toUpperCase() : '';
+  var d = initState_(st || 'NOT STARTED');
+  var refs = c ? [c['Hub Ref'] ? 'hub ' + c['Hub Ref'] : '', c['Rock ID'] ? String(c['Rock ID']) : '', c['Note'] ? String(c['Note']) : ''].filter(String).join(' · ') : '';
+  return '<div class="si-cellwrap' + (dense ? ' si-cellwrap--dense' : '') + '"><button type="button" class="sa-cell ' + (c ? d.c : 'sa-blank') +
+      '" data-sicell="' + esc(init['ID']) + '|' + esc(acct) + '" title="' + esc(acct + ' — ' + (c ? d.w : 'not on the matrix yet') + (refs ? ' · ' + refs : '')) + '">' +
+      '<span class="sa-g">' + (c ? d.g : '+') + '</span></button></div>';
+}
+
+// --- Triage: what needs a nudge, with the fix one click away --------------
+function initTriageHtml_(live) {
+  var flagged = [];
+  var moving = 0;
+  live.forEach(function (r) {
+    var f = initFlags_(r);
+    if (!f.list.length) {
+      if (f.stage === 'PILOTING' || f.stage === 'ROLLING OUT') moving++;
+      return;
+    }
+    flagged.push({ r: r, f: f });
+  });
+  var anyRed = flagged.some(function (x) { return x.f.list.some(function (fl) { return fl.cls === 'flag-red'; }); });
+  var tone = flagged.length ? (anyRed ? 'si-triage--red' : 'si-triage--amber') : 'si-triage--green';
+  var html = '<div class="card si-triage ' + tone + '"><div class="si-triage-h">' +
+      '<div class="si-triage-l"><span class="si-kicker">' + (flagged.length ? 'Needs you' : 'All moving') + '</span>' +
+      '<span class="si-triage-sub">' + (flagged.length ?
+        (flagged.length === 1 ? 'One initiative is drifting.' : flagged.length + ' initiatives are drifting. Everything else is moving.') :
+        'Every live initiative has a next action and a recent touch.') + '</span></div>' +
+      '<div class="si-counts"><span><b class="c-blue">' + live.length + '</b> live</span>' +
+      '<span><b class="c-green">' + moving + '</b> moving</span>' +
+      '<span><b class="' + (flagged.length ? (anyRed ? 'c-red' : 'c-amber') : 'c-muted') + '">' + flagged.length + '</b> need a nudge</span></div></div>';
+  html += flagged.map(function (x) {
+    var lead = x.f.list[0];
+    var fixTab = lead.kind === 'noNext' ? 'todos' : 'edit';
+    return '<div class="si-triage-row"><span class="si-triage-g ' + lead.cls + '">' + lead.glyph + '</span>' +
+        '<div class="grow"><div class="si-triage-t">' + esc(x.r['Initiative']) + '</div>' +
+        '<div class="si-triage-r ' + lead.cls + '">' + esc(x.f.list.map(function (fl) { return fl.reason; }).join(' · ')) + '</div></div>' +
+        '<span class="si-triage-m">' + esc(initStageLabel_(x.r['Stage'])) + ' · ' + esc(x.r['Lead'] || '—') + '</span>' +
+        '<button type="button" class="btn mini subtle" data-sifix="' + esc(x.r['ID']) + '|' + fixTab + '">' + (lead.kind === 'noNext' ? 'Add a to-do' : 'Set a check-in') + '</button></div>';
+  }).join('');
+  return html + '</div>';
+}
+
+// --- Live initiatives: table (lanes × rows × cells) or dense matrix --------
+function initGridCols_(accounts, dense) {
+  return (dense ? 'minmax(220px,1fr) 108px' : 'minmax(260px,1fr) 150px') + ' repeat(' + accounts.length + ', 58px)';
+}
+function initHeadRowHtml_(accounts, dense) {
+  return '<div class="si-grid si-grid-h" style="grid-template-columns:' + initGridCols_(accounts, dense) + '">' +
+      '<div class="si-th">Initiative</div><div class="si-th si-th--b">' + (dense ? 'Stage' : 'Next action') + '</div>' +
+      accounts.map(function (a) { return '<div class="si-th si-th--c" title="' + esc(a) + '">' + esc(initAbbr_(a)) + '</div>'; }).join('') + '</div>';
+}
+function initRowHtml_(r, accounts) {
+  var f = initFlags_(r);
+  var id = String(r['ID']);
+  var impact = String(r['Expected Impact'] || '').trim();
+  var next;
+  if (f.openTodos) next = '<div class="si-next-l">' + f.openTodos + (f.openTodos === 1 ? ' open to-do' : ' open to-dos') + '</div>';
+  else next = '<div class="si-next-l' + (f.list.length ? ' si-next-l--bad' : ' si-next-l--none') + '">nothing queued</div>';
+  next += '<div class="si-next-s">' + (f.nextCheck ? (f.overdue ? 'check-in was ' : 'check-in ') + esc(f.nextCheck) : 'touched ' + esc(f.touched || '—')) + '</div>' +
+      (f.list.length ? '<div class="si-flag-badge ' + f.list[0].cls + '">' + f.list[0].glyph + ' ' + esc(f.list[0].text) + '</div>' : '');
+  return '<div class="si-grid si-row' + (f.list.length ? ' si-row--flagged' : '') + '" style="grid-template-columns:' + initGridCols_(accounts, false) + '" data-sirow="' + esc(id) + '">' +
+      '<div class="si-row-main" data-siopen="' + esc(id) + '" role="button" tabindex="0">' +
+        '<div class="si-row-t">' + esc(r['Initiative']) + '</div>' +
+        (r['Thesis'] ? '<div class="si-row-thesis">' + esc(r['Thesis']) + '</div>' : '') +
+        '<div class="si-chips">' + who(r['Lead']) +
+          '<span class="si-chip">' + esc(r['Shift'] || 'no theme') + '</span>' +
+          '<span class="si-chip">' + esc(r['Effort'] || '—') + ' effort</span>' +
+          initStagePill_(r, true) + '</div>' +
+        (impact ? '<div class="si-impact' + (initImpactGood_(impact) ? ' si-impact--good' : '') + '">' + esc(impact) + '</div>' : '') +
+      '</div>' +
+      '<div class="si-next">' + next + '</div>' +
+      accounts.map(function (a) { return initCellBtnHtml_(r, a, false); }).join('') +
       '</div>';
 }
-// --- Archive: completed, rolled out & killed, bucketed by fiscal month ------
-// The graveyard. Every decided initiative (ADOPTED or KILLED) lives here for
-// good, in the month it was decided, on the same Aug–Jul fiscal calendar the
-// header uses. The current fiscal year shows all twelve buckets (empty ones
-// too, like the board); earlier years show only the months that have entries.
+function initLanes_(live, group) {
+  var lanes = [];
+  if (group === 'shift') {
+    var keys = [];
+    live.forEach(function (r) { var k = String(r['Shift'] || '').trim() || 'No theme yet'; if (keys.indexOf(k) === -1) keys.push(k); });
+    keys.sort(function (a, b) { return a === 'No theme yet' ? 1 : b === 'No theme yet' ? -1 : (a < b ? -1 : 1); });
+    keys.forEach(function (k) {
+      var rows = live.filter(function (r) { return (String(r['Shift'] || '').trim() || 'No theme yet') === k; });
+      lanes.push({ label: k, count: rows.length + (rows.length === 1 ? ' initiative' : ' initiatives'), hint: '', rows: rows, emptyText: '' });
+    });
+  } else {
+    ['ROLLING OUT', 'PILOTING', 'SCOPING', 'IDEA'].forEach(function (k) {
+      var rows = live.filter(function (r) { return String(r['Stage'] || 'IDEA').toUpperCase() === k; });
+      lanes.push({ label: initStageLabel_(k), count: String(rows.length), hint: INIT_STAGE_META[k].hint, rows: rows, emptyText: 'Nothing at this stage.' });
+    });
+  }
+  return lanes;
+}
+function initTableHtml_(live, accounts, group) {
+  return '<div class="si-tablewrap">' + initHeadRowHtml_(accounts, false) +
+      initLanes_(live, group).map(function (lane) {
+        return '<div class="si-lane' + (lane.rows.length ? '' : ' si-lane--empty') + '"><div class="si-lane-h"><span class="si-lane-l">' + esc(lane.label) + '</span>' +
+            '<span class="si-lane-n">' + esc(lane.count) + '</span>' + (lane.hint ? '<span class="si-lane-hint">' + esc(lane.hint) + '</span>' : '') + '</div>' +
+            (lane.rows.length ? lane.rows.map(function (r) { return initRowHtml_(r, accounts); }).join('') :
+              '<div class="si-lane-empty">' + esc(lane.emptyText) + '</div>') + '</div>';
+      }).join('') + '</div>';
+}
+function initMatrixHtml_(live, accounts) {
+  var order = ['ROLLING OUT', 'PILOTING', 'SCOPING', 'IDEA'];
+  var rows = live.slice().sort(function (a, b) {
+    return order.indexOf(String(a['Stage'] || 'IDEA').toUpperCase()) - order.indexOf(String(b['Stage'] || 'IDEA').toUpperCase());
+  });
+  var html = '<div class="si-tablewrap">' + initHeadRowHtml_(accounts, true) + rows.map(function (r) {
+    var f = initFlags_(r);
+    var red = f.list.some(function (fl) { return fl.cls === 'flag-red'; });
+    var amber = !red && f.list.length > 0;
+    return '<div class="si-grid si-mrow" style="grid-template-columns:' + initGridCols_(accounts, true) + '">' +
+        '<div class="si-mrow-t" data-siopen="' + esc(r['ID']) + '" role="button" tabindex="0">' +
+          (red ? '<span class="si-mflag flag-red" title="no next action, or the check-in date passed">⚠</span>' : '') +
+          (amber ? '<span class="si-mflag flag-amber" title="no touch in ' + initStaleDays_() + ' days and no check-in set">◷</span>' : '') +
+          '<span class="si-mrow-title">' + esc(r['Initiative']) + '</span></div>' +
+        '<div class="si-mrow-st">' + initStagePill_(r, false) + '</div>' +
+        accounts.map(function (a) { return initCellBtnHtml_(r, a, true); }).join('') + '</div>';
+  }).join('');
+  html += '<div class="si-grid si-mfoot" style="grid-template-columns:' + initGridCols_(accounts, true) + '"><div class="si-th">Adopted here</div><div class="si-th"></div>' +
+      accounts.map(function (a) {
+        var n = live.filter(function (r) { var c = initCellFor_(r['ID'], a); return c && String(c['State']).toUpperCase() === 'ADOPTED'; }).length;
+        return '<div class="si-mfoot-n' + (n ? ' c-green' : ' c-muted') + '" title="' + esc(a + ' — adopted on ' + n + ' live ' + (n === 1 ? 'initiative' : 'initiatives')) + '">' + (n || '–') + '</div>';
+      }).join('') + '</div></div>';
+  return html;
+}
+function initLiveCardHtml_(live, accounts, view, group) {
+  var legend = INIT_STATE_ORDER.map(function (k) { var d = initState_(k); return '<span class="si-legend-i"><b class="' + d.c + '">' + d.g + '</b>' + d.w + '</span>'; }).join('');
+  function seg(attr, key, cur, label) {
+    return '<button type="button" class="pill pill--btn pill--sm' + (cur === key ? ' on' : '') + '" ' + attr + '="' + key + '" aria-pressed="' + (cur === key) + '">' + label + '</button>';
+  }
+  var html = '<div class="card si-live"><div class="si-card-h"><div class="si-card-hl"><span class="si-card-title">Live initiatives</span>' +
+      '<span class="si-card-sub">' + live.length + ' live · ' + accounts.length + ' account' + (accounts.length === 1 ? '' : 's') + ' on the matrix</span></div>' +
+      '<div class="si-card-hr"><span class="si-seg"><span class="si-seg-l">View</span>' + seg('data-siview', 'table', view, 'Table') + seg('data-siview', 'matrix', view, 'Matrix') + '</span>' +
+      '<span class="si-legend">' + legend + '</span>' +
+      (view === 'table' ? '<span class="si-seg si-seg--b"><span class="si-seg-l">Group</span>' + seg('data-sigroup', 'stage', group, 'Stage') + seg('data-sigroup', 'shift', group, 'Shift') + '</span>' : '') +
+      '</div></div>';
+  if (!live.length) {
+    html += '<div class="si-empty">No live initiatives. <button type="button" class="si-link" data-sinew="1">Add the first one</button> — a good first row is the thing that already worked somewhere and should be tried elsewhere.</div>';
+  } else if (!accounts.length) {
+    html += '<div class="si-empty">No account tags — set ACCOUNT_TAGS in L10_Config to get the matrix.</div>';
+  } else {
+    html += view === 'matrix' ? initMatrixHtml_(live, accounts) : initTableHtml_(live, accounts, group);
+  }
+  return html + '</div>';
+}
+
+// --- Decided: the archive, month strip + grouped entries ------------------
 var MONTH_ABBR_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var MONTH_FULL_ = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 function initFyStart_() {
   var s = Number(state.boot && state.boot.config && state.boot.config.FISCAL_START_MONTH) || 1;
   return (s >= 1 && s <= 12) ? s : 1;
 }
-// {fyNum: 2027, fy: 'FY27', idx: 0..11} for a yyyy-mm(-dd) string, or null.
+// {fyNum: 2027, fy: 'FY27', idx: 0..11, ym: '2026-09'} for a yyyy-mm(-dd) string, or null.
 function initFyOf_(ymd) {
   var m = String(ymd || '').match(/^(\d{4})-(\d{2})/);
   if (!m) return null;
   var y = Number(m[1]), mo = Number(m[2]), s = initFyStart_();
   var fyNum = y + (s > 1 && mo >= s ? 1 : 0);
-  return { fyNum: fyNum, fy: 'FY' + String(fyNum).slice(-2), idx: (mo - s + 12) % 12 };
+  return { fyNum: fyNum, fy: 'FY' + String(fyNum).slice(-2), idx: (mo - s + 12) % 12, ym: m[1] + '-' + m[2] };
 }
-function initFyMonthLabel_(fyNum, idx) {
+// The yyyy-mm of month index idx (0 = first fiscal month) in fiscal year fyNum.
+function initFyYm_(fyNum, idx) {
   var s = initFyStart_();
   var mo = ((s - 1 + idx) % 12) + 1;
   var y = fyNum - (s > 1 && mo >= s ? 1 : 0);
-  return MONTH_ABBR_[mo - 1] + ' ' + y;
+  return y + '-' + (mo < 10 ? '0' : '') + mo;
+}
+function initMonthLabel_(ym, full) {
+  var m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return '';
+  return (full ? MONTH_FULL_ : MONTH_ABBR_)[Number(m[2]) - 1] + ' ' + m[1];
 }
 function initArchiveEntryHtml_(r) {
   var id = String(r['ID']);
-  var stage = String(r['Stage'] || '').toUpperCase();
-  var counts = initCells_(id).length ? initCellSummary_(id) : '';
-  return '<div class="si-arch-item' + (stage === 'KILLED' ? ' si-arch-killed' : '') + '">' +
-      '<div class="si-arch-t"><button type="button" class="si-open" data-siopen="' + esc(id) + '">' + esc(r['Initiative']) + '</button> ' + initStagePill_(r, true) + '</div>' +
-      '<div class="m">' + who(r['Lead']) + ' ' + tagList(r['Shift'], 'shift') + ' · decided ' + esc(d10(r['Decided At']) || 'undated') +
-        (counts ? ' · ' + counts : '') + '</div>' +
-      (r['Decision'] ? '<div class="si-arch-verdict">' + esc(r['Decision']) + '</div>' : '<div class="si-arch-verdict muted">no verdict written — open it and add the learning</div>') +
-      '</div>';
+  var cells = initCells_(id);
+  var adopted = cells.filter(function (c) { return String(c['State']).toUpperCase() === 'ADOPTED'; }).length;
+  var rejected = cells.filter(function (c) { return String(c['State']).toUpperCase() === 'REJECTED'; }).length;
+  var verdict = String(r['Decision'] || '').trim();
+  return '<div class="si-arch-row">' +
+      '<div class="si-arch-main"><div class="si-arch-t"><button type="button" class="si-open" data-siopen="' + esc(id) + '">' + esc(r['Initiative']) + '</button> ' + initStagePill_(r, true) + '</div>' +
+        '<div class="si-arch-m">' + esc(r['Lead'] || '—') + ' · ' + esc(r['Shift'] || 'no theme') + ' · decided ' + esc(d10(r['Decided At']) || '—') + '</div></div>' +
+      '<div class="si-arch-v' + (verdict ? '' : ' si-arch-v--none') + '">' + (verdict ? esc(verdict) : 'No verdict written — open it and add the learning.') + '</div>' +
+      '<div class="si-arch-o"><span>' + adopted + ' adopted · ' + rejected + ' rejected</span>' +
+        (r['Origin'] ? '<span class="muted">from ' + esc(r['Origin']) + '</span>' : '') + '</div></div>';
 }
 function initArchiveHtml_(decided) {
   var filter = state.siArchive || 'ALL';
+  var month = state.siArchMonth || '';
+  var adoptedN = decided.filter(function (r) { return String(r['Stage']).toUpperCase() === 'ADOPTED'; }).length;
+  var killedN = decided.length - adoptedN;
+  var cur = initFyOf_(localToday());
+  var fyNum = cur ? cur.fyNum : new Date().getFullYear();
+  // Bucket every decided row by yyyy-mm (undated → 'undated').
+  var byMonth = {};
+  decided.forEach(function (r) {
+    var f = initFyOf_(d10(r['Decided At']));
+    var key = f ? f.ym : 'undated';
+    (byMonth[key] = byMonth[key] || []).push(r);
+  });
   var rows = decided.filter(function (r) {
     var st = String(r['Stage'] || '').toUpperCase();
-    return filter === 'ALL' || st === filter;
+    if (!(filter === 'ALL' || st === filter)) return false;
+    if (!month) return true;
+    var f = initFyOf_(d10(r['Decided At']));
+    return !!f && f.ym === month;
   });
-  var adopted = decided.filter(function (r) { return String(r['Stage']).toUpperCase() === 'ADOPTED'; }).length;
-  var killed = decided.length - adopted;
   function chip(key, label, n) {
     return '<button type="button" class="pill pill--btn pill--sm' + (filter === key ? ' on' : '') + '" data-siarch="' + key + '" aria-pressed="' + (filter === key) + '">' + label + ' ' + n + '</button>';
   }
-  var html = '<div class="card si-archive"><h3>Completed, rolled out &amp; killed <span class="h3-sub">the archive — every decision, in the month it was made</span></h3>' +
-      '<div class="row row--mid mb-3"><span class="ownerpick-lbl">Show</span>' + chip('ALL', 'All', decided.length) + chip('ADOPTED', '✓ Adopted', adopted) + chip('KILLED', '✕ Killed', killed) +
-      '<span class="help help--after">Nothing here is deleted. Reopen one from its stage pill if it deserves another go.</span></div>';
-  if (!decided.length) {
-    return html + '<div class="empty">Nothing decided yet. When an initiative is adopted or killed it lands here, in the month it was decided, with its verdict.</div></div>';
+  var html = '<div class="card si-archive"><div class="si-card-h"><div class="si-card-hl"><span class="si-card-title">Decided</span>' +
+      '<span class="si-card-sub">' + decided.length + ' decided · nothing here is ever deleted</span></div>' +
+      '<div class="si-card-hr">' + chip('ALL', 'All', decided.length) + chip('ADOPTED', '✓ Adopted', adoptedN) + chip('KILLED', '✕ Killed', killedN) + '</div></div>';
+  // Fiscal-month strip for the current fiscal year — one cell per month, the
+  // count inside, click to filter the list to that month.
+  var fyTotal = 0;
+  var strip = [];
+  for (var i = 0; i < 12; i++) {
+    var ym = initFyYm_(fyNum, i);
+    var n = (byMonth[ym] || []).length;
+    fyTotal += n;
+    var on = month === ym;
+    strip.push('<button type="button" class="si-month' + (n ? ' si-month--has' : '') + (on ? ' on' : '') + '" data-simonth="' + ym + '"' + (n ? '' : ' disabled') +
+        ' title="' + esc(initMonthLabel_(ym, true) + ' — ' + (n ? n + ' decided' : 'nothing decided')) + '">' +
+        '<span class="si-month-l">' + esc(MONTH_ABBR_[Number(ym.slice(5)) - 1].toUpperCase()) + '</span><span class="si-month-n">' + (n || '–') + '</span></button>');
   }
-  // Bucket by fiscal year → month index.
-  var years = {}, undated = [];
+  html += '<div class="si-strip-wrap"><div class="si-strip-h"><span class="si-kicker">' + esc('FY' + String(fyNum).slice(-2)) + '</span>' +
+      '<span class="si-card-sub">' + esc(initMonthLabel_(initFyYm_(fyNum, 0)) + ' – ' + initMonthLabel_(initFyYm_(fyNum, 11))) + ' · ' + fyTotal + ' this fiscal year' +
+      (month ? ' · showing ' + esc(initMonthLabel_(month, true)) + ' <button type="button" class="si-link" data-simonth="' + esc(month) + '">clear</button>' : '') + '</span></div>' +
+      '<div class="si-strip">' + strip.join('') + '</div></div>';
+  if (!decided.length) {
+    return html + '<div class="si-empty">Nothing decided yet. When an initiative is adopted or killed it lands here, in the month it was decided, with its verdict.</div></div>';
+  }
+  // Grouped by month, newest first; undated last.
+  var groups = {};
   rows.forEach(function (r) {
     var f = initFyOf_(d10(r['Decided At']));
-    if (!f) { undated.push(r); return; }
-    var yr = years[f.fyNum] = years[f.fyNum] || { fyNum: f.fyNum, fy: f.fy, months: {} };
-    (yr.months[f.idx] = yr.months[f.idx] || []).push(r);
+    var key = f ? f.ym : 'undated';
+    (groups[key] = groups[key] || []).push(r);
   });
-  var cur = initFyOf_(localToday());
-  if (cur && !years[cur.fyNum]) years[cur.fyNum] = { fyNum: cur.fyNum, fy: cur.fy, months: {} };
-  Object.keys(years).map(Number).sort(function (a, b) { return b - a; }).forEach(function (fyNum) {
-    var yr = years[fyNum];
-    var isCur = cur && fyNum === cur.fyNum;
-    var idxs = isCur ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : Object.keys(yr.months).map(Number).sort(function (a, b) { return a - b; });
-    var n = Object.keys(yr.months).reduce(function (t, k) { return t + yr.months[k].length; }, 0);
-    html += '<div class="si-arch-fy">' + esc(yr.fy) + ' <span class="h3-sub">' + esc(initFyMonthLabel_(fyNum, 0)) + ' – ' + esc(initFyMonthLabel_(fyNum, 11)) + ' · ' + n + ' decided' + (isCur ? ' · this fiscal year' : '') + '</span></div>' +
-        '<div class="si-board si-board--months">' + idxs.map(function (idx) {
-          var list = yr.months[idx] || [];
-          var future = isCur && idx > cur.idx;
-          return '<div class="si-col' + (future ? ' si-col--future' : '') + '"><div class="si-col-h">' + esc(initFyMonthLabel_(fyNum, idx)) + ' <span class="td-group-n">' + list.length + '</span></div>' +
-              (list.length ? list.sort(function (a, b) { return String(a['Decided At']) < String(b['Decided At']) ? 1 : -1; }).map(initArchiveEntryHtml_).join('') : '<div class="si-col-empty">—</div>') + '</div>';
-        }).join('') + '</div>';
-  });
-  if (undated.length) {
-    html += '<div class="si-arch-fy">Undated <span class="h3-sub">decided, but no date recorded — open and set "Decided on"</span></div>' +
-        '<div class="si-board si-board--months"><div class="si-col">' + undated.map(initArchiveEntryHtml_).join('') + '</div></div>';
-  }
-  if (!rows.length) html += '<div class="empty">Nothing matches that filter.</div>';
+  var keys = Object.keys(groups).sort(function (a, b) { return a === 'undated' ? 1 : b === 'undated' ? -1 : (a < b ? 1 : -1); });
+  html += keys.map(function (k) {
+    var f = k === 'undated' ? null : initFyOf_(k + '-01');
+    var label = k === 'undated' ? 'No decision date — open and set "Decided on"' : f.fy + ' · ' + initMonthLabel_(k, true);
+    return '<div class="si-arch-group"><div class="si-arch-gh">' + esc(label) + '</div>' +
+        groups[k].sort(function (a, b) { return String(a['Decided At']) < String(b['Decided At']) ? 1 : -1; }).map(initArchiveEntryHtml_).join('') + '</div>';
+  }).join('');
+  if (!rows.length) html += '<div class="si-empty">Nothing decided under this filter yet.</div>';
   return html + '</div>';
 }
-function initBoardHtml_(live, decided) {
-  var cols = INIT_STAGES.slice(0, 4);
-  var html = '<div class="si-board">' + cols.map(function (st) {
-    var rows = live.filter(function (r) { return String(r['Stage'] || 'IDEA').toUpperCase() === st[0]; });
-    return '<div class="si-col"><div class="si-col-h">' + esc(st[1]) + ' <span class="td-group-n">' + rows.length + '</span></div>' +
-        (rows.length ? rows.map(initCardHtml_).join('') : '<div class="si-col-empty">—</div>') + '</div>';
-  }).join('') + '</div>';
-  return html;
-}
-// Board grouped by shift / theme instead of stage — the view for goal-setting,
-// when the question is "what do we have under each theme", not "how far along".
-function initBoardByShiftHtml_(live, decided) {
-  var lanes = {}, order = [];
-  live.forEach(function (r) {
-    var k = String(r['Shift'] || '').trim() || '— no shift yet';
-    if (!lanes[k]) { lanes[k] = []; order.push(k); }
-    lanes[k].push(r);
-  });
-  order.sort(function (a, b) { return a.indexOf('—') === 0 ? 1 : b.indexOf('—') === 0 ? -1 : (a < b ? -1 : 1); });
-  var html = '<div class="si-board si-board--lanes">' + (order.length ? order.map(function (k) {
-    return '<div class="si-col"><div class="si-col-h">' + esc(k) + ' <span class="td-group-n">' + lanes[k].length + '</span></div>' +
-        lanes[k].map(initCardHtml_).join('') + '</div>';
-  }).join('') : '<div class="si-col"><div class="si-col-empty">—</div></div>') + '</div>';
-  return html;
-}
+
+// --- The page --------------------------------------------------------------
+function siViewGet_() { try { return localStorage.getItem('l10SiView') === 'matrix' ? 'matrix' : 'table'; } catch (e) { return 'table'; } }
+function siViewSet_(v) { try { localStorage.setItem('l10SiView', v); } catch (e) {} }
 function siGroupGet_() { try { return localStorage.getItem('l10SiGroup') === 'shift' ? 'shift' : 'stage'; } catch (e) { return 'stage'; } }
 function siGroupSet_(v) { try { localStorage.setItem('l10SiGroup', v); } catch (e) {} }
-function initMatrixHtml_(live, accounts) {
-  if (!accounts.length) return '<div class="card"><div class="empty">No account tags — set ACCOUNT_TAGS in L10_Config.</div></div>';
-  // Accounts already on a cell but no longer in ACCOUNT_TAGS still get a column
-  // so nothing recorded goes invisible.
-  var extra = {};
-  live.forEach(function (r) {
-    initCells_(r['ID']).forEach(function (c) {
-      var a = String(c['Account']).trim();
-      if (a && accounts.indexOf(a) === -1) extra[a] = 1;
-    });
-  });
-  var cols = accounts.concat(Object.keys(extra));
-  var html = '<div class="card si-matrix-card"><table class="data si-matrix"><thead><tr><th>Initiative</th>' +
-      cols.map(function (a) { return '<th>' + esc(a) + '</th>'; }).join('') + '</tr></thead><tbody>';
-  live.forEach(function (r) {
-    var f = initFlags_(r);
-    html += '<tr><td class="si-matrix-t"><button type="button" class="si-open" data-siopen="' + esc(r['ID']) + '">' + esc(r['Initiative']) + '</button>' +
-        '<div class="m">' + esc(initStageLabel_(r['Stage'])) + ' · ' + esc(r['Lead'] || '—') + initFlagsHtml_(f) + '</div></td>';
-    cols.forEach(function (a) {
-      var c = initCellFor_(r['ID'], a);
-      var st = c ? String(c['State'] || 'NOT STARTED').toUpperCase() : '';
-      var d = initState_(st || 'NOT STARTED');
-      html += '<td><button type="button" class="sa-cell ' + (c ? d.c : 'sa-blank') + '" data-sicell="' + esc(r['ID']) + '|' + esc(a) +
-          '" title="' + esc((c && c['Note']) ? String(c['Note']) : 'Set the state for ' + a) + '">' +
-          (c ? '<span class="sa-g">' + d.g + '</span> ' + d.w : '<span class="sa-g">+</span>') +
-          (c && c['Hub Ref'] ? '<span class="sa-ref">' + esc(c['Hub Ref']) + '</span>' : '') +
-          (c && c['Rock ID'] ? '<span class="sa-ref">' + esc(c['Rock ID']) + '</span>' : '') +
-          '</button></td>';
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
-function initAddCardHtml_() {
-  var b = state.boot;
-  var lead = String(b.config.INITIATIVE_LEAD || '').trim();
-  var c = state.siCompose || (state.siCompose = { accounts: [] });
-  return '<div class="card"><h3>Add an initiative</h3><div class="row">' +
-      '<div class="field field--tight f-3"><input class="js-si-title" value="' + esc(c.title || '') + '" placeholder="the theme — e.g. Demand Gen campaigns across Google accounts"></div>' +
-      '<div class="field field--tight"><select class="js-si-lead">' + b.team.map(function (p) {
-        return '<option' + (p === (c.lead || lead) ? ' selected' : '') + '>' + esc(p) + '</option>';
-      }).join('') + '</select></div>' +
-      '<div class="field field--tight"><input class="js-si-shift" list="si-shift-list" value="' + esc(c.shift || '') + '" placeholder="shift / theme (free text)" title="Which strategic shift or theme this serves — type your own, or pick one of the current four"></div>' + initShiftListHtml_() +
-      '<button class="btn js-si-add">Add</button></div>' +
-      '<div class="row row--follow"><div class="field field--tight f-2"><input class="js-si-thesis" value="' + esc(c.thesis || '') + '" placeholder="thesis — what we believe, and why it should transfer (one sentence)"></div>' +
-      '<div class="field field--tight f-1"><input class="js-si-origin" value="' + esc(c.origin || '') + '" placeholder="origin — where it was proven (account, hub id…)"></div></div>' +
-      '<div class="row row--follow"><div class="field field--tight f-2"><input class="js-si-impact" value="' + esc(c.impact || '') + '" placeholder="expected impact — what the business gets, in its own terms (e.g. −15% CPL on Brady CA ≈ $40K/yr)"></div>' +
-      '<div class="field field--tight"><select class="js-si-effort" title="Effort"><option value="">effort…</option>' +
-        ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (c.effort === e ? ' selected' : '') + '>' + e + ' effort</option>'; }).join('') + '</select></div>' +
-      '<div class="field field--tight"><input class="js-si-next" type="date" value="' + esc(c.nextCheck || '') + '" title="Next check-in — the date you want to look at this again (optional)"></div></div>' +
-      '<div class="ownerpick"><span class="ownerpick-lbl">Accounts in scope</span>' + initAccounts_().map(function (a) {
-        var on = c.accounts.indexOf(a) !== -1;
-        return '<button type="button" class="pill pill--btn pill--sm js-si-acct' + (on ? ' on' : '') + '" data-acct="' + esc(a) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(a) + '</button>';
-      }).join('') + '</div>' +
-      '<div class="help">Starts at Idea. Each tapped account becomes a "not started" cell on the matrix; add more later from the initiative itself.</div></div>';
-}
-function initStripHtml_(live) {
-  var stale = 0, noNext = 0, moving = 0;
-  live.forEach(function (r) {
-    var f = initFlags_(r);
-    if (f.stale) stale++;
-    if (f.noNext) noNext++;
-    if (!f.stale && !f.noNext && (f.stage === 'PILOTING' || f.stage === 'ROLLING OUT')) moving++;
-  });
-  function pill(n, label, cls, glyph) {
-    return '<span class="pill pill--sm ' + (n ? cls : 'pill--faint') + '">' + glyph + ' ' + n + ' ' + label + '</span>';
-  }
-  return '<div class="si-strip">' + pill(live.length, 'live', 'pill--accent', '◎') + pill(moving, 'moving', 'pill--good', '▶') +
-      pill(noNext, 'no next action', 'pill--bad', '⚠') + pill(stale, 'stale', 'pill--warn', '⏳') +
-      '<span class="help help--after">Moving = piloting or rolling out with a next action and a touch in the last ' + initStaleDays_() + ' days.</span></div>';
-}
-function siViewGet_() { try { return localStorage.getItem('l10SiView') === 'matrix' ? 'matrix' : 'board'; } catch (e) { return 'board'; } }
-function siViewSet_(v) { try { localStorage.setItem('l10SiView', v); } catch (e) {} }
 function renderStrategy() {
   var page = $('page-strategy');
   if (!page) return; // pre-upgrade shell without the nav/page div
@@ -3796,35 +3884,23 @@ function renderStrategy() {
   var live = all.filter(function (r) { return !!INIT_LIVE[String(r['Stage'] || 'IDEA').toUpperCase()]; });
   var decided = all.filter(function (r) { return !INIT_LIVE[String(r['Stage'] || 'IDEA').toUpperCase()]; });
   var view = siViewGet_(), group = siGroupGet_();
-  var html = '<h2 class="page-title">Strategy</h2><p class="page-sub page-sub--tight">Cross-account initiatives — ' +
-      'the bets that span more than one account and more than one quarter. Not part of the weekly huddle: this page ' +
-      'is where the strategist works between meetings. Each initiative spawns ordinary to-dos, sends tests to the ' +
-      'Experiment Hub and promotes priorities; the matrix shows where each idea stands per account.</p>';
+  var html = '<div class="si-head"><div class="grow"><h2 class="page-title">Strategy</h2>' +
+      '<p class="page-sub page-sub--tight">The bets that span more than one account, worked on between meetings. ' +
+      '<button type="button" class="si-link" data-sihelp="1" aria-expanded="' + (state.siHelp ? 'true' : 'false') + '">How this page works</button></p>' +
+      (state.siHelp ? '<div class="si-help">Not part of the weekly huddle: this page is where the strategist works between meetings. ' +
+        'Each initiative spawns ordinary to-dos (they ride the To-dos page, the huddle review and the Jira sync), sends tests to the ' +
+        'Experiment Hub and promotes priorities; the matrix shows where each idea stands per account. An initiative ends on a ' +
+        'decision — adopted or killed — and moves to the archive with its verdict. Set a next check-in date on an initiative and ' +
+        'that date is its only staleness clock; without one, only piloting and rolling-out initiatives are timer-flagged after ' +
+        initStaleDays_() + ' days.</div>' : '') + '</div>' +
+      '<div class="si-head-r"><button type="button" class="btn si-cta" data-sinew="1">+ New initiative</button></div></div>';
   if (b.initiativeTabsReady === false) {
     html += '<div class="banner warn"><b>One setup step left.</b> In the spreadsheet menu run ' +
         '<b>Momentum Huddle → Setup / repair tabs</b> once, then reload. It adds the three Strategy tabs ' +
         '(L10_Initiatives, L10_Initiative_Accounts, L10_Initiative_Log) — nothing existing changes.</div>';
   }
-  html += initStripHtml_(live);
-  html += '<div class="row row--mid mb-3 si-view"><span class="ownerpick-lbl">View</span>' +
-      '<button type="button" class="pill pill--btn pill--sm' + (view === 'board' ? ' on' : '') + '" data-siview="board" aria-pressed="' + (view === 'board') + '">▦ Board</button>' +
-      '<button type="button" class="pill pill--btn pill--sm' + (view === 'matrix' ? ' on' : '') + '" data-siview="matrix" aria-pressed="' + (view === 'matrix') + '">▤ Matrix</button>' +
-      (view === 'board' ? '<span class="ownerpick-lbl si-group-lbl">Group by</span>' +
-        '<button type="button" class="pill pill--btn pill--sm' + (group === 'stage' ? ' on' : '') + '" data-sigroup="stage" aria-pressed="' + (group === 'stage') + '">Stage</button>' +
-        '<button type="button" class="pill pill--btn pill--sm' + (group === 'shift' ? ' on' : '') + '" data-sigroup="shift" aria-pressed="' + (group === 'shift') + '">Shift / theme</button>' : '') +
-      '</div>';
-  if (!all.length) {
-    html += '<div class="card"><div class="empty"><div class="e">🧭</div>No initiatives yet — add the first one below. A good first row is the thing that already worked somewhere and should be tried elsewhere.</div></div>';
-  } else if (view === 'matrix') {
-    html += initMatrixHtml_(live, initAccounts_());
-  } else if (group === 'shift') {
-    html += initBoardByShiftHtml_(live, decided);
-  } else {
-    html += initBoardHtml_(live, decided);
-  }
-  html += initAddCardHtml_();
-  // Underneath it all: the archive — completed, rolled out and killed, by
-  // fiscal month. Always present, even empty, so the page has a memory.
+  html += initTriageHtml_(live);
+  html += initLiveCardHtml_(live, initAccounts_(), view, group);
   html += initArchiveHtml_(decided);
   page.innerHTML = html;
   wireStrategy_(page);
@@ -3839,76 +3915,40 @@ function wireStrategy_(scope) {
   scope.querySelectorAll('[data-siarch]').forEach(function (btn) {
     btn.addEventListener('click', function () { state.siArchive = btn.dataset.siarch; renderStrategy(); });
   });
-  scope.querySelectorAll('[data-siopen]').forEach(function (btn) {
-    btn.addEventListener('click', function () { openInitiative(btn.dataset.siopen); });
+  scope.querySelectorAll('[data-simonth]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.siArchMonth = state.siArchMonth === btn.dataset.simonth ? '' : btn.dataset.simonth;
+      renderStrategy();
+    });
   });
+  scope.querySelectorAll('[data-sihelp]').forEach(function (btn) {
+    btn.addEventListener('click', function () { state.siHelp = !state.siHelp; renderStrategy(); });
+  });
+  scope.querySelectorAll('[data-sinew]').forEach(function (btn) {
+    btn.addEventListener('click', function () { openInitiativeSheet_(); });
+  });
+  scope.querySelectorAll('[data-siopen]').forEach(function (el) {
+    el.addEventListener('click', function () { openInitiative(el.dataset.siopen); });
+    el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openInitiative(el.dataset.siopen); } });
+  });
+  scope.querySelectorAll('[data-sifix]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var parts = btn.dataset.sifix.split('|');
+      openInitiative(parts[0], parts[1]);
+    });
+  });
+  // The stage pill and the cells sit INSIDE the row's open target — stop the
+  // click there so a status change never also opens the drawer.
   scope.querySelectorAll('[data-sistage]').forEach(function (btn) {
-    btn.addEventListener('click', function () { openInitStageMenu_(btn, btn.dataset.sistage); });
+    btn.addEventListener('click', function (ev) { ev.stopPropagation(); openInitStageMenu_(btn, btn.dataset.sistage); });
   });
   scope.querySelectorAll('[data-sicell]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
       var parts = btn.dataset.sicell.split('|');
       openInitCellPicker_(btn, parts[0], parts[1]);
     });
   });
-  // Add form — text rides in state so a re-render (a cell flip elsewhere on the
-  // page) can't eat a half-typed initiative.
-  var c = state.siCompose;
-  ['title', 'thesis', 'origin', 'impact'].forEach(function (k) {
-    var el = scope.querySelector('.js-si-' + k);
-    if (el) el.addEventListener('input', function () { c[k] = el.value; });
-  });
-  var effortSel = scope.querySelector('.js-si-effort');
-  if (effortSel) effortSel.addEventListener('change', function () { c.effort = effortSel.value; });
-  var nextIn = scope.querySelector('.js-si-next');
-  if (nextIn) nextIn.addEventListener('change', function () { c.nextCheck = nextIn.value; });
-  var leadSel = scope.querySelector('.js-si-lead');
-  if (leadSel) leadSel.addEventListener('change', function () { c.lead = leadSel.value; });
-  var shiftIn = scope.querySelector('.js-si-shift');
-  if (shiftIn) shiftIn.addEventListener('input', function () { c.shift = shiftIn.value; });
-  scope.querySelectorAll('.js-si-acct').forEach(function (chip) {
-    chip.addEventListener('click', function () {
-      var on = chip.classList.toggle('on');
-      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
-      var i = c.accounts.indexOf(chip.dataset.acct);
-      if (on && i === -1) c.accounts.push(chip.dataset.acct);
-      else if (!on && i !== -1) c.accounts.splice(i, 1);
-    });
-  });
-  var add = scope.querySelector('.js-si-add');
-  if (add) {
-    var submit = function () {
-      var card = add.closest('.card');
-      var title = card.querySelector('.js-si-title').value.trim();
-      if (!title) { notify('Give the initiative a title.', 'warn'); return; }
-      add.disabled = true;
-      gs('l10_addInitiative', {
-        title: title, thesis: card.querySelector('.js-si-thesis').value.trim(),
-        origin: card.querySelector('.js-si-origin').value.trim(),
-        lead: card.querySelector('.js-si-lead').value, shift: card.querySelector('.js-si-shift').value,
-        impact: card.querySelector('.js-si-impact').value.trim(), effort: card.querySelector('.js-si-effort').value,
-        nextCheck: card.querySelector('.js-si-next').value,
-        accounts: c.accounts.slice()
-      }).then(function (res) {
-        if (!res || res.ok === false) { add.disabled = false; errToast(res || 'Add failed'); return; }
-        state.boot.initiatives = initRows_();
-        if (res.row) state.boot.initiatives.push(res.row);
-        state.boot.initiativeAccounts = state.boot.initiativeAccounts || [];
-        (res.cells || []).forEach(function (cell) { state.boot.initiativeAccounts.push(cell); });
-        state.boot.initiativeLog = state.boot.initiativeLog || [];
-        if (res.log) state.boot.initiativeLog.push(res.log);
-        state.siCompose = { accounts: [] };
-        notify('Initiative ' + res.id + ' added', 'ok');
-        renderStrategy();
-        renderOneOnOne();
-      }).catch(function (e) { add.disabled = false; errToast(e); });
-    };
-    add.addEventListener('click', submit);
-    ['.js-si-title', '.js-si-thesis', '.js-si-origin', '.js-si-impact'].forEach(function (sel) {
-      var el = scope.querySelector(sel);
-      if (el) el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); submit(); } });
-    });
-  }
 }
 // Local apply of a server response that carries the touched stamp and a trail
 // line — every initiative write path returns the same two fields.
@@ -3947,7 +3987,6 @@ function openInitStageMenu_(anchor, id) {
   });
   openMenu_(anchor, items, function (stage) {
     if (stage === 'ADOPTED' || stage === 'KILLED') {
-      // A decision carries its one-line verdict — that line is the learning.
       promptText_(anchor, stage === 'ADOPTED' ? 'Adopted — the verdict' : 'Killed — why', '', function (v) {
         setInitStage_(id, stage, v);
       });
@@ -4013,10 +4052,126 @@ function setInitCell_(id, acct, fields, okMsg) {
   });
 }
 
-// --- The initiative drawer -------------------------------------------------
-// An editable overlay (the read-only context modals are the pattern). Holds
-// the thesis / origin / quarter / notes, the per-account rows with their
-// controls, the initiative's to-dos + the shared composer, and the trail.
+// --- The New-initiative sheet ---------------------------------------------
+function ensureSiSheet_() {
+  if ($('si-new')) return;
+  var div = document.createElement('div');
+  div.id = 'si-new';
+  div.style.display = 'none';
+  document.body.appendChild(div);
+}
+function openInitiativeSheet_() {
+  ensureSiSheet_();
+  if (!state.siAdding) dlgOpened_('si-new');
+  state.siAdding = true;
+  renderInitiativeSheet_();
+  var t = $('si-new').querySelector('.js-si-title');
+  if (t) t.focus();
+}
+function closeInitiativeSheet_() {
+  var was = state.siAdding;
+  state.siAdding = false;
+  var o = $('si-new');
+  if (o) o.style.display = 'none';
+  if (was) dlgClosed_('si-new');
+}
+function renderInitiativeSheet_() {
+  var o = $('si-new');
+  if (!o) return;
+  var b = state.boot;
+  var lead = String(b.config.INITIATIVE_LEAD || '').trim();
+  var c = state.siCompose || (state.siCompose = { accounts: [] });
+  var accounts = initAccounts_();
+  o.innerHTML = '<div class="si-backdrop" data-sisheetclose="1"></div>' +
+      '<div class="si-sheet si-sheet--new" role="dialog" aria-modal="true" aria-labelledby="si-new-h">' +
+      '<div class="si-sheet-h"><div class="si-sheet-title" id="si-new-h">New initiative</div>' +
+      '<div class="si-sheet-sub">Starts at Idea. Each account you tap becomes a not-started cell on the matrix.</div></div>' +
+      '<div class="si-sheet-b">' +
+      '<div class="si-step">1 · The idea</div>' +
+      '<div class="field"><input class="js-si-title" value="' + esc(c.title || '') + '" placeholder="the theme — e.g. Demand Gen campaigns across Google accounts"></div>' +
+      '<div class="field"><textarea class="js-si-thesis" rows="2" placeholder="thesis — what we believe, and why it should transfer">' + esc(c.thesis || '') + '</textarea></div>' +
+      '<div class="si-step">2 · Why it\'s worth doing</div>' +
+      '<div class="field"><input class="js-si-impact" value="' + esc(c.impact || '') + '" placeholder="expected impact — in the business\'s own terms (−15% CPL on Brady CA ≈ $40K/yr)"></div>' +
+      '<div class="row"><div class="field f-1"><select class="js-si-effort" title="Effort"><option value="">effort — S / M / L</option>' +
+        ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (c.effort === e ? ' selected' : '') + '>' + e + ' effort</option>'; }).join('') + '</select></div>' +
+      '<div class="field f-1"><input class="js-si-origin" value="' + esc(c.origin || '') + '" placeholder="origin — where it was proven"></div></div>' +
+      '<div class="si-step">3 · Who and when</div>' +
+      '<div class="row"><div class="field f-1"><select class="js-si-lead">' + b.team.map(function (p) {
+        return '<option' + (p === (c.lead || lead) ? ' selected' : '') + '>' + esc(p) + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="field f-1"><input class="js-si-shift" list="si-shift-list" value="' + esc(c.shift || '') + '" placeholder="shift / theme"></div></div>' + initShiftListHtml_() +
+      '<div class="field"><input class="js-si-next" type="date" value="' + esc(c.nextCheck || '') + '" title="Next check-in — your own clock for this one"></div>' +
+      '<div class="help si-step-help">Next check-in: set a date and it replaces the ' + initStaleDays_() + '-day staleness timer.</div>' +
+      '<div class="si-step">4 · Accounts in scope</div>' +
+      '<div class="si-chipwrap">' + accounts.map(function (a) {
+        var on = c.accounts.indexOf(a) !== -1;
+        return '<button type="button" class="pill pill--btn pill--sm js-si-acct' + (on ? ' on' : '') + '" data-acct="' + esc(a) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(a) + '</button>';
+      }).join('') + '</div>' +
+      '</div>' +
+      '<div class="si-sheet-f"><button type="button" class="btn si-cta js-si-add">Add initiative</button>' +
+      '<button type="button" class="btn subtle" data-sisheetclose="1">Cancel</button>' +
+      '<span class="si-sheet-count">' + c.accounts.length + ' of ' + accounts.length + ' accounts selected</span></div></div>';
+  o.style.display = 'block';
+  wireInitiativeSheet_(o, c);
+}
+function wireInitiativeSheet_(o, c) {
+  o.querySelectorAll('[data-sisheetclose]').forEach(function (el) { el.addEventListener('click', closeInitiativeSheet_); });
+  ['title', 'thesis', 'origin', 'impact', 'shift'].forEach(function (k) {
+    var el = o.querySelector('.js-si-' + k);
+    if (el) el.addEventListener('input', function () { c[k] = el.value; });
+  });
+  var leadSel = o.querySelector('.js-si-lead');
+  if (leadSel) leadSel.addEventListener('change', function () { c.lead = leadSel.value; });
+  var effortSel = o.querySelector('.js-si-effort');
+  if (effortSel) effortSel.addEventListener('change', function () { c.effort = effortSel.value; });
+  var nextIn = o.querySelector('.js-si-next');
+  if (nextIn) nextIn.addEventListener('change', function () { c.nextCheck = nextIn.value; });
+  o.querySelectorAll('.js-si-acct').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var on = chip.classList.toggle('on');
+      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+      var i = c.accounts.indexOf(chip.dataset.acct);
+      if (on && i === -1) c.accounts.push(chip.dataset.acct);
+      else if (!on && i !== -1) c.accounts.splice(i, 1);
+      var n = o.querySelector('.si-sheet-count');
+      if (n) n.textContent = c.accounts.length + ' of ' + initAccounts_().length + ' accounts selected';
+    });
+  });
+  var add = o.querySelector('.js-si-add');
+  var submit = function () {
+    var title = o.querySelector('.js-si-title').value.trim();
+    if (!title) { notify('Give the initiative a title.', 'warn'); o.querySelector('.js-si-title').focus(); return; }
+    add.disabled = true;
+    gs('l10_addInitiative', {
+      title: title, thesis: o.querySelector('.js-si-thesis').value.trim(),
+      origin: o.querySelector('.js-si-origin').value.trim(),
+      lead: o.querySelector('.js-si-lead').value, shift: o.querySelector('.js-si-shift').value,
+      impact: o.querySelector('.js-si-impact').value.trim(), effort: o.querySelector('.js-si-effort').value,
+      nextCheck: o.querySelector('.js-si-next').value,
+      accounts: c.accounts.slice()
+    }).then(function (res) {
+      if (!res || res.ok === false) { add.disabled = false; errToast(res || 'Add failed'); return; }
+      state.boot.initiatives = initRows_();
+      if (res.row) state.boot.initiatives.push(res.row);
+      state.boot.initiativeAccounts = state.boot.initiativeAccounts || [];
+      (res.cells || []).forEach(function (cell) { state.boot.initiativeAccounts.push(cell); });
+      state.boot.initiativeLog = state.boot.initiativeLog || [];
+      if (res.log) state.boot.initiativeLog.push(res.log);
+      state.siCompose = { accounts: [] };
+      closeInitiativeSheet_();
+      notify('Initiative ' + res.id + ' added', 'ok');
+      renderStrategy();
+      renderOneOnOne();
+    }).catch(function (e) { add.disabled = false; errToast(e); });
+  };
+  add.addEventListener('click', submit);
+  ['.js-si-title', '.js-si-origin', '.js-si-impact', '.js-si-shift'].forEach(function (sel) {
+    var el = o.querySelector(sel);
+    if (el) el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); submit(); } });
+  });
+}
+
+// --- The initiative drawer (right-hand sheet) -------------------------------
 function ensureSiOverlay_() {
   if ($('si-overlay')) return;
   var div = document.createElement('div');
@@ -4024,7 +4179,9 @@ function ensureSiOverlay_() {
   div.style.display = 'none';
   document.body.appendChild(div);
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape' && state.siOpen && !document.querySelector('.l10pop')) closeInitiative();
+    if (ev.key !== 'Escape' || document.querySelector('.l10pop')) return;
+    if (state.siAdding) closeInitiativeSheet_();
+    else if (state.siOpen) closeInitiative();
   });
 }
 function closeInitiative() {
@@ -4034,17 +4191,96 @@ function closeInitiative() {
   if (o) o.style.display = 'none';
   if (was) dlgClosed_('si-overlay');
 }
-function openInitiative(id) {
+// tab: 'accounts' (default) | 'todos' | 'trail' | 'edit' (opens the editor).
+function openInitiative(id, tab) {
   if (!initById_(id)) { notify('Initiative ' + id + ' isn\'t in L10_Initiatives — check the tab.', 'warn'); return; }
   ensureSiOverlay_();
   closeIssueContext(); closeRockContext(); // context modals never stack
   if (!state.siOpen) dlgOpened_('si-overlay');
   state.siOpen = String(id).toUpperCase();
-  state.siEdit = false;
+  state.siEdit = tab === 'edit';
+  state.siTab = (tab === 'todos' || tab === 'trail') ? tab : 'accounts';
   renderInitiativeDrawer_();
 }
 function initFieldRow_(cls, label, value, ph) {
   return '<div class="field"><label>' + esc(label) + '</label><input class="' + cls + '" value="' + esc(value || '') + '" placeholder="' + esc(ph || '') + '"></div>';
+}
+function initEditorHtml_(init) {
+  var stage = String(init['Stage'] || 'IDEA').toUpperCase();
+  return '<div class="si-sheet-b si-editor">' +
+      '<div class="field"><label>Title</label><input class="js-sie-title" value="' + esc(init['Initiative']) + '"></div>' +
+      '<div class="row">' +
+      '<div class="field f-1"><label>Lead</label><select class="js-sie-lead">' + state.boot.team.map(function (p) {
+        return '<option' + (p === String(init['Lead']) ? ' selected' : '') + '>' + esc(p) + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="field f-1"><label>Shift / theme</label><input class="js-sie-shift" list="si-shift-list" value="' + esc(init['Shift'] || '') + '" placeholder="free text — or pick one of the current four"></div>' + initShiftListHtml_() +
+      '<div class="field f-1"><label>Target quarter</label><input class="js-sie-quarter" value="' + esc(init['Target Quarter'] || '') + '" placeholder="FY27 Q2"></div></div>' +
+      '<div class="row">' +
+      '<div class="field f-1"><label>Next check-in <span class="muted">(your own clock — the stale flag follows this date)</span></label><input class="js-sie-next" type="date" value="' + esc(d10(init['Next Check-in'] || '')) + '"></div>' +
+      '<div class="field f-1"><label>Effort</label><select class="js-sie-effort"><option value="">—</option>' +
+        ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (String(init['Effort'] || '') === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div></div>' +
+      initFieldRow_('js-sie-impact', 'Expected impact', init['Expected Impact'], 'what the business gets, in its own terms') +
+      initFieldRow_('js-sie-thesis', 'Thesis', init['Thesis'], 'what we believe, and why it should transfer') +
+      initFieldRow_('js-sie-origin', 'Proven at', init['Origin'], 'where it was proven') +
+      '<div class="field"><label>Notes</label><textarea class="js-sie-notes">' + esc(init['Notes'] || '') + '</textarea></div>' +
+      (stage === 'ADOPTED' || stage === 'KILLED' ?
+        '<div class="row"><div class="field f-1"><label>Decided on <span class="muted">(back-date to when it really happened — the archive buckets by this)</span></label><input class="js-sie-decided" type="date" value="' + esc(d10(init['Decided At'] || '')) + '"></div></div>' +
+        '<div class="field"><label>' + (stage === 'ADOPTED' ? 'Verdict — what we learned' : 'Why it was killed') + '</label><textarea class="js-sie-decision">' + esc(init['Decision'] || '') + '</textarea></div>' : '') +
+      '</div>' +
+      '<div class="si-sheet-f"><button type="button" class="btn si-cta" id="si-save">Save</button><button type="button" class="btn subtle" id="si-cancel">Cancel</button></div>';
+}
+function initDrawerRowsHtml_(init, tab) {
+  var id = String(init['ID']);
+  if (tab === 'todos') {
+    var todos = initTodos_(id);
+    var open = todos.filter(function (t) { return todoOpen_(t['Status']); });
+    var done = todos.filter(function (t) { return !todoOpen_(t['Status']); }).sort(function (a, b) { return String(a['Done At']) < String(b['Done At']) ? 1 : -1; });
+    var f = initFlags_(init);
+    return (f.noNext ? '<div class="banner warn mt-2 mb-2"><b>No next action.</b> This initiative is ' + esc(initStageLabel_(init['Stage']).toLowerCase()) + ' with nothing owed — add the next to-do so it keeps moving.</div>' : '') +
+        (open.length ? sortTodos_(open).map(function (t) { return todoLine(t, true); }).join('') : '<div class="si-empty si-empty--sm">Nothing open.</div>') +
+        addTodoCard(id) +
+        (done.length ? '<div class="td-drawer-h mt-2">Done</div>' + done.slice(0, 8).map(function (t) { return todoLine(t, false, true); }).join('') : '');
+  }
+  if (tab === 'trail') {
+    var log = initLog_(id);
+    return (log.length ? '<div class="td-log si-trail">' + log.slice(0, 40).map(function (l) {
+        return '<div class="td-log-line"><span class="td-log-at">' + esc(String(l['At']).slice(0, 16)) + '</span> ' +
+            '<span class="muted">' + esc(String(l['Who'] || '').split('@')[0]) + '</span> · ' + linkify(l['Note']) + '</div>';
+      }).join('') + '</div>' : '<div class="si-empty si-empty--sm">Nothing in the trail yet.</div>') +
+      '<div class="row td-subadd"><div class="field field--tight f-1"><input class="js-silog-text" value="' + esc(state.siNoteDraft || '') + '" placeholder="add a line to the trail — a learning, a decision, a hand-off…"></div>' +
+      '<button type="button" class="btn mini si-cta js-silog-add">Post</button></div>';
+  }
+  // accounts
+  var cells = initCells_(id);
+  var accounts = initAccounts_();
+  var missing = accounts.filter(function (a) { return !initCellFor_(id, a); });
+  var order = cells.slice().sort(function (a, b) {
+    var na = String(a['State']).toUpperCase() === 'N/A', nb = String(b['State']).toUpperCase() === 'N/A';
+    return na === nb ? 0 : (na ? 1 : -1);
+  });
+  var html = order.length ? order.map(function (c) {
+    var d = initState_(c['State']);
+    var acct = String(c['Account']);
+    var key = esc(id) + '|' + esc(acct);
+    var na = String(c['State']).toUpperCase() === 'N/A';
+    return '<div class="si-drow' + (na ? ' si-drow--na' : '') + '"><span class="si-drow-g ' + d.c + '">' + d.g + '</span>' +
+        '<div class="grow"><div class="si-drow-t">' + esc(acct) + '</div>' +
+        '<div class="si-drow-s">' + esc(d.w) +
+          (c['Hub Ref'] ? ' · hub ' + esc(c['Hub Ref']) : '') + (c['Rock ID'] ? ' · ' + rockRefsHtml_(String(c['Rock ID'])) : '') +
+          (c['Note'] ? ' · ' + esc(c['Note']) : '') + '</div></div>' +
+        '<span class="si-drow-a">' +
+          '<button type="button" class="sa-cell sa-inline ' + d.c + '" data-sicell="' + key + '" title="Change state"><span class="sa-g">' + d.g + '</span> ' + d.w + ' ▾</button>' +
+          '<button type="button" class="btn mini subtle" data-sinote="' + key + '" title="One line on what\'s happening in this account">Note</button>' +
+          (c['Hub Ref'] || na ? '' : '<button type="button" class="btn mini subtle" data-sihub="' + key + '" title="Send this account\'s test to the Experiment Hub ideas backlog">Make it a test</button>') +
+          (c['Rock ID'] || na ? '' : '<button type="button" class="btn mini subtle" data-sirock="' + key + '" title="Create a priority for this account, linked back here">Promote to priority</button>') +
+        '</span></div>';
+  }).join('') : '<div class="si-empty si-empty--sm">No accounts on this initiative yet — add one below.</div>';
+  if (missing.length) {
+    html += '<div class="si-chipwrap mt-2"><span class="ownerpick-lbl">Add account</span>' + missing.map(function (a) {
+      return '<button type="button" class="pill pill--btn pill--sm" data-siaddacct="' + esc(id) + '|' + esc(a) + '">+ ' + esc(a) + '</button>';
+    }).join('') + '</div>';
+  }
+  return html;
 }
 function renderInitiativeDrawer_() {
   var id = state.siOpen;
@@ -4054,101 +4290,35 @@ function renderInitiativeDrawer_() {
   if (!init) { closeInitiative(); return; }
   var f = initFlags_(init);
   var stage = String(init['Stage'] || 'IDEA').toUpperCase();
-  var cells = initCells_(id);
-  var accounts = initAccounts_();
-  var missing = accounts.filter(function (a) { return !initCellFor_(id, a); });
+  var tab = state.siTab || 'accounts';
   var todos = initTodos_(id);
-  var openTodos = todos.filter(function (t) { return todoOpen_(t['Status']); });
-  var doneTodos = todos.filter(function (t) { return !todoOpen_(t['Status']); }).sort(function (a, b) { return String(a['Done At']) < String(b['Done At']) ? 1 : -1; });
-  var log = initLog_(id);
+  var openN = todos.filter(function (t) { return todoOpen_(t['Status']); }).length;
   var editing = !!state.siEdit;
-  var head = '<div class="ids-head"><div class="grow"><div class="ids-kicker">Strategy initiative · ' + esc(id) + '</div>' +
-      (editing ? '<div class="field"><input class="js-sie-title ids-title-in" value="' + esc(init['Initiative']) + '"></div>' :
-        '<div class="ids-title" id="si-title-h">' + esc(init['Initiative']) + '</div>') +
-      '<div class="m">' + who(init['Lead']) + ' ' + tagList(init['Shift'], 'shift') +
-        (init['Target Quarter'] ? '<span class="tag">' + esc(init['Target Quarter']) + '</span>' : '') +
-        ' ' + initStagePill_(init, true) + initFlagsHtml_(f) +
-        ' <span class="muted">· last touched ' + esc(f.touched || '—') + '</span>' +
-        (f.nextCheck ? ' <span class="muted">· next check-in ' + esc(f.nextCheck) + '</span>' : '') + '</div></div>' +
-      '<div class="si-head-acts">' +
-        (editing ? '' : '<button class="btn mini subtle" id="si-edit">✎ Edit</button>') +
-        '<button class="btn subtle" id="si-close">✕ Close</button></div></div>';
+  var head = '<div class="si-sheet-h"><div class="si-sheet-top"><div class="grow"><div class="si-kicker">Initiative · ' + esc(id) + '</div>' +
+      '<div class="si-sheet-title" id="si-title-h">' + esc(init['Initiative']) + '</div></div>' +
+      '<div class="si-head-acts">' + (editing ? '' : '<button type="button" class="btn mini subtle" id="si-edit">Edit</button>') +
+      '<button type="button" class="btn mini subtle" id="si-close">Close</button></div></div>' +
+      '<div class="si-chips mt-2">' + who(init['Lead']) + initStagePill_(init, true) +
+        '<span class="si-chip">' + esc(init['Shift'] || 'no theme') + '</span><span class="si-chip">' + esc(init['Effort'] || '—') + ' effort</span>' +
+        '<span class="si-chip-m">last touched ' + esc(f.touched || '—') + (f.nextCheck ? ' · next check-in ' + esc(f.nextCheck) : '') + '</span>' + initFlagsHtml_(f) + '</div></div>';
   var body;
   if (editing) {
-    body = '<div class="ctx-sect"><div class="row">' +
-        '<div class="field f-1"><label>Lead</label><select class="js-sie-lead">' + state.boot.team.map(function (p) {
-          return '<option' + (p === String(init['Lead']) ? ' selected' : '') + '>' + esc(p) + '</option>';
-        }).join('') + '</select></div>' +
-        '<div class="field f-1"><label>Shift / theme</label><input class="js-sie-shift" list="si-shift-list" value="' + esc(init['Shift'] || '') + '" placeholder="free text — or pick one of the current four"></div>' + initShiftListHtml_() +
-        '<div class="field f-1"><label>Target quarter</label><input class="js-sie-quarter" value="' + esc(init['Target Quarter'] || '') + '" placeholder="FY27 Q2"></div></div>' +
-        '<div class="row">' +
-        '<div class="field f-1"><label>Next check-in <span class="muted">(your own clock — the stale flag follows this date)</span></label><input class="js-sie-next" type="date" value="' + esc(d10(init['Next Check-in'] || '')) + '"></div>' +
-        '<div class="field f-1"><label>Effort</label><select class="js-sie-effort"><option value="">—</option>' +
-          ['S', 'M', 'L'].map(function (e) { return '<option value="' + e + '"' + (String(init['Effort'] || '') === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div></div>' +
-        initFieldRow_('js-sie-impact', 'Expected impact', init['Expected Impact'], 'what the business gets, in its own terms') +
-        (stage === 'ADOPTED' || stage === 'KILLED' ?
-          '<div class="row"><div class="field f-1"><label>Decided on <span class="muted">(back-date to when it really happened — the archive buckets by this)</span></label><input class="js-sie-decided" type="date" value="' + esc(d10(init['Decided At'] || '')) + '"></div></div>' +
-          '<div class="field"><label>' + (stage === 'ADOPTED' ? 'Verdict — what we learned' : 'Why it was killed') + '</label><textarea class="js-sie-decision">' + esc(init['Decision'] || '') + '</textarea></div>' : '') +
-        initFieldRow_('js-sie-thesis', 'Thesis', init['Thesis'], 'what we believe, and why it should transfer') +
-        initFieldRow_('js-sie-origin', 'Origin', init['Origin'], 'where it was proven') +
-        '<div class="field"><label>Notes</label><textarea class="js-sie-notes">' + esc(init['Notes'] || '') + '</textarea></div>' +
-        '<div class="row"><button class="btn" id="si-save">Save</button><button class="btn subtle" id="si-cancel">Cancel</button></div></div>';
+    body = initEditorHtml_(init);
   } else {
-    body = '<div class="ctx-sect">' +
-        (init['Thesis'] ? '<div class="ids-step"><span class="num">◎</span> Thesis</div><div class="ctx-notes">' + esc(init['Thesis']) + '</div>' : '') +
-        (init['Expected Impact'] ? '<div class="m mt-2"><b>Expected impact:</b> ' + esc(init['Expected Impact']) + (init['Effort'] ? ' <span class="tag">' + esc(init['Effort']) + ' effort</span>' : '') + '</div>' : (init['Effort'] ? '<div class="m mt-2"><span class="tag">' + esc(init['Effort']) + ' effort</span></div>' : '')) +
-        (init['Origin'] ? '<div class="m mt-2"><b>Origin:</b> ' + linkify(init['Origin']) + '</div>' : '') +
-        (init['Notes'] ? '<div class="m mt-2">' + linkify(init['Notes']) + '</div>' : '') +
-        (stage === 'ADOPTED' || stage === 'KILLED' ?
-          '<div class="banner ' + (stage === 'ADOPTED' ? 'good' : 'info') + ' mt-2"><b>' + esc(initStageLabel_(stage)) + '</b> ' + esc(d10(init['Decided At']) || '') +
-          (init['Decision'] ? ' — ' + esc(init['Decision']) : '') + '</div>' : '') +
-        '</div>';
+    var impact = String(init['Expected Impact'] || '').trim();
+    body = '<div class="si-sheet-sum"><div><div class="si-lbl">Thesis</div><div class="si-sum-t">' + (init['Thesis'] ? esc(init['Thesis']) : '<span class="muted">No thesis written yet.</span>') + '</div>' +
+        (init['Notes'] ? '<div class="si-lbl mt-2">Notes</div><div class="si-sum-t">' + linkify(init['Notes']) + '</div>' : '') + '</div>' +
+        '<div><div class="si-lbl">Expected impact</div><div class="si-sum-t' + (impact && initImpactGood_(impact) ? ' si-impact--good' : '') + '">' + (impact ? esc(impact) : '—') + '</div>' +
+        '<div class="si-lbl mt-2">Proven at</div><div class="si-sum-t">' + (init['Origin'] ? linkify(init['Origin']) : '<span class="muted">not proven anywhere yet</span>') + '</div>' +
+        (stage === 'ADOPTED' || stage === 'KILLED' ? '<div class="si-lbl mt-2">' + (stage === 'ADOPTED' ? 'Verdict' : 'Why it was killed') + ' · ' + esc(d10(init['Decided At']) || 'undated') + '</div>' +
+          '<div class="si-sum-t' + (init['Decision'] ? '' : ' si-arch-v--none') + '">' + (init['Decision'] ? esc(init['Decision']) : 'No verdict written — Edit and add the learning.') + '</div>' : '') +
+        '</div></div>' +
+        '<div class="si-tabs">' + [['accounts', 'Accounts'], ['todos', 'To-dos ' + openN + '/' + todos.length], ['trail', 'Trail']].map(function (t) {
+          return '<button type="button" class="pill pill--btn pill--sm' + (tab === t[0] ? ' on' : '') + '" data-sitab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + esc(t[1]) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="si-sheet-b">' + initDrawerRowsHtml_(init, tab) + '</div>';
   }
-  // Per-account rows
-  var acctHtml = '<div class="ids-step"><span class="num">▤</span> Accounts <span class="sub">' + cells.length + ' on the matrix</span></div>';
-  if (cells.length) {
-    acctHtml += cells.map(function (c) {
-      var d = initState_(c['State']);
-      var acct = String(c['Account']);
-      var key = esc(id) + '|' + esc(acct);
-      return '<div class="itemline si-acct-row"><div class="grow"><div class="t">' + esc(acct) +
-          ' <button type="button" class="sa-cell ' + d.c + ' sa-inline" data-sicell="' + key + '"><span class="sa-g">' + d.g + '</span> ' + d.w + ' ▾</button>' +
-          (c['Hub Ref'] ? ' <span class="tag acct" title="Experiment Hub reference">hub ' + esc(c['Hub Ref']) + '</span>' : '') +
-          (c['Rock ID'] ? ' ' + rockRefsHtml_(String(c['Rock ID'])) : '') + '</div>' +
-          '<div class="m">' + (c['Note'] ? esc(c['Note']) : '<span class="muted">no note</span>') +
-            (c['Updated At'] ? ' <span class="muted">· ' + esc(String(c['Updated At']).slice(0, 10)) + '</span>' : '') + '</div></div>' +
-          '<span class="rk-acts si-acts">' +
-            '<button class="btn mini subtle" data-sinote="' + key + '" title="One line on what\'s happening in this account">note</button>' +
-            (c['Hub Ref'] ? '' : '<button class="btn mini subtle" data-sihub="' + key + '" title="Send this account\'s test to the Experiment Hub ideas backlog">🧪 make it a test</button>') +
-            (c['Rock ID'] ? '' : '<button class="btn mini subtle" data-sirock="' + key + '" title="Create a priority for this account, linked back here">↑ priority</button>') +
-          '</span></div>';
-    }).join('');
-  } else {
-    acctHtml += '<div class="td-drawer-empty">No accounts on this initiative yet — add one below.</div>';
-  }
-  if (missing.length) {
-    acctHtml += '<div class="row row--mid mt-2"><span class="ownerpick-lbl">Add account</span>' + missing.map(function (a) {
-      return '<button type="button" class="pill pill--btn pill--sm" data-siaddacct="' + esc(id) + '|' + esc(a) + '">+ ' + esc(a) + '</button>';
-    }).join('') + '</div>';
-  }
-  // To-dos — the initiative's next actions. Ordinary rows: they carry
-  // Source = SI-### and ride every existing rail.
-  var tdHtml = '<div class="ids-step"><span class="num">☐</span> To-dos <span class="sub">' + openTodos.length + ' open' +
-      (doneTodos.length ? ' · ' + doneTodos.length + ' done' : '') + '</span></div>' +
-      (f.noNext ? '<div class="banner warn m-0 mb-2"><b>No next action.</b> This initiative is ' + esc(initStageLabel_(stage).toLowerCase()) + ' with nothing owed — add the next to-do so it keeps moving.</div>' : '') +
-      (openTodos.length ? sortTodos_(openTodos).map(function (t) { return todoLine(t, true); }).join('') : '') +
-      addTodoCard(id) +
-      (doneTodos.length ? '<div class="td-drawer-h mt-2">Done</div>' + doneTodos.slice(0, 8).map(function (t) { return todoLine(t, false, true); }).join('') : '');
-  // Trail
-  var logHtml = '<div class="ids-step"><span class="num">≡</span> Trail <span class="sub">' + log.length + ' entries</span></div>' +
-      (log.length ? '<div class="td-log">' + log.slice(0, 25).map(function (l) {
-        return '<div class="td-log-line"><span class="td-log-at">' + esc(String(l['At']).slice(0, 16)) + '</span> ' +
-            '<span class="muted">' + esc(String(l['Who'] || '').split('@')[0]) + '</span> · ' + linkify(l['Note']) + '</div>';
-      }).join('') + '</div>' : '<div class="td-drawer-empty">Nothing in the trail yet.</div>') +
-      '<div class="row td-subadd"><div class="field field--tight f-1"><input class="js-silog-text" value="' + esc(state.siNoteDraft || '') + '" placeholder="add a note — a learning, a decision, a hand-off…"></div>' +
-      '<button class="btn mini subtle js-silog-add">＋ Note</button></div>';
-  o.innerHTML = '<div class="ids-backdrop" id="si-backdrop"></div><div class="ids-card ctx-card si-card-dlg" role="dialog" aria-modal="true" aria-labelledby="si-title-h">' +
-      head + body + '<div class="ctx-sect">' + acctHtml + '</div><div class="ctx-sect">' + tdHtml + '</div><div class="ctx-sect">' + logHtml + '</div></div>';
+  o.innerHTML = '<div class="si-backdrop" id="si-backdrop"></div><div class="si-sheet si-sheet--drawer" role="dialog" aria-modal="true" aria-labelledby="si-title-h">' + head + body + '</div>';
   o.style.display = 'block';
   wireInitiativeDrawer_(o, init);
 }
@@ -4188,11 +4358,15 @@ function wireInitiativeDrawer_(o, init) {
       initRerender_();
     }).catch(function (e) { save.disabled = false; errToast(e); });
   });
+  o.querySelectorAll('[data-sitab]').forEach(function (btn) {
+    btn.addEventListener('click', function () { state.siTab = btn.dataset.sitab; renderInitiativeDrawer_(); });
+  });
   o.querySelectorAll('[data-sistage]').forEach(function (btn) {
-    btn.addEventListener('click', function () { openInitStageMenu_(btn, id); });
+    btn.addEventListener('click', function (ev) { ev.stopPropagation(); openInitStageMenu_(btn, id); });
   });
   o.querySelectorAll('[data-sicell]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
       var parts = btn.dataset.sicell.split('|');
       openInitCellPicker_(btn, parts[0], parts[1]);
     });

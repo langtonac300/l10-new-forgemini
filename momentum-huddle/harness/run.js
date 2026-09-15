@@ -224,73 +224,99 @@ async function clickNav(page, target) {
   const imgs2 = await page.$$eval('#page-huddle .person-chip .avatar--img', (els) => els.length);
   if (imgs2 !== 1) errors.push('after remove the start screen shows ' + imgs2 + ' photo avatars (want 1 — Alex)');
 
-  // --- Strategy page (v2.14): board, flags, matrix, drawer, to-do pairing ---
+  // --- Strategy page (v2.15 layout): triage, table + inline matrix, dense matrix, archive, sheets ---
   await clickNav(page, 'strategy');
-  const siCards = await page.$$('.si-card');
-  if (siCards.length !== 3) errors.push('strategy board should show 3 live initiatives, got ' + siCards.length);
+  // Triage: SI-002 (rolling out, no open to-do, untouched 20 days, no check-in) needs a nudge; the reasons are words.
+  const triage = await page.$eval('.si-triage', (el) => el.textContent);
+  if (!/Needs you/.test(triage)) errors.push('triage card should read "Needs you" with a drifting initiative');
+  if (!/nothing queued against it/.test(triage) || !/no touch in 2\d days and no check-in date/.test(triage)) errors.push('triage row does not spell out both reasons for SI-002');
+  // The untouched 40-day-old Idea (SI-003) must NOT be in triage — ideas parked during goal-setting are never nagged.
+  if (/Broad match \+ tROAS on brand/.test(triage)) errors.push('triage lists an untouched Idea — the timer must only apply while piloting / rolling out');
+  // Table: one row per live initiative, four stage lanes (reverse order), cells = rows × accounts.
+  const siRows = await page.$$('.si-row');
+  if (siRows.length !== 3) errors.push('table should show 3 live initiatives, got ' + siRows.length);
+  const laneLabels = await page.$$eval('.si-lane .si-lane-l', (els) => els.map((e) => e.textContent.trim()));
+  if (laneLabels.join('|') !== 'Rolling out|Piloting|Scoping|Idea') errors.push('stage lanes wrong: ' + laneLabels.join('|'));
+  const siCells = await page.$$eval('.si-row .sa-cell', (els) => els.map((e) => e.getAttribute('title')));
+  if (siCells.length !== 12) errors.push('table should carry 3 × 4 = 12 cells, got ' + siCells.length);
+  if (!siCells.some((t) => /adopted/.test(t)) || !siCells.some((t) => /testing/.test(t))) errors.push('cell titles do not carry the state word: ' + JSON.stringify(siCells.slice(0, 4)));
+  const headAbbr = await page.$$eval('.si-grid-h .si-th--c', (els) => els.map((e) => e.textContent.trim()));
+  if (headAbbr.join('|') !== 'BUS|SUS|EMD|AMZ') errors.push('matrix header abbreviations wrong: ' + headAbbr.join('|'));
   const siText = await page.$eval('#page-strategy', (el) => el.textContent);
-  if (!/no next action/.test(siText)) errors.push('strategy page did not flag SI-002 (rolling out, no open to-do) as "no next action"');
-  if (!/stale 2\dd/.test(siText)) errors.push('strategy page did not flag SI-002 as stale (rolling out, no check-in date, last touched 20 days ago)');
-  // An IDEA untouched for 40 days is NOT stale — ideas parked during goal-setting are never nagged.
-  if (!/1 stale/.test(siText)) errors.push('stale count should be exactly 1 (the rolling-out one); an untouched Idea must not count: ' + (siText.match(/\d+ stale/) || [''])[0]);
-  // A future Next Check-in shows on the card; expected impact + effort render.
-  if (!/Expected:/.test(siText) || !/M effort/.test(siText)) errors.push('card does not show expected impact / effort');
-  // Group by shift / theme: lanes = distinct shift values among live initiatives (Shift 2, Shift 1) — 2 lanes.
+  if (!/M effort/.test(siText) || !/−15% CPL on Seton US/.test(siText)) errors.push('row does not show effort / expected impact');
+  if (!/no next action/.test(siText)) errors.push('flag badge missing on the drifting row');
+  // A cell flip persists through l10_setInitiativeAccount (popover lists glyph + word).
+  const cellBefore = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.click('.si-row .sa-cell.sa-none');
+  await page.waitForTimeout(120);
+  const pick = await page.$('.l10pop-item[data-v="TESTING"]');
+  if (!pick) errors.push('cell picker did not open with a TESTING option');
+  else {
+    const pickTxt = await pick.evaluate((el) => el.textContent);
+    if (!/◐ testing/.test(pickTxt)) errors.push('cell picker option is not glyph + word: "' + pickTxt + '"');
+    await pick.click();
+    await page.waitForTimeout(250);
+    const cellCalls = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
+    if (!cellCalls.slice(cellBefore).includes('l10_setInitiativeAccount')) errors.push('cell flip did not persist via l10_setInitiativeAccount');
+  }
+  // Group by shift: one lane per distinct shift (Shift 1, Shift 2).
   await page.click('[data-sigroup="shift"]');
   await page.waitForTimeout(150);
-  const lanes = await page.$$('.si-board--lanes .si-col');
-  if (lanes.length !== 2) errors.push('group-by-shift should render 2 lanes (Shift 1, Shift 2), got ' + lanes.length);
+  const shiftLanes = await page.$$eval('.si-lane .si-lane-l', (els) => els.map((e) => e.textContent.trim()));
+  if (shiftLanes.join('|') !== 'Shift 1|Shift 2') errors.push('group-by-shift lanes wrong: ' + shiftLanes.join('|'));
   await page.click('[data-sigroup="stage"]');
   await page.waitForTimeout(120);
-  // The archive sits underneath everything: both decided initiatives, in fiscal-month buckets, with verdicts.
-  if (!/Completed, rolled out & killed/.test(siText)) errors.push('strategy page has no archive section');
-  const archTxt = await page.$eval('.si-archive', (el) => el.textContent);
-  if (!/Apple Ads for the catalog brands/.test(archTxt) || !/Brand tROAS on Seton/.test(archTxt)) errors.push('archive is missing a decided initiative');
-  if (!/No volume outside Brady US/.test(archTxt)) errors.push('archive entry does not carry its verdict');
-  const monthCols = await page.$$('.si-archive .si-board--months .si-col');
-  if (monthCols.length < 13) errors.push('archive should show the current fiscal year as 12 month buckets plus the prior year\'s used month(s), got ' + monthCols.length);
-  const fyHeads = await page.$$eval('.si-archive .si-arch-fy', (els) => els.map((e) => e.textContent.trim().slice(0, 4)));
-  if (fyHeads.length < 2) errors.push('archive should group two fiscal years (a 30-day-old kill and a 100-day-old adopt), got ' + JSON.stringify(fyHeads));
+  // Dense matrix behind the toggle: 32px rows + an "Adopted here" footer.
+  await page.click('[data-siview="matrix"]');
+  await page.waitForTimeout(150);
+  const mrows = await page.$$('.si-mrow');
+  if (mrows.length !== 3) errors.push('matrix view should list 3 live initiatives, got ' + mrows.length);
+  const mfoot = await page.$eval('.si-mfoot', (el) => el.textContent.replace(/\s+/g, ' '));
+  if (!/Adopted here/.test(mfoot)) errors.push('matrix footer missing');
+  if (!(await page.$('.si-mrow .si-mflag.flag-red'))) errors.push('matrix view does not flag the drifting row');
+  await page.click('[data-siview="table"]');
+  await page.waitForTimeout(120);
+  // Archive: "Decided" card underneath, fiscal-month strip, grouped by month, filters.
+  const arch = await page.$eval('.si-archive', (el) => el.textContent.replace(/\s+/g, ' '));
+  if (!/Decided\s*2 decided/.test(arch)) errors.push('archive header wrong: ' + arch.slice(0, 80));
+  if (!/Apple Ads for the catalog brands/.test(arch) || !/Brand tROAS on Seton/.test(arch)) errors.push('archive is missing a decided initiative');
+  if (!/No volume outside Brady US/.test(arch)) errors.push('archive entry does not carry its verdict');
+  const months = await page.$$('.si-archive .si-month');
+  if (months.length !== 12) errors.push('archive strip should have 12 month cells, got ' + months.length);
+  const groupHeads = await page.$$eval('.si-archive .si-arch-gh', (els) => els.map((e) => e.textContent.trim()));
+  if (groupHeads.length !== 2 || !groupHeads.every((h) => /^FY\d\d · [A-Z][a-z]+ \d{4}$/.test(h))) errors.push('archive month groups wrong: ' + JSON.stringify(groupHeads));
+  const hasMonth = await page.$('.si-archive .si-month--has');
+  if (!hasMonth) errors.push('archive strip has no month with a count');
+  else {
+    await hasMonth.click();
+    await page.waitForTimeout(150);
+    const filtered = await page.$$eval('.si-archive .si-arch-gh', (els) => els.length);
+    if (filtered !== 1) errors.push('clicking a month in the strip should filter the list to that month, got ' + filtered + ' groups');
+    await page.click('.si-archive .si-month.on');
+    await page.waitForTimeout(120);
+  }
   await page.click('[data-siarch="KILLED"]');
   await page.waitForTimeout(150);
   const killedOnly = await page.$eval('.si-archive', (el) => el.textContent);
   if (/Brand tROAS on Seton/.test(killedOnly) || !/Apple Ads/.test(killedOnly)) errors.push('archive Killed filter did not hide the adopted one');
   await page.click('[data-siarch="ALL"]');
   await page.waitForTimeout(120);
-  // The last-line order: the add form comes before the archive ("underneath it all").
-  const order = await page.$eval('#page-strategy', (el) => { const h = el.innerHTML; return h.indexOf('Add an initiative') < h.indexOf('si-archive'); });
-  if (!order) errors.push('archive is not the last section on the page');
-  // Matrix view: one cell per (initiative, account) with a glyph + word, never colour alone.
-  await page.click('[data-siview="matrix"]');
-  await page.waitForTimeout(150);
-  const siCells = await page.$$eval('.si-matrix .sa-cell', (els) => els.map((e) => e.textContent.trim()));
-  if (siCells.length !== 12) errors.push('matrix should have 3 initiatives × 4 accounts = 12 cells, got ' + siCells.length);
-  if (!siCells.some((t) => /✓ adopted/.test(t)) || !siCells.some((t) => /◐ testing/.test(t))) errors.push('matrix cells do not carry glyph + word: ' + JSON.stringify(siCells.slice(0, 4)));
-  // Flipping a cell persists through l10_setInitiativeAccount.
-  const cellBefore = await page.evaluate(() => window.__GS_CALLS.length);
-  await page.click('.si-matrix .sa-cell.sa-none');
-  await page.waitForTimeout(120);
-  const pick = await page.$('.l10pop-item[data-v="TESTING"]');
-  if (!pick) errors.push('matrix cell picker did not open with a TESTING option');
-  else {
-    await pick.click();
-    await page.waitForTimeout(250);
-    const cellCalls = await page.evaluate(() => window.__GS_CALLS.map((c) => c.fn));
-    if (!cellCalls.slice(cellBefore).includes('l10_setInitiativeAccount')) errors.push('matrix cell flip did not persist via l10_setInitiativeAccount');
-  }
-  await page.click('[data-siview="board"]');
-  await page.waitForTimeout(150);
-  // Drawer: opens from the card, lists the SI-001 to-do, carries the composer with the SI source.
-  await page.click('[data-siopen="SI-001"]');
+  const order = await page.$eval('#page-strategy', (el) => { const h = el.innerHTML; return h.indexOf('si-triage') < h.indexOf('si-live') && h.indexOf('si-live') < h.indexOf('si-archive'); });
+  if (!order) errors.push('page sections out of order (triage, live, archive)');
+  // Drawer: opens from the row, tabs Accounts / To-dos / Trail, composer sourced to the initiative.
+  await page.click('.si-row [data-siopen="SI-001"]');
   await page.waitForTimeout(200);
   const drawerOn = await page.$eval('#si-overlay', (el) => el.style.display !== 'none');
   if (!drawerOn) errors.push('initiative drawer did not open');
   const drawerTxt = await page.$eval('#si-overlay', (el) => el.textContent);
-  if (!/Build the Seton US Demand Gen campaign shell/.test(drawerTxt)) errors.push('drawer does not list the to-do sourced from SI-001');
-  if (!/IDEA-051/.test(drawerTxt)) errors.push('drawer does not show the hub ref on the Seton US cell');
+  if (!/IDEA-051/.test(drawerTxt)) errors.push('drawer accounts tab does not show the hub ref on the Seton US cell');
+  if (!/Proven at/.test(drawerTxt) || !/Expected impact/.test(drawerTxt)) errors.push('drawer summary band missing');
+  await page.click('#si-overlay [data-sitab="todos"]');
+  await page.waitForTimeout(150);
+  const todosTxt = await page.$eval('#si-overlay', (el) => el.textContent);
+  if (!/Build the Seton US Demand Gen campaign shell/.test(todosTxt)) errors.push('drawer To-dos tab does not list the to-do sourced from SI-001');
   const siSource = await page.$eval('#si-overlay .js-td-add', (el) => el.dataset.source);
   if (siSource !== 'SI-001') errors.push('drawer composer is not sourced to the initiative (data-source="' + siSource + '")');
-  // Adding a to-do from the drawer goes through the shared path with the SI source.
   const addBefore = await page.evaluate(() => window.__GS_CALLS.length);
   await page.click('#si-overlay .js-td-text');
   await page.fill('#si-overlay .js-td-text', 'Harness to-do from the initiative');
@@ -301,7 +327,8 @@ async function clickNav(page, target) {
   const addCall = addCalls.slice(addBefore).find((c) => c.fn === 'l10_addTodoMulti');
   if (!addCall) errors.push('drawer composer did not add through l10_addTodoMulti');
   else if (!addCall.args[0] || addCall.args[0].source !== 'SI-001') errors.push('drawer composer sent the wrong source: ' + JSON.stringify(addCall.args[0] && addCall.args[0].source));
-  // A trail note posts and re-renders the drawer.
+  await page.click('#si-overlay [data-sitab="trail"]');
+  await page.waitForTimeout(150);
   await page.fill('#si-overlay .js-silog-text', 'Harness trail note');
   await page.click('#si-overlay .js-silog-add');
   await page.waitForTimeout(250);
@@ -309,12 +336,41 @@ async function clickNav(page, target) {
   if (!/Harness trail note/.test(trailTxt)) errors.push('trail note did not appear in the drawer after posting');
   await page.click('#si-close');
   await page.waitForTimeout(120);
+  // Triage "Add a to-do" lands on the drawer's To-dos tab.
+  await page.click('[data-sifix="SI-002|todos"]');
+  await page.waitForTimeout(200);
+  const fixTab = await page.$eval('#si-overlay [data-sitab="todos"]', (el) => el.classList.contains('on'));
+  if (!fixTab) errors.push('triage fix button did not open the To-dos tab');
+  await page.click('#si-close');
+  await page.waitForTimeout(120);
+  // New-initiative sheet: opens from the header button, adds through l10_addInitiative, closes.
+  await page.click('[data-sinew]');
+  await page.waitForTimeout(200);
+  const sheetOn = await page.$eval('#si-new', (el) => el.style.display !== 'none');
+  if (!sheetOn) errors.push('new-initiative sheet did not open');
+  const sheetTxt = await page.$eval('#si-new', (el) => el.textContent);
+  if (!/1 · The idea/.test(sheetTxt) || !/4 · Accounts in scope/.test(sheetTxt)) errors.push('new-initiative sheet is missing its steps');
+  const shiftOpts = await page.$$eval('#si-new #si-shift-list option', (o) => o.map((x) => x.value));
+  if (shiftOpts.indexOf('Shift 1') === -1) errors.push('shift datalist missing in the sheet');
+  await page.fill('#si-new .js-si-title', 'Harness initiative');
+  await page.click('#si-new .js-si-acct[data-acct="Amazon"]');
+  const newBefore = await page.evaluate(() => window.__GS_CALLS.length);
+  await page.click('#si-new .js-si-add');
+  await page.waitForTimeout(300);
+  const newCall = (await page.evaluate(() => window.__GS_CALLS.slice())).slice(newBefore).find((c) => c.fn === 'l10_addInitiative');
+  if (!newCall) errors.push('sheet did not add through l10_addInitiative');
+  else if (newCall.args[0].title !== 'Harness initiative' || (newCall.args[0].accounts || []).indexOf('Amazon') === -1) errors.push('sheet sent the wrong payload: ' + JSON.stringify(newCall.args[0]).slice(0, 120));
+  const sheetOff = await page.$eval('#si-new', (el) => el.style.display === 'none');
+  if (!sheetOff) errors.push('sheet stayed open after adding');
+  const rowsAfter = await page.$$('.si-row');
+  if (rowsAfter.length !== 4) errors.push('new initiative did not appear in the table (rows: ' + rowsAfter.length + ')');
   // The 1:1 page carries the lead's initiatives, flagged first.
   await clickNav(page, 'oneonone');
   const o11Chip = await page.$('[data-o11="Courtney"]');
   if (o11Chip) { await o11Chip.click(); await page.waitForTimeout(150); }
   const o11Txt = await page.$eval('#page-oneonone', (el) => el.textContent);
-  if (!/Initiatives they lead \(2\)/.test(o11Txt)) errors.push('1:1 page for Courtney should list 2 live initiatives she leads');
+  // Two from the fixture plus the one the sheet just added with her as the default lead.
+  if (!/Initiatives they lead \(3\)/.test(o11Txt)) errors.push('1:1 page for Courtney should list 3 live initiatives she leads (2 fixture + 1 added)');
   // A to-do's "from SI-###" reference opens the drawer.
   await clickNav(page, 'todos');
   const siRef = await page.$('[data-initref="SI-001"]');

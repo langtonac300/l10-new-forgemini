@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: #d8dde5; -webkit-font-smoothing: antialiased; }
+  a { color: #003087; text-decoration: none; }
+  a:hover { color: #FF6B00; text-decoration: underline; }
+  * { box-sizing: border-box; }
+  input, button, textarea { font-family: inherit; }
+  ::selection { background: #e8eff8; }
+</style>
+</helmet>
+<div style="font-family: 'DM Sans', system-ui, sans-serif; color: #222; padding: 28px; display: flex; justify-content: center; background: #d8dde5">
+<div style="width: 1440px; height: 800px; flex: none; background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(2,30,71,.35); display: flex; flex-direction: column; overflow: hidden; position: relative">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 28px 12px; flex: none">
+    <div style="font-size: 18px; font-weight: 500; color: #101828">Momentum Huddle</div>
+    <div style="font-size: 16px; color: #667085; cursor: pointer" style-hover="color: #101828">✕</div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 14px; padding: 0 28px 12px; flex: none">
+    <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #001f5c, #003087); color: #fff; font-size: 13px; font-weight: 800; display: grid; place-items: center; flex: none">MH</div>
+    <div style="flex: none">
+      <div style="font-size: 16px; font-weight: 700; color: #101828; line-height: 1.25; white-space: nowrap">Paid Media Momentum Huddle</div>
+      <div style="font-size: 12px; color: #667085">Week of 2026-09-14</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; margin-left: 8px">
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">BDay 11 of 22</span>
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">FY27 · Q1</span>
+      <span style="background: #ecfdf3; color: #15803d; padding: 4px 12px; border-radius: 99px; white-space: nowrap">10 live · 8 need decision</span>
+      <span style="background: #f6f7f9; color: #475467; padding: 4px 12px; border-radius: 99px; white-space: nowrap">↻ just now</span>
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">Alex</span>
+      <span style="border: 1.5px solid #c3d3ea; background: #e8eff8; color: #001f5c; padding: 5px 14px; border-radius: 99px; white-space: nowrap; cursor: pointer" style-hover="border-color: #003087; background: #dbe6f6">Schedule</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 28px 10px; border-bottom: 1px solid #eaecf0; flex: none">
+    <sc-for list="{{ nav }}" as="t" hint-placeholder-count="13">
+      <div style="padding: 9px 14px; font-size: 13px; font-weight: 600; color: {{ t.color }}; background: {{ t.bg }}; border-radius: 10px; cursor: pointer; white-space: nowrap" style-hover="background: #f6f7f9">{{ t.label }}</div>
+    </sc-for>
+  </div>
+
+  <div style="flex: 1; overflow: auto; background: #f6f7f9; padding: 20px 28px 40px">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px">
+      <div style="flex: 1; min-width: 0">
+        <div style="font-size: 25px; font-weight: 700; color: #021e47; letter-spacing: -.01em; line-height: 1.15">To-dos</div>
+        <div style="font-size: 13.5px; color: #555; margin-top: 3px; text-wrap: pretty">Seven-day commitments, one owner each.</div>
+      </div>
+      <button type="button" onClick="{{ toggleAdd }}" style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 10px 16px; border-radius: 4px; white-space: nowrap; cursor: pointer; flex: none" style-hover="background: #001f5c; border-color: #001f5c" style-active="transform: scale(.98)">+ New to-do</button>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #eaecf0; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06); margin-bottom: 14px; display: flex; align-items: stretch">
+      <div style="padding: 15px 22px 16px; border-right: 1px solid #eaecf0; flex: none; width: 310px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-size: 30px; font-weight: 700; color: #021e47; letter-spacing: -.02em; line-height: 1">{{ week.pct }}%</span>
+          <span style="font-size: 12.5px; color: #475467; white-space: nowrap">done this week</span>
+        </div>
+        <div style="position: relative; height: 7px; background: #eef0f3; border-radius: 99px; margin: 11px 0 7px">
+          <div style="position: absolute; left: 0; top: 0; bottom: 0; width: {{ week.barW }}; background: #003087; border-radius: 99px"></div>
+          <div style="position: absolute; left: 90%; top: -3px; bottom: -3px; width: 2px; background: #021e47"></div>
+        </div>
+        <div style="font-size: 11.5px; color: #667085">{{ week.caption }}</div>
+      </div>
+
+      <div style="flex: 1; min-width: 0; padding: 13px 22px 14px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 9px">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #667085">When it's owed</span>
+          <div style="display: flex; align-items: center; gap: 7px">
+            <sc-for list="{{ attention }}" as="a" hint-placeholder-count="3">
+              <button type="button" onClick="{{ a.onClick }}" title="{{ a.title }}" style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ a.bg }}; color: {{ a.color }}; border: 1px solid {{ a.border }}" style-hover="border-color: #003087"><b style="font-size: 13px">{{ a.n }}</b>{{ a.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 4px">
+          <sc-for list="{{ week.spine }}" as="d" hint-placeholder-count="10">
+            <button type="button" onClick="{{ d.onClick }}" title="{{ d.title }}" style="flex: 1; min-width: 0; border: 1px solid {{ d.border }}; background: {{ d.bg }}; border-radius: 6px; padding: 5px 2px 6px; cursor: pointer; text-align: center" style-hover="border-color: #003087">
+              <div style="font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: {{ d.labelColor }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ d.label }}</div>
+              <div style="font-size: 15px; font-weight: 700; color: {{ d.countColor }}; line-height: 1.25">{{ d.count }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #eaecf0; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06)">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid #eaecf0; flex-wrap: wrap">
+        <input value="{{ q }}" onInput="{{ onQ }}" placeholder="find a to-do — text, note, owner or ID" aria-label="Filter to-dos" style="flex: 1; min-width: 200px; max-width: 330px; border: 1px solid #dfe3e9; border-radius: 4px; padding: 8px 11px; font-size: 13px; color: #222; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+        <div style="display: flex; align-items: center; gap: 6px; padding-right: 12px; border-right: 1px solid #eaecf0">
+          <span style="font-size: 11.5px; color: #667085; white-space: nowrap">Who</span>
+          <sc-for list="{{ people }}" as="p" hint-placeholder-count="2">
+            <button type="button" onClick="{{ p.onClick }}" title="{{ p.title }}" aria-pressed="{{ p.on }}" style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 4px 11px 4px 5px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ p.bg }}; color: {{ p.color }}; border: 1.5px solid {{ p.border }}" style-hover="border-color: #003087"><span style="width: 19px; height: 19px; border-radius: 50%; background: {{ p.avBg }}; color: {{ p.avColor }}; font-size: 9.5px; font-weight: 700; display: grid; place-items: center; flex: none">{{ p.initials }}</span>{{ p.label }}</button>
+          </sc-for>
+          <sc-if value="{{ peopleReset }}" hint-placeholder-val="{{ false }}">
+            <button type="button" onClick="{{ peopleReset.onClick }}" style="font-size: 12px; color: #667085; background: transparent; border: 0; padding: 4px 4px; cursor: pointer; white-space: nowrap" style-hover="color: #003087">{{ peopleReset.label }}</button>
+          </sc-if>
+        </div>
+        <sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
+          <button type="button" onClick="{{ c.onClick }}" title="{{ c.title }}" aria-pressed="{{ c.on }}" style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 6px 11px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ c.bg }}; color: {{ c.color }}; border: 1px solid {{ c.border }}" style-hover="border-color: #003087">{{ c.label }}</button>
+        </sc-for>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+          <span style="font-size: 11.5px; color: #667085; white-space: nowrap">{{ countLabel }}</span>
+          <div style="display: flex; align-items: center; gap: 6px; padding-left: 12px; border-left: 1px solid #eaecf0">
+            <span style="font-size: 11.5px; color: #667085">Group</span>
+            <sc-for list="{{ groupTabs }}" as="g" hint-placeholder-count="2">
+              <button type="button" onClick="{{ g.onClick }}" style="font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ g.bg }}; color: {{ g.color }}; border: 1px solid {{ g.border }}">{{ g.label }}</button>
+            </sc-for>
+          </div>
+          <button type="button" onClick="{{ toggleSel }}" style="font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ selBtn.bg }}; color: {{ selBtn.color }}; border: 1px solid {{ selBtn.border }}">{{ selBtn.label }}</button>
+        </div>
+      </div>
+
+      <sc-for list="{{ groups }}" as="grp" hint-placeholder-count="4">
+        <div>
+          <div style="display: flex; align-items: center; gap: 9px; padding: 8px 18px; background: {{ grp.bg }}; border-bottom: 1px solid #eef0f3">
+            <span style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: {{ grp.color }}; white-space: nowrap">{{ grp.label }}</span>
+            <span style="font-size: 11px; color: #667085">{{ grp.count }}</span>
+            <span style="font-size: 11.5px; color: #667085; white-space: nowrap">{{ grp.hint }}</span>
+          </div>
+          <sc-for list="{{ grp.rows }}" as="r" hint-placeholder-count="3">
+            <div style="display: flex; align-items: flex-start; gap: 11px; padding: 9px 18px; border-bottom: 1px solid #f2f4f7; background: #fff" style-hover="background: #fbfcfe">
+              <sc-if value="{{ r.selectable }}" hint-placeholder-val="{{ false }}">
+                <input type="checkbox" checked="{{ r.checked }}" onChange="{{ r.onSel }}" aria-label="{{ r.selLabel }}" style="margin: 6px 0 0; width: 15px; height: 15px; accent-color: #003087; flex: none">
+              </sc-if>
+              <div style="position: relative; flex: none">
+                <button type="button" onClick="{{ r.stateMenu }}" title="{{ r.stateTitle }}" style="width: 26px; height: 26px; border-radius: 99px; border: 1px solid {{ r.state.border }}; background: {{ r.state.bg }}; color: {{ r.state.color }}; font-size: 13px; font-weight: 700; display: grid; place-items: center; cursor: pointer; padding: 0" style-hover="border-color: #003087">{{ r.state.glyph }}</button>
+                <sc-if value="{{ r.statePop }}" hint-placeholder-val="{{ false }}">
+                  <div data-pop="1" style="position: absolute; top: 30px; left: 0; z-index: 40; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 150px">
+                    <sc-for list="{{ r.statePopItems }}" as="p" hint-placeholder-count="3">
+                      <button type="button" onClick="{{ p.onClick }}" style="width: 100%; text-align: left; border: 0; background: transparent; font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px" style-hover="background: #e8eff8; color: #003087"><b style="width: 12px; text-align: center; color: {{ p.color }}">{{ p.glyph }}</b>{{ p.label }}</button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div onClick="{{ r.open }}" style="flex: 1; min-width: 0; cursor: pointer; padding-top: 3px">
+                <div style="font-size: 13.5px; font-weight: 500; color: #021e47; line-height: 1.35; text-wrap: pretty">{{ r.text }}</div>
+                <sc-if value="{{ r.subLine }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 12px; color: #667085; margin-top: 3px; line-height: 1.4">{{ r.subLine }}</div>
+                </sc-if>
+                <sc-if value="{{ r.nudge }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 12px; color: #b45309; margin-top: 4px">{{ r.nudge }}</div>
+                </sc-if>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 7px; flex: none; padding-top: 2px">
+                <sc-if value="{{ r.stepsBadge }}" hint-placeholder-val="{{ false }}">
+                  <span title="{{ r.stepsTitle }}" style="font-size: 11.5px; color: #475467; background: #f6f7f9; border: 1px solid #eaecf0; padding: 3px 8px; border-radius: 4px; white-space: nowrap">{{ r.stepsBadge }}</span>
+                </sc-if>
+                <sc-for list="{{ r.flags }}" as="fl" hint-placeholder-count="1">
+                  <span title="{{ fl.title }}" style="font-size: 11px; font-weight: 700; color: {{ fl.color }}; background: {{ fl.bg }}; border: 1px solid {{ fl.border }}; padding: 3px 8px; border-radius: 4px; white-space: nowrap">{{ fl.label }}</span>
+                </sc-for>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #475467; width: 96px; white-space: nowrap"><span style="width: 19px; height: 19px; border-radius: 50%; background: #e8eff8; color: #003087; font-size: 9.5px; font-weight: 700; display: grid; place-items: center; flex: none">{{ r.ownerInitials }}</span>{{ r.owner }}</span>
+                <span title="{{ r.dueTitle }}" style="font-size: 11.5px; font-weight: 700; color: {{ r.due.color }}; background: {{ r.due.bg }}; border: 1px solid {{ r.due.border }}; padding: 3px 9px; border-radius: 4px; white-space: nowrap; width: 82px; text-align: center">{{ r.due.label }}</span>
+                <div style="position: relative; flex: none">
+                  <button type="button" onClick="{{ r.moreMenu }}" aria-label="More actions" style="width: 26px; height: 26px; border: 1px solid #eaecf0; background: #fff; border-radius: 4px; color: #667085; font-size: 13px; cursor: pointer; padding: 0" style-hover="border-color: #003087; color: #003087">⋯</button>
+                  <sc-if value="{{ r.morePop }}" hint-placeholder-val="{{ false }}">
+                    <div data-pop="1" style="position: absolute; top: 30px; right: 0; z-index: 40; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 196px">
+                      <sc-for list="{{ r.morePopItems }}" as="p" hint-placeholder-count="5">
+                        <button type="button" onClick="{{ p.onClick }}" style="width: 100%; text-align: left; border: 0; background: transparent; font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #e8eff8; color: #003087">{{ p.label }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+                <button type="button" onClick="{{ r.done }}" style="border: 1.5px solid #c3d3ea; background: #fff; color: #003087; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #003087; color: #fff; border-color: #003087" style-active="transform: scale(.98)">✓ Done</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ emptyText }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 34px 18px; text-align: center; font-size: 13px; color: #667085">{{ emptyText }}</div>
+      </sc-if>
+
+      <div style="border-top: 1px solid #eaecf0; background: #fafbfc; border-radius: 0 0 16px 16px">
+        <button type="button" onClick="{{ toggleDone }}" style="width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 18px; background: transparent; border: 0; cursor: pointer; text-align: left" style-hover="background: #f4f6f9">
+          <span style="font-size: 11px; color: #667085">{{ doneCaret }}</span>
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #667085">Done this week</span>
+          <span style="font-size: 11px; color: #667085">{{ doneCount }}</span>
+          <span style="font-size: 11.5px; color: #667085">{{ doneHint }}</span>
+        </button>
+        <sc-if value="{{ doneOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 1px solid #eef0f3">
+            <sc-for list="{{ doneRows }}" as="d" hint-placeholder-count="5">
+              <div style="display: flex; align-items: center; gap: 11px; padding: 8px 18px; border-bottom: 1px solid #f2f4f7">
+                <span style="width: 26px; text-align: center; font-size: 13px; font-weight: 700; color: #12693a; flex: none">✓</span>
+                <span style="flex: 1; min-width: 0; font-size: 13px; color: #475467; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ d.text }}</span>
+                <span style="font-size: 12px; color: #667085; white-space: nowrap">{{ d.meta }}</span>
+                <button type="button" onClick="{{ d.reopen }}" style="border: 1px solid #eaecf0; background: #fff; color: #667085; font-size: 11.5px; padding: 4px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087">↩ Reopen</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ bulk }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 50; background: #021e47; color: #fff; display: flex; align-items: center; gap: 10px; padding: 12px 28px; box-shadow: 0 -8px 30px rgba(2,30,71,.25)">
+      <span style="font-size: 13px; font-weight: 700; white-space: nowrap">{{ bulk.label }}</span>
+      <sc-for list="{{ bulk.actions }}" as="a" hint-placeholder-count="4">
+        <button type="button" onClick="{{ a.onClick }}" style="border: 1.5px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff; font-size: 12px; font-weight: 500; padding: 7px 13px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #fff; color: #021e47; border-color: #fff">{{ a.label }}</button>
+      </sc-for>
+      <button type="button" onClick="{{ bulk.clear }}" style="margin-left: auto; border: 0; background: transparent; color: rgba(255,255,255,.75); font-size: 12.5px; cursor: pointer; white-space: nowrap" style-hover="color: #fff">Clear selection</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ drawer }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; z-index: 60; background: rgba(2,30,71,.45); backdrop-filter: blur(3px); display: flex; justify-content: flex-end">
+      <div onClick="{{ closeDrawer }}" style="flex: 1"></div>
+      <div style="width: 580px; background: #fff; height: 100%; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(2,30,71,.25)">
+        <div style="padding: 18px 22px 15px; border-bottom: 1px solid #eaecf0; flex: none">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px">
+            <div style="min-width: 0">
+              <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087">To-do · {{ drawer.id }}</div>
+              <div style="font-size: 18px; font-weight: 700; color: #021e47; line-height: 1.3; margin-top: 5px; text-wrap: pretty">{{ drawer.text }}</div>
+            </div>
+            <button type="button" onClick="{{ closeDrawer }}" style="border: 1px solid #dfe3e9; background: #fff; color: #667085; font-size: 12px; padding: 6px 11px; border-radius: 4px; cursor: pointer; flex: none" style-hover="background: #f6f7f9; color: #222">Close</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap">
+            <span style="display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: #475467"><span style="width: 19px; height: 19px; border-radius: 50%; background: #e8eff8; color: #003087; font-size: 9.5px; font-weight: 700; display: grid; place-items: center">{{ drawer.ownerInitials }}</span>{{ drawer.owner }}</span>
+            <span style="font-size: 11.5px; font-weight: 700; color: {{ drawer.state.color }}; background: {{ drawer.state.bg }}; border: 1px solid {{ drawer.state.border }}; padding: 3px 9px; border-radius: 99px">{{ drawer.state.glyph }} {{ drawer.state.label }}</span>
+            <span style="font-size: 11.5px; font-weight: 700; color: {{ drawer.due.color }}; background: {{ drawer.due.bg }}; border: 1px solid {{ drawer.due.border }}; padding: 3px 9px; border-radius: 4px">{{ drawer.dueLong }}</span>
+            <sc-if value="{{ drawer.sourceRef }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size: 11.5px; color: #003087; background: #e8eff8; border: 1px solid #c3d3ea; padding: 3px 9px; border-radius: 4px; cursor: pointer">{{ drawer.sourceRef }}</span>
+            </sc-if>
+          </div>
+          <sc-if value="{{ drawer.waiting }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 11px; background: #fdf1ef; border: 1px solid #f2cdc7; border-radius: 4px; padding: 9px 12px; font-size: 12.5px; color: #a5291a">{{ drawer.waiting }}</div>
+          </sc-if>
+        </div>
+
+        <div style="flex: 1; overflow: auto; padding: 16px 22px 20px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px">
+            <span style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085">Steps</span>
+            <span style="font-size: 11.5px; color: #667085">{{ drawer.stepsCount }}</span>
+          </div>
+          <sc-for list="{{ drawer.steps }}" as="s" hint-placeholder-count="3">
+            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f2f4f7">
+              <button type="button" onClick="{{ s.toggle }}" aria-label="{{ s.aria }}" style="width: 20px; height: 20px; flex: none; border-radius: 4px; border: 1.5px solid {{ s.border }}; background: {{ s.bg }}; color: {{ s.color }}; font-size: 11px; font-weight: 700; display: grid; place-items: center; cursor: pointer; padding: 0" style-hover="border-color: #003087">{{ s.glyph }}</button>
+              <span style="flex: 1; min-width: 0; font-size: 13px; color: {{ s.textColor }}; line-height: 1.45; text-wrap: pretty">{{ s.text }}</span>
+            </div>
+          </sc-for>
+          <div style="display: flex; gap: 8px; margin: 10px 0 22px">
+            <input placeholder="add a step" style="flex: 1; border: 1px solid #dfe3e9; border-radius: 4px; padding: 8px 11px; font-size: 13px; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+            <button type="button" style="border: 1px solid #c3d3ea; background: #fff; color: #003087; font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #e8eff8">Add step</button>
+          </div>
+
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085; margin-bottom: 8px">Trail</div>
+          <sc-for list="{{ drawer.log }}" as="l" hint-placeholder-count="3">
+            <div style="padding: 8px 0; border-bottom: 1px solid #f2f4f7">
+              <div style="font-size: 13px; color: #333; line-height: 1.45; text-wrap: pretty">{{ l.note }}</div>
+              <div style="font-size: 11.5px; color: #667085; margin-top: 2px">{{ l.meta }}</div>
+            </div>
+          </sc-for>
+          <div style="display: flex; gap: 8px; margin-top: 10px">
+            <input placeholder="add a progress note — posting never changes the state" style="flex: 1; border: 1px solid #dfe3e9; border-radius: 4px; padding: 8px 11px; font-size: 13px; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+            <button type="button" style="border: 1px solid #c3d3ea; background: #fff; color: #003087; font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #e8eff8">Post</button>
+          </div>
+        </div>
+
+        <div style="padding: 13px 22px; border-top: 1px solid #eaecf0; display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap">
+          <button type="button" onClick="{{ drawer.done }}" style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 9px 16px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #001f5c; border-color: #001f5c">✓ Done</button>
+          <sc-for list="{{ drawer.escapes }}" as="e" hint-placeholder-count="3">
+            <button type="button" style="border: 1px solid #dfe3e9; background: #fff; color: #475467; font-size: 12px; padding: 9px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087">{{ e }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; z-index: 70; background: rgba(2,30,71,.45); backdrop-filter: blur(3px); display: flex; justify-content: flex-end">
+      <div onClick="{{ toggleAdd }}" style="flex: 1"></div>
+      <div style="width: 520px; background: #fff; height: 100%; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(2,30,71,.25)">
+        <div style="padding: 18px 22px 15px; border-bottom: 1px solid #eaecf0; flex: none">
+          <div style="font-size: 18px; font-weight: 700; color: #021e47">New to-do</div>
+          <div style="font-size: 12.5px; color: #667085; margin-top: 3px">A seven-day commitment. Blank date means next Monday.</div>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 18px 22px">
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 9px">What needs doing</div>
+          <input placeholder="e.g. Rebuild the CA creative set from the US variants" style="width: 100%; border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 14px; outline: none; margin-bottom: 9px" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+          <input placeholder="link or note (optional) — a dashboard, a doc, one line of context" style="width: 100%; border: 1px solid #dfe3e9; border-radius: 4px; padding: 10px 12px; font-size: 13px; outline: none; margin-bottom: 22px" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 9px">Who owns it</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 7px">
+            <sc-for list="{{ addOwners }}" as="o" hint-placeholder-count="2">
+              <button type="button" onClick="{{ o.onClick }}" style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; padding: 6px 13px 6px 7px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ o.bg }}; color: {{ o.color }}; border: 1.5px solid {{ o.border }}"><span style="width: 20px; height: 20px; border-radius: 50%; background: {{ o.avBg }}; color: {{ o.avColor }}; font-size: 9.5px; font-weight: 700; display: grid; place-items: center">{{ o.initials }}</span>{{ o.name }}</button>
+            </sc-for>
+          </div>
+          <div style="font-size: 11.5px; color: #667085; margin-bottom: 22px">{{ addOwnerHint }}</div>
+
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 9px">When it's owed</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 9px">
+            <sc-for list="{{ addDates }}" as="d" hint-placeholder-count="4">
+              <button type="button" onClick="{{ d.onClick }}" style="font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ d.bg }}; color: {{ d.color }}; border: 1px solid {{ d.border }}">{{ d.label }}</button>
+            </sc-for>
+          </div>
+          <label style="display: flex; align-items: center; gap: 9px; font-size: 13px; color: #333; cursor: pointer">
+            <input type="checkbox" style="width: 15px; height: 15px; accent-color: #003087">
+            <span>↻ Repeat weekly <span style="color: #667085">— completing it queues next week's copy</span></span>
+          </label>
+        </div>
+        <div style="padding: 14px 22px; border-top: 1px solid #eaecf0; display: flex; align-items: center; gap: 10px; flex: none">
+          <button type="button" style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 10px 18px; border-radius: 4px; white-space: nowrap; cursor: pointer" style-hover="background: #001f5c; border-color: #001f5c">{{ addCta }}</button>
+          <button type="button" onClick="{{ toggleAdd }}" style="border: 0; background: transparent; color: #667085; font-size: 12.5px; padding: 10px 6px; cursor: pointer" style-hover="color: #222">Cancel</button>
+          <span style="margin-left: auto; font-size: 11.5px; color: #667085; white-space: nowrap">Enter adds and keeps the sheet open</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1496,&quot;height&quot;:856},&quot;defaultGrouping&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;when&quot;,&quot;owner&quot;],&quot;default&quot;:&quot;when&quot;,&quot;tsType&quot;:&quot;'when' | 'owner'&quot;,&quot;section&quot;:&quot;Behaviour&quot;},&quot;showWeekSpine&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;}}">
+const TODAY = '2026-09-15';
+const WEEK_START = '2026-09-14';
+const TEAM = ['Alex', 'Courtney'];
+const STALE_AT = 2;
+
+const STATES = {
+  OPEN: { glyph: '○', label: 'open', color: '#667085', bg: '#fff', border: '#dfe3e9' },
+  WORKING: { glyph: '◐', label: 'working', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8' },
+  BLOCKED: { glyph: '⏸', label: 'blocked', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7' }
+};
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function dt(s) { return new Date(s + 'T00:00:00'); }
+function days(a, b) { return Math.round((dt(b) - dt(a)) / 86400000); }
+function shift(s, n) { const d = dt(s); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+function initials(n) { return String(n || '?').slice(0, 1).toUpperCase(); }
+function pretty(s) { const d = dt(s); return DAY_NAMES[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
+
+const SEED = [
+  { id: 'TD-109', text: 'Write the FY27 Q1 pacing narrative for Stuart', owner: 'Alex', due: '2026-09-08', status: 'OPEN', carried: 3, repeat: false, source: '', notes: '', waiting: '',
+    steps: [], log: [{ note: 'Carried again — the shape of this keeps changing with the forecast.', meta: 'Alex · 2026-09-14 09:12' }] },
+  { id: 'TD-118', text: 'Rebuild the Brady CA Demand Gen creative set from the US variants', owner: 'Courtney', due: '2026-09-11', status: 'WORKING', carried: 1, repeat: false, source: 'SI-001', notes: '', waiting: '',
+    steps: [{ text: 'Pull the six US variants that beat benchmark', done: true }, { text: 'Rewrite headlines for CA spelling and claims', done: false }, { text: 'Get legal sign-off on the claim wording', done: false }],
+    log: [{ note: 'Legal have the claims, expecting them back Wednesday.', meta: 'Courtney · 2026-09-15 08:40' }] },
+  { id: 'TD-121', text: 'Get the EMEDCO negative list approved by the category team', owner: 'Alex', due: '2026-09-12', status: 'BLOCKED', carried: 2, repeat: false, source: 'SI-002', notes: '', waiting: 'Waiting on the category team to confirm the excluded SKUs.',
+    steps: [{ text: 'Draft the list from the search-term report', done: true }, { text: 'Category team sign-off', done: false }], log: [] },
+  { id: 'TD-126', text: 'Confirm the audience signals map across the CA account', owner: 'Courtney', due: '2026-09-15', status: 'OPEN', carried: 0, repeat: false, source: 'SI-001', notes: '', waiting: '', steps: [], log: [] },
+  { id: 'TD-127', text: 'Pull the search-term waste report for Seton US', owner: 'Alex', due: '2026-09-15', status: 'WORKING', carried: 0, repeat: true, source: '', notes: '', waiting: '', steps: [], log: [] },
+  { id: 'TD-128', text: 'Draft the shared negative list for the Seton family', owner: 'Courtney', due: '2026-09-17', status: 'OPEN', carried: 0, repeat: false, source: 'SI-002', notes: '', waiting: '',
+    steps: [{ text: 'Export 90 days of search terms per account', done: false }, { text: 'Cluster the waste by theme', done: false }, { text: 'Agree the shared floor with Alex', done: false }, { text: 'Apply to Seton US first', done: false }], log: [] },
+  { id: 'TD-130', text: 'Check the brand impression-share floor held last week', owner: 'Alex', due: '2026-09-18', status: 'OPEN', carried: 0, repeat: true, source: 'SI-007', notes: '', waiting: '', steps: [], log: [] },
+  { id: 'TD-131', text: 'Send the PMax consolidation verdict to the Experiment Hub', owner: 'Courtney', due: '2026-09-18', status: 'OPEN', carried: 0, repeat: false, source: 'SI-008', notes: '', waiting: '', steps: [], log: [] },
+  { id: 'TD-132', text: 'Book the value-based bidding scoping session', owner: 'Courtney', due: '2026-09-19', status: 'OPEN', carried: 0, repeat: false, source: 'SI-004', notes: '', waiting: '', steps: [], log: [] },
+  { id: 'TD-134', text: 'Model margin-weighted conversion values for the catalogue', owner: 'Courtney', due: '2026-09-22', status: 'OPEN', carried: 0, repeat: false, source: 'SI-004', notes: '', waiting: '',
+    steps: [{ text: 'Get the margin field into the feed', done: false }, { text: 'Back-test against last quarter', done: false }], log: [] },
+  { id: 'TD-136', text: 'Review the wristband Amazon vs search overlap', owner: 'Alex', due: '2026-09-29', status: 'OPEN', carried: 0, repeat: false, source: 'SI-005', notes: '', waiting: '', steps: [], log: [] },
+  { id: 'TD-140', text: 'Tidy the shared reporting folder', owner: 'Alex', due: '', status: 'OPEN', carried: 1, repeat: false, source: '', notes: '', waiting: '', steps: [], log: [] }
+];
+
+const DONE = [
+  { id: 'TD-112', text: 'Agree the Demand Gen test window with Stuart', owner: 'Alex', doneAt: '2026-09-14' },
+  { id: 'TD-115', text: 'Pull the US benchmark CPL by campaign', owner: 'Courtney', doneAt: '2026-09-14' },
+  { id: 'TD-117', text: 'Exclude the competitor brand terms on Brady US', owner: 'Courtney', doneAt: '2026-09-15' },
+  { id: 'TD-120', text: 'Update the huddle deck template for FY27', owner: 'Alex', doneAt: '2026-09-15' },
+  { id: 'TD-122', text: 'Reconcile the Seton CA spend against the pacing sheet', owner: 'Alex', doneAt: '2026-09-15' }
+];
+
+class Component extends DCLogic {
+  state = {
+    data: SEED.map((r) => JSON.parse(JSON.stringify(r))),
+    done: DONE.slice(),
+    group: null,
+    q: '',
+    people: [], blocked: false, carried: false, dayFilter: '',
+    selMode: false, sel: {},
+    open: null, adding: false, pop: null, doneOpen: false,
+    addOwners: ['Courtney'], addDue: 'Friday'
+  };
+
+  componentDidMount() {
+    this._away = (ev) => { if (this.state.pop && !ev.target.closest('[data-pop]')) this.setState({ pop: null }); };
+    document.addEventListener('click', this._away, true);
+  }
+  componentWillUnmount() { document.removeEventListener('click', this._away, true); }
+
+  patch(id, fields) {
+    this.setState({ data: this.state.data.map((r) => (r.id === id ? Object.assign({}, r, fields) : r)), pop: null });
+  }
+  complete(id) {
+    const row = this.state.data.filter((r) => r.id === id)[0];
+    if (!row) return;
+    this.setState({
+      data: this.state.data.filter((r) => r.id !== id),
+      done: [{ id: row.id, text: row.text, owner: row.owner, doneAt: TODAY }].concat(this.state.done),
+      pop: null, open: this.state.open === id ? null : this.state.open
+    });
+  }
+  reopen(id) {
+    const row = this.state.done.filter((r) => r.id === id)[0];
+    if (!row) return;
+    this.setState({
+      done: this.state.done.filter((r) => r.id !== id),
+      data: this.state.data.concat([{ id: row.id, text: row.text, owner: row.owner, due: TODAY, status: 'OPEN', carried: 0, repeat: false, source: '', notes: '', waiting: '', steps: [], log: [] }])
+    });
+  }
+  drop(id) { this.setState({ data: this.state.data.filter((r) => r.id !== id), pop: null, open: null }); }
+
+  dueChip(r) {
+    if (!r.due) return { label: 'no date', color: '#667085', bg: '#f6f7f9', border: '#eaecf0' };
+    const d = days(r.due, TODAY);
+    if (d > 0) return { label: d + 'd late', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7' };
+    if (d === 0) return { label: 'today', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8' };
+    if (d === -1) return { label: 'tomorrow', color: '#475467', bg: '#fff', border: '#eaecf0' };
+    if (d >= -6) return { label: DAY_NAMES[dt(r.due).getDay()] + ' ' + dt(r.due).getDate(), color: '#475467', bg: '#fff', border: '#eaecf0' };
+    return { label: MONTHS[dt(r.due).getMonth()] + ' ' + dt(r.due).getDate(), color: '#667085', bg: '#fff', border: '#eaecf0' };
+  }
+
+  matches(r) {
+    const s = this.state;
+    const q = s.q.trim().toLowerCase();
+    if (q && (r.text + ' ' + r.owner + ' ' + r.id + ' ' + (r.notes || '') + ' ' + (r.source || '')).toLowerCase().indexOf(q) === -1) return false;
+    if (s.people.length && s.people.indexOf(r.owner) === -1) return false;
+    if (s.blocked && r.status !== 'BLOCKED') return false;
+    if (s.carried && r.carried < STALE_AT) return false;
+    if (s.dayFilter === 'late' && !(r.due && days(r.due, TODAY) > 0)) return false;
+    if (s.dayFilter === 'none' && r.due) return false;
+    if (s.dayFilter === 'later' && !(r.due && days(r.due, TODAY) < -6)) return false;
+    if (s.dayFilter && s.dayFilter.indexOf('-') !== -1 && r.due !== s.dayFilter) return false;
+    return true;
+  }
+
+  rowFor(r) {
+    const st = STATES[r.status] || STATES.OPEN;
+    const pop = this.state.pop;
+    const doneSteps = r.steps.filter((x) => x.done).length;
+    const flags = [];
+    if (r.carried >= STALE_AT) flags.push({ label: '×' + r.carried + ' carried', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8', title: 'Carried over ' + r.carried + ' huddles' });
+    if (r.repeat) flags.push({ label: '↻', color: '#475467', bg: '#f6f7f9', border: '#eaecf0', title: 'Repeats weekly — completing it queues next week\'s copy' });
+    const bits = [];
+    if (r.source) bits.push('from ' + r.source);
+    if (r.status === 'BLOCKED' && r.waiting) bits.push(r.waiting.replace(/^Waiting on /, 'waiting on '));
+    if (r.log.length) bits.push(r.log.length + (r.log.length === 1 ? ' note' : ' notes'));
+    return {
+      id: r.id, text: r.text, owner: r.owner, ownerInitials: initials(r.owner),
+      state: st, stateTitle: 'State: ' + st.label + ' — click to change',
+      statePop: !!(pop && pop.kind === 'state' && pop.id === r.id),
+      statePopItems: Object.keys(STATES).filter((k) => k !== r.status).map((k) => ({
+        label: STATES[k].label, glyph: STATES[k].glyph, color: STATES[k].color,
+        onClick: (ev) => { ev.stopPropagation(); this.patch(r.id, { status: k }); }
+      })),
+      stateMenu: (ev) => { ev.stopPropagation(); this.setState({ pop: this.state.pop && this.state.pop.kind === 'state' && this.state.pop.id === r.id ? null : { kind: 'state', id: r.id } }); },
+      subLine: bits.join(' · '),
+      nudge: r.carried >= 3 ? 'Carried ' + r.carried + ' weeks — probably not a seven-day commitment. Make it a priority, or take it to Solve.' : '',
+      stepsBadge: r.steps.length ? '☑ ' + doneSteps + '/' + r.steps.length : '',
+      stepsTitle: r.steps.length ? doneSteps + ' of ' + r.steps.length + ' steps done' : '',
+      flags: flags,
+      due: this.dueChip(r),
+      dueTitle: r.due ? 'Due ' + pretty(r.due) : 'No due date — blank means next Monday',
+      selectable: this.state.selMode, checked: !!this.state.sel[r.id],
+      selLabel: 'Select ' + r.text,
+      onSel: () => { const sel = Object.assign({}, this.state.sel); if (sel[r.id]) delete sel[r.id]; else sel[r.id] = true; this.setState({ sel: sel }); },
+      morePop: !!(pop && pop.kind === 'more' && pop.id === r.id),
+      moreMenu: (ev) => { ev.stopPropagation(); this.setState({ pop: this.state.pop && this.state.pop.kind === 'more' && this.state.pop.id === r.id ? null : { kind: 'more', id: r.id } }); },
+      morePopItems: [
+        { label: '📅 Push 7 days', onClick: (ev) => { ev.stopPropagation(); this.patch(r.id, { due: r.due ? shift(r.due, 7) : shift(TODAY, 7) }); } },
+        { label: '✎ Edit', onClick: (ev) => { ev.stopPropagation(); this.setState({ open: r.id, pop: null }); } },
+        { label: '▲ Make it a priority', onClick: (ev) => { ev.stopPropagation(); this.setState({ pop: null }); } },
+        { label: '→ Take it to Solve', onClick: (ev) => { ev.stopPropagation(); this.setState({ pop: null }); } },
+        { label: '✕ Drop', onClick: (ev) => { ev.stopPropagation(); this.drop(r.id); } }
+      ],
+      open: () => this.setState({ open: r.id, pop: null }),
+      done: (ev) => { ev.stopPropagation(); this.complete(r.id); }
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const group = s.group || this.props.defaultGrouping || 'when';
+    const spineOn = this.props.showWeekSpine !== false;
+    const open = s.data;
+    const shown = open.filter((r) => this.matches(r));
+
+    const nav = ['Huddle', 'Metrics', 'Priorities', 'Strategy', 'Headlines', 'To-dos', 'Issues', '1:1s', 'History', 'Team stats', 'Settings', 'How it runs', '?'].map((l) => {
+      const on = l === 'To-dos';
+      return { label: l, color: on ? '#001f5c' : '#475467', bg: on ? '#e8eff8' : 'transparent' };
+    });
+
+    // --- the week: the one number the page's own promise depends on
+    const doneN = s.done.length;
+    const pct = Math.round((doneN / (doneN + open.length)) * 100);
+    const toHuddle = days(TODAY, shift(WEEK_START, 7));
+    const week = {
+      pct: pct, barW: pct + '%',
+      caption: doneN + ' done · ' + open.length + ' still owed · target 90% by the huddle in ' + toHuddle + ' days',
+      spine: []
+    };
+    if (spineOn) {
+      const lateN = open.filter((r) => r.due && days(r.due, TODAY) > 0).length;
+      week.spine.push({ key: 'late', label: 'Late', count: lateN || '–', title: lateN + ' past their due date' });
+      for (let i = 0; i < 7; i++) {
+        const d = shift(WEEK_START, i);
+        const n = open.filter((r) => r.due === d).length;
+        week.spine.push({ key: d, label: DAY_NAMES[dt(d).getDay()] + ' ' + dt(d).getDate(), count: n || '–', today: d === TODAY, title: pretty(d) + ' — ' + n + ' due' });
+      }
+      const laterN = open.filter((r) => r.due && days(r.due, TODAY) < -6).length;
+      const noneN = open.filter((r) => !r.due).length;
+      week.spine.push({ key: 'later', label: 'Later', count: laterN || '–', title: laterN + ' due after this week' });
+      week.spine.push({ key: 'none', label: 'No date', count: noneN || '–', title: noneN + ' with no due date' });
+      week.spine = week.spine.map((c) => {
+        const active = s.dayFilter === c.key;
+        const has = c.count !== '–';
+        return Object.assign(c, {
+          bg: active ? '#003087' : c.today ? '#e8eff8' : has ? '#fff' : '#fafbfc',
+          border: active ? '#003087' : c.today ? '#c3d3ea' : '#eaecf0',
+          labelColor: active ? 'rgba(255,255,255,.8)' : c.today ? '#003087' : '#667085',
+          countColor: active ? '#fff' : has ? '#021e47' : '#98a2b3',
+          onClick: () => this.setState({ dayFilter: active ? '' : c.key })
+        });
+      });
+    }
+
+    const lateN = open.filter((r) => r.due && days(r.due, TODAY) > 0).length;
+    const blockedN = open.filter((r) => r.status === 'BLOCKED').length;
+    const carriedN = open.filter((r) => r.carried >= STALE_AT).length;
+    const attention = [
+      { key: 'late', n: lateN, label: 'late', on: s.dayFilter === 'late', tone: '#a5291a', bgOn: '#fdf1ef', title: 'Past the due date and still owed', onClick: () => this.setState({ dayFilter: s.dayFilter === 'late' ? '' : 'late' }) },
+      { key: 'blocked', n: blockedN, label: 'blocked', on: s.blocked, tone: '#a5291a', bgOn: '#fdf1ef', title: 'Waiting on something or someone', onClick: () => this.setState({ blocked: !s.blocked }) },
+      { key: 'carried', n: carriedN, label: 'carried', on: s.carried, tone: '#b45309', bgOn: '#fff8ec', title: 'Carried over ' + STALE_AT + '+ huddles', onClick: () => this.setState({ carried: !s.carried }) }
+    ].map((a) => ({
+      n: a.n, label: a.label, title: a.title, onClick: a.onClick,
+      bg: a.on ? a.bgOn : '#fff', color: a.n ? a.tone : '#667085', border: a.on ? a.tone : '#eaecf0'
+    }));
+
+    // --- groups
+    let groups;
+    if (group === 'owner') {
+      const order = TEAM.filter((p) => shown.some((r) => r.owner === p));
+      groups = order.map((p) => {
+        const rows = shown.filter((r) => r.owner === p).sort((a, b) => String(a.due || '9999') < String(b.due || '9999') ? -1 : 1);
+        const late = rows.filter((r) => r.due && days(r.due, TODAY) > 0).length;
+        return { label: p, count: rows.length, hint: late ? late + ' late' : '', bg: '#f7f9fc', color: '#003087', rows: rows.map((r) => this.rowFor(r)) };
+      });
+    } else {
+      const buckets = [
+        ['Late', (r) => r.due && days(r.due, TODAY) > 0, 'owed before today — clear these first', '#fdf1ef', '#a5291a'],
+        ['Due today', (r) => r.due === TODAY, '', '#fff8ec', '#b45309'],
+        ['Rest of this week', (r) => r.due && days(r.due, TODAY) < 0 && days(TODAY, r.due) <= 5 && r.due <= shift(WEEK_START, 6), '', '#f7f9fc', '#003087'],
+        ['Next week and later', (r) => r.due && r.due > shift(WEEK_START, 6), '', '#f7f9fc', '#475467'],
+        ['No due date', (r) => !r.due, 'a to-do without a date is a wish', '#fafbfc', '#667085']
+      ];
+      groups = buckets.map((b) => {
+        const rows = shown.filter(b[1]).sort((x, y) => String(x.due || '9999') < String(y.due || '9999') ? -1 : 1);
+        return { label: b[0], count: rows.length, hint: rows.length ? b[2] : '', bg: b[3], color: b[4], rows: rows.map((r) => this.rowFor(r)) };
+      }).filter((g) => g.count);
+    }
+
+    const selIds = Object.keys(s.sel).filter((id) => open.some((r) => r.id === id));
+    const bulk = selIds.length ? {
+      label: selIds.length + ' selected',
+      clear: () => this.setState({ sel: {} }),
+      actions: [
+        { label: '✓ Done', onClick: () => { selIds.forEach((id) => this.complete(id)); this.setState({ sel: {} }); } },
+        { label: '◐ Working', onClick: () => { this.setState({ data: s.data.map((r) => (s.sel[r.id] ? Object.assign({}, r, { status: 'WORKING' }) : r)) }); } },
+        { label: '📅 Push 7 days', onClick: () => { this.setState({ data: s.data.map((r) => (s.sel[r.id] ? Object.assign({}, r, { due: r.due ? shift(r.due, 7) : shift(TODAY, 7) }) : r)) }); } },
+        { label: '✕ Drop', onClick: () => { this.setState({ data: s.data.filter((r) => !s.sel[r.id]), sel: {} }); } }
+      ]
+    } : null;
+
+    // --- drawer
+    let drawer = null;
+    const row = s.open ? s.data.filter((r) => r.id === s.open)[0] : null;
+    if (row) {
+      const st = STATES[row.status] || STATES.OPEN;
+      const doneSteps = row.steps.filter((x) => x.done).length;
+      drawer = {
+        id: row.id, text: row.text, owner: row.owner, ownerInitials: initials(row.owner),
+        state: st, due: this.dueChip(row),
+        dueLong: row.due ? 'due ' + pretty(row.due) : 'no due date',
+        sourceRef: row.source ? 'from ' + row.source + ' ↗' : '',
+        waiting: row.status === 'BLOCKED' ? row.waiting : '',
+        stepsCount: row.steps.length ? doneSteps + ' of ' + row.steps.length + ' done' : 'none yet',
+        steps: row.steps.map((x, i) => ({
+          text: x.text, glyph: x.done ? '✓' : '',
+          border: x.done ? '#12693a' : '#dfe3e9', bg: x.done ? '#eef8f2' : '#fff', color: '#12693a',
+          textColor: x.done ? '#667085' : '#333',
+          aria: (x.done ? 'Mark not done: ' : 'Mark done: ') + x.text,
+          toggle: () => {
+            const steps = row.steps.map((y, j) => (j === i ? Object.assign({}, y, { done: !y.done }) : y));
+            this.patch(row.id, { steps: steps });
+          }
+        })),
+        log: row.log.length ? row.log : [{ note: 'Nothing logged yet.', meta: 'The trail keeps the story — posting a note never changes the state.' }],
+        done: () => this.complete(row.id),
+        escapes: ['📅 Push 7 days', '▲ Make it a priority', '→ Take it to Solve', '✕ Drop']
+      };
+    }
+
+    return {
+      nav: nav, week: week, attention: attention, groups: groups, bulk: bulk, drawer: drawer,
+      q: s.q, onQ: (ev) => this.setState({ q: ev.target.value }),
+      people: TEAM.map((p) => {
+        const on = s.people.indexOf(p) !== -1;
+        const mine = p === 'Alex';
+        const n = open.filter((r) => r.owner === p).length;
+        return {
+          label: p + (mine ? ' (you)' : ''), initials: initials(p), on: on,
+          title: (on ? 'Stop showing ' : 'Show ') + p + ' — ' + n + ' open',
+          bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467', border: on ? '#003087' : '#dfe3e9',
+          avBg: on ? 'rgba(255,255,255,.2)' : '#e8eff8', avColor: on ? '#fff' : '#003087',
+          onClick: () => {
+            const next = s.people.slice();
+            const i = next.indexOf(p);
+            if (i === -1) next.push(p); else next.splice(i, 1);
+            this.setState({ people: next });
+          }
+        };
+      }),
+      peopleReset: s.people.length ? {
+        label: 'everyone',
+        onClick: () => this.setState({ people: [] })
+      } : null,
+      chips: [
+        ['blocked', '⏸ Blocked', 'Waiting on something or someone'],
+        ['carried', '×' + STALE_AT + '+ carried', 'Survived ' + STALE_AT + ' or more huddles']
+      ].map((c) => {
+        const on = !!s[c[0]];
+        return {
+          label: c[1], title: c[2], on: on,
+          bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467', border: on ? '#003087' : '#dfe3e9',
+          onClick: () => { const p = {}; p[c[0]] = !on; this.setState(p); }
+        };
+      }).concat(s.q || s.people.length || s.blocked || s.carried || s.dayFilter ? [{
+        label: '✕ Clear', title: 'Clear every filter', on: false,
+        bg: '#fff', color: '#a5291a', border: '#f2cdc7',
+        onClick: () => this.setState({ q: '', people: [], blocked: false, carried: false, dayFilter: '' })
+      }] : []),
+      countLabel: shown.length === open.length ? open.length + ' open' : 'showing ' + shown.length + ' of ' + open.length,
+      groupTabs: [['when', 'When'], ['owner', 'Owner']].map((g) => {
+        const on = group === g[0];
+        return {
+          label: g[1], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467', border: on ? '#003087' : '#dfe3e9',
+          onClick: () => this.setState({ group: g[0] })
+        };
+      }),
+      selBtn: s.selMode
+        ? { label: '✕ Done selecting', bg: '#003087', color: '#fff', border: '#003087' }
+        : { label: '☑ Select', bg: '#fff', color: '#475467', border: '#dfe3e9' },
+      toggleSel: () => this.setState({ selMode: !s.selMode, sel: {} }),
+      emptyText: shown.length ? '' : (open.length ? 'No to-do matches this filter — ' + open.length + ' are open.' : 'Nothing open. Every commitment this week is closed.'),
+      doneOpen: s.doneOpen, doneCaret: s.doneOpen ? '▾' : '▸',
+      doneCount: s.done.length,
+      doneHint: s.doneOpen ? '' : 'the week\'s evidence — reopen is the only action',
+      toggleDone: () => this.setState({ doneOpen: !s.doneOpen }),
+      doneRows: s.done.map((d) => ({
+        text: d.text, meta: d.owner + ' · ' + pretty(d.doneAt),
+        reopen: () => this.reopen(d.id)
+      })),
+      adding: s.adding,
+      toggleAdd: () => this.setState({ adding: !s.adding, pop: null }),
+      addOwners: TEAM.map((p) => {
+        const on = s.addOwners.indexOf(p) !== -1;
+        return {
+          name: p, initials: initials(p), bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467',
+          border: on ? '#003087' : '#dfe3e9', avBg: on ? 'rgba(255,255,255,.2)' : '#e8eff8', avColor: on ? '#fff' : '#003087',
+          onClick: () => {
+            const next = s.addOwners.slice();
+            const i = next.indexOf(p);
+            if (i === -1) next.push(p); else next.splice(i, 1);
+            this.setState({ addOwners: next });
+          }
+        };
+      }),
+      addOwnerHint: s.addOwners.length > 1
+        ? 'Tapping ' + s.addOwners.length + ' people creates ' + s.addOwners.length + ' separate to-dos — one owner each, never a shared one.'
+        : 'Tap more than one person and you get one to-do each, never a shared one.',
+      addDates: ['Today', 'Tomorrow', 'Friday', 'Next Monday'].map((l) => {
+        const on = s.addDue === l;
+        return {
+          label: l, bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467', border: on ? '#003087' : '#dfe3e9',
+          onClick: () => this.setState({ addDue: l })
+        };
+      }),
+      addCta: s.addOwners.length > 1 ? 'Add ' + s.addOwners.length + ' to-dos' : 'Add to-do',
+      closeDrawer: () => this.setState({ open: null, pop: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

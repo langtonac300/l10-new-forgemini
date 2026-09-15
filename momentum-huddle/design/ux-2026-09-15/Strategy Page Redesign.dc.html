@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: #d8dde5; -webkit-font-smoothing: antialiased; }
+  a { color: #003087; text-decoration: none; }
+  a:hover { color: #FF6B00; text-decoration: underline; }
+  * { box-sizing: border-box; }
+  ::selection { background: #e8eff8; }
+</style>
+</helmet>
+<div style="font-family: 'DM Sans', system-ui, sans-serif; color: #222; padding: 28px; display: flex; justify-content: center; background: #d8dde5">
+<div style="width: 1440px; height: 800px; flex: none; background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(2,30,71,.35); display: flex; flex-direction: column; overflow: hidden; position: relative">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 28px 12px; flex: none">
+    <div style="font-size: 18px; font-weight: 500; color: #101828">Momentum Huddle</div>
+    <div style="font-size: 16px; color: #667085; cursor: pointer" style-hover="color: #101828">✕</div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 14px; padding: 0 28px 12px; flex: none">
+    <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #001f5c, #003087); color: #fff; font-size: 13px; font-weight: 800; display: grid; place-items: center; flex: none">MH</div>
+    <div style="flex: none">
+      <div style="font-size: 16px; font-weight: 700; color: #101828; line-height: 1.25; white-space: nowrap">Paid Media Momentum Huddle</div>
+      <div style="font-size: 12px; color: #667085">Week of 2026-09-14</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; margin-left: 8px">
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">BDay 11 of 22</span>
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">FY27 · Q1</span>
+      <span style="background: #ecfdf3; color: #15803d; padding: 4px 12px; border-radius: 99px; white-space: nowrap">10 live · 8 need decision</span>
+      <span style="background: #f6f7f9; color: #475467; padding: 4px 12px; border-radius: 99px; white-space: nowrap">↻ just now</span>
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">Alex</span>
+      <span style="border: 1.5px solid #c3d3ea; background: #e8eff8; color: #001f5c; padding: 5px 14px; border-radius: 99px; white-space: nowrap; cursor: pointer" style-hover="border-color: #003087; background: #dbe6f6">Schedule</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 28px 10px; border-bottom: 1px solid #eaecf0; flex: none">
+    <sc-for list="{{ nav }}" as="t" hint-placeholder-count="13">
+      <div style="padding: 9px 14px; font-size: 13px; font-weight: 600; color: {{ t.color }}; background: {{ t.bg }}; border-radius: 10px; cursor: pointer; white-space: nowrap" style-hover="background: #f6f7f9">{{ t.label }}</div>
+    </sc-for>
+  </div>
+
+  <div style="flex: 1; overflow: auto; background: #f6f7f9; padding: 20px 28px 40px">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px">
+      <div style="flex: 1; min-width: 0">
+        <div style="font-size: 25px; font-weight: 700; color: #021e47; letter-spacing: -.01em; line-height: 1.15">Strategy</div>
+        <div style="font-size: 13.5px; color: #555; margin-top: 3px; text-wrap: pretty">The bets that span more than one account, worked on between meetings. <span style="color: #003087; cursor: pointer; border-bottom: 1px dotted #9db3d4">How this page works</span></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; flex: none">
+        <div onClick="{{ toggleAdd }}" style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 10px 16px; border-radius: 4px; white-space: nowrap; cursor: pointer" style-hover="background: #001f5c; border-color: #001f5c" style-active="transform: scale(.98)">+ New initiative</div>
+      </div>
+    </div>
+
+    <div style="background: #fff; border: 1px solid {{ triage.border }}; border-top: 3px solid {{ triage.accent }}; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06); margin-bottom: 16px">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 13px 18px 12px; gap: 20px">
+        <div style="display: flex; align-items: baseline; gap: 12px">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: {{ triage.accent }}">{{ triage.label }}</span>
+          <span style="font-size: 13.5px; color: #555">{{ triage.sub }}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px; font-size: 12px; color: #666; flex: none">
+          <sc-for list="{{ triage.counts }}" as="c" hint-placeholder-count="3">
+            <span style="display: flex; align-items: center; gap: 5px; white-space: nowrap"><b style="color: {{ c.color }}; font-size: 13px">{{ c.n }}</b> {{ c.label }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <sc-for list="{{ triage.items }}" as="it" hint-placeholder-count="2">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 18px; border-top: 1px solid #eef0f3">
+          <span style="width: 20px; text-align: center; font-size: 13px; color: {{ it.tone }}; flex: none">{{ it.glyph }}</span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 13.5px; font-weight: 500; color: #021e47">{{ it.title }}</div>
+            <div style="font-size: 12.5px; color: {{ it.tone }}; margin-top: 1px">{{ it.reason }}</div>
+          </div>
+          <span style="font-size: 12px; color: #667085; flex: none">{{ it.meta }}</span>
+          <div onClick="{{ it.fix }}" style="border: 1px solid #c3d3ea; color: #003087; background: #fff; font-size: 12px; font-weight: 500; padding: 6px 11px; border-radius: 4px; cursor: pointer; flex: none; white-space: nowrap" style-hover="background: #003087; color: #fff; border-color: #003087">{{ it.action }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #eaecf0; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06); margin-bottom: 16px">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 18px 12px">
+        <div style="display: flex; align-items: baseline; gap: 10px">
+          <span style="font-size: 15px; font-weight: 700; color: #021e47">Live initiatives</span>
+          <span style="font-size: 12.5px; color: #667085">{{ liveCountLabel }}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="font-size: 11.5px; color: #667085">View</span>
+            <sc-for list="{{ viewTabs }}" as="v" hint-placeholder-count="2">
+              <div onClick="{{ v.onClick }}" style="font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 100px; white-space: nowrap; cursor: pointer; background: {{ v.bg }}; color: {{ v.color }}; border: 1px solid {{ v.border }}">{{ v.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: #667085">
+            <sc-for list="{{ legend }}" as="l" hint-placeholder-count="5">
+              <span style="display: flex; align-items: center; gap: 4px; white-space: nowrap"><b style="color: {{ l.color }}; font-size: 12.5px; width: 11px; text-align: center">{{ l.glyph }}</b>{{ l.word }}</span>
+            </sc-for>
+          </div>
+          <sc-if value="{{ isTable }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 6px; padding-left: 14px; border-left: 1px solid #eaecf0">
+            <span style="font-size: 11.5px; color: #667085">Group</span>
+            <sc-for list="{{ groupTabs }}" as="g" hint-placeholder-count="2">
+              <div onClick="{{ g.onClick }}" style="font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 100px; cursor: pointer; background: {{ g.bg }}; color: {{ g.color }}; border: 1px solid {{ g.border }}">{{ g.label }}</div>
+            </sc-for>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ isTable }}" hint-placeholder-val="{{ true }}">
+      <div style="display: grid; grid-template-columns: {{ gridCols }}; align-items: end; border-top: 1px solid #eaecf0; border-bottom: 1px solid #d8dde5; background: #fafbfc">
+        <div style="padding: 9px 18px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085">Initiative</div>
+        <div style="padding: 9px 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085">Next action</div>
+        <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="10">
+          <div title="{{ a.name }}" style="padding: 9px 2px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #667085; text-align: center; border-left: 1px solid #edeff2">{{ a.abbr }}</div>
+        </sc-for>
+      </div>
+
+      <sc-for list="{{ lanes }}" as="lane" hint-placeholder-count="3">
+        <div>
+          <div style="display: flex; align-items: center; gap: 9px; padding: 8px 18px; background: {{ lane.bg }}; border-bottom: 1px solid #eef0f3">
+            <span style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: {{ lane.color }}">{{ lane.label }}</span>
+            <span style="font-size: 11px; color: #667085">{{ lane.count }}</span>
+            <span style="font-size: 11.5px; color: #667085; white-space: nowrap">{{ lane.hint }}</span>
+          </div>
+          <sc-for list="{{ lane.rows }}" as="r" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: {{ gridCols }}; border-bottom: 1px solid #eef0f3; background: #fff" style-hover="background: #fcfdfe">
+              <div onClick="{{ r.open }}" style="padding: 12px 18px 13px; min-width: 0; cursor: pointer">
+                <div style="font-size: 14px; font-weight: 700; color: #021e47; line-height: 1.25">{{ r.title }}</div>
+                <div style="font-size: 12.5px; color: #555; margin-top: 3px; line-height: 1.4; text-wrap: pretty">{{ r.thesis }}</div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap">
+                  <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #444"><span style="width: 18px; height: 18px; border-radius: 50%; background: #e8eff8; color: #003087; font-size: 9.5px; font-weight: 700; display: grid; place-items: center">{{ r.leadInitials }}</span>{{ r.lead }}</span>
+                  <span style="font-size: 11.5px; color: #666; background: #f1f3f6; padding: 3px 8px; border-radius: 4px">{{ r.shift }}</span>
+                  <span style="font-size: 11.5px; color: #666; background: #f1f3f6; padding: 3px 8px; border-radius: 4px">{{ r.effort }}</span>
+                  <span data-pop="1" style="position: relative">
+                    <span onClick="{{ r.stageMenu }}" style="font-size: 11.5px; font-weight: 700; color: {{ r.stage.color }}; background: {{ r.stage.bg }}; border: 1px solid {{ r.stage.border }}; padding: 3px 9px; border-radius: 100px; cursor: pointer; white-space: nowrap">{{ r.stage.label }} ▾</span>
+                    <sc-if value="{{ r.stagePopOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="position: absolute; top: 26px; left: 0; z-index: 30; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 168px">
+                        <sc-for list="{{ r.stagePopItems }}" as="p" hint-placeholder-count="4">
+                          <div onClick="{{ p.onClick }}" style="font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #e8eff8; color: #003087">{{ p.label }}</div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </span>
+                </div>
+                <sc-if value="{{ r.impactGood }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 12.5px; color: #12693a; margin-top: 7px">{{ r.impact }}</div>
+                </sc-if>
+                <sc-if value="{{ r.impactPlain }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 12.5px; color: #475467; margin-top: 7px">{{ r.impact }}</div>
+                </sc-if>
+              </div>
+
+              <div style="padding: 12px 10px; border-left: 1px solid #edeff2; min-width: 0">
+                <div style="font-size: 12.5px; color: {{ r.next.color }}; font-weight: {{ r.next.weight }}; line-height: 1.35">{{ r.next.line }}</div>
+                <div style="font-size: 11.5px; color: #667085; margin-top: 3px">{{ r.next.sub }}</div>
+                <sc-if value="{{ r.next.flag }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: inline-flex; align-items: center; gap: 4px; margin-top: 7px; font-size: 11px; font-weight: 700; color: {{ r.next.flagColor }}; background: {{ r.next.flagBg }}; border: 1px solid {{ r.next.flagBorder }}; padding: 2px 7px; border-radius: 4px">{{ r.next.flagGlyph }} {{ r.next.flagText }}</div>
+                </sc-if>
+              </div>
+
+              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="10">
+                <div data-pop="1" style="border-left: 1px solid #edeff2; display: grid; place-items: center; position: relative; padding: 8px 0">
+                  <div onClick="{{ c.onClick }}" title="{{ c.title }}" style="width: 100%; height: 100%; min-height: 40px; display: grid; place-items: center; cursor: pointer; background: {{ c.bg }}" style-hover="outline: 2px solid #003087; outline-offset: -2px">
+                    <span style="font-size: 15px; font-weight: 700; color: {{ c.color }}; line-height: 1">{{ c.glyph }}</span>
+                  </div>
+                  <sc-if value="{{ c.popLeft }}" hint-placeholder-val="{{ false }}">
+                    <div style="position: absolute; top: 44px; left: -60px; z-index: 30; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 164px">
+                      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; padding: 5px 9px 6px">{{ c.title }}</div>
+                      <sc-for list="{{ c.popItems }}" as="p" hint-placeholder-count="5">
+                        <div onClick="{{ p.onClick }}" style="font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px" style-hover="background: #e8eff8; color: #003087"><b style="width: 12px; text-align: center; color: {{ p.color }}">{{ p.glyph }}</b>{{ p.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ c.popRight }}" hint-placeholder-val="{{ false }}">
+                    <div style="position: absolute; top: 44px; right: -6px; z-index: 30; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 164px">
+                      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; padding: 5px 9px 6px">{{ c.title }}</div>
+                      <sc-for list="{{ c.popItems }}" as="p" hint-placeholder-count="5">
+                        <div onClick="{{ p.onClick }}" style="font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px" style-hover="background: #e8eff8; color: #003087"><b style="width: 12px; text-align: center; color: {{ p.color }}">{{ p.glyph }}</b>{{ p.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <sc-if value="{{ lane.empty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 9px 18px; font-size: 12px; color: #667085; border-bottom: 1px solid #eef0f3; background: #fdfdfe">{{ lane.emptyText }}</div>
+          </sc-if>
+        </div>
+      </sc-for>
+      </sc-if>
+
+      <sc-if value="{{ isMatrix }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: {{ mGridCols }}; align-items: end; border-top: 1px solid #eaecf0; border-bottom: 1px solid #d8dde5; background: #fafbfc">
+          <div style="padding: 9px 18px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085">Initiative</div>
+          <div style="padding: 9px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085; border-left: 1px solid #edeff2">Stage</div>
+          <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="10">
+            <div title="{{ a.name }}" style="padding: 9px 2px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #667085; text-align: center; border-left: 1px solid #edeff2">{{ a.abbr }}</div>
+          </sc-for>
+        </div>
+        <sc-for list="{{ matrixRows }}" as="r" hint-placeholder-count="5">
+          <div style="display: grid; grid-template-columns: {{ mGridCols }}; border-bottom: 1px solid #f2f4f7; background: #fff" style-hover="background: #f7f9fc">
+            <div onClick="{{ r.open }}" style="display: flex; align-items: center; gap: 7px; padding: 0 18px; min-width: 0; height: 32px; cursor: pointer">
+              <sc-if value="{{ r.flagRed }}" hint-placeholder-val="{{ false }}">
+                <span title="no next action, or the check-in date passed" style="color: #d4351c; font-size: 12px; flex: none">⚠</span>
+              </sc-if>
+              <sc-if value="{{ r.flagAmber }}" hint-placeholder-val="{{ false }}">
+                <span title="no touch in 14 days and no check-in set" style="color: #b45309; font-size: 12px; flex: none">◷</span>
+              </sc-if>
+              <span style="font-size: 13px; font-weight: 500; color: #021e47; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ r.title }}</span>
+            </div>
+            <div style="display: flex; align-items: center; padding: 0 8px; height: 32px; border-left: 1px solid #edeff2; min-width: 0">
+              <span style="font-size: 11px; font-weight: 700; color: {{ r.stage.color }}; background: {{ r.stage.bg }}; padding: 2px 7px; border-radius: 100px; white-space: nowrap">{{ r.stage.label }}</span>
+            </div>
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="10">
+              <div data-pop="1" style="border-left: 1px solid #edeff2; position: relative; height: 32px">
+                <div onClick="{{ c.onClick }}" title="{{ c.title }}" style="width: 100%; height: 100%; display: grid; place-items: center; cursor: pointer; background: {{ c.bg }}" style-hover="outline: 2px solid #003087; outline-offset: -2px">
+                  <span style="font-size: 14px; font-weight: 700; color: {{ c.color }}; line-height: 1">{{ c.glyph }}</span>
+                </div>
+                <sc-if value="{{ c.popLeft }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; top: 34px; left: -60px; z-index: 30; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 164px">
+                    <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; padding: 5px 9px 6px">{{ c.title }}</div>
+                    <sc-for list="{{ c.popItems }}" as="p" hint-placeholder-count="5">
+                      <div onClick="{{ p.onClick }}" style="font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px" style-hover="background: #e8eff8; color: #003087"><b style="width: 12px; text-align: center; color: {{ p.color }}">{{ p.glyph }}</b>{{ p.label }}</div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ c.popRight }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; top: 34px; right: -6px; z-index: 30; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 164px">
+                    <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; padding: 5px 9px 6px">{{ c.title }}</div>
+                    <sc-for list="{{ c.popItems }}" as="p" hint-placeholder-count="5">
+                      <div onClick="{{ p.onClick }}" style="font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px" style-hover="background: #e8eff8; color: #003087"><b style="width: 12px; text-align: center; color: {{ p.color }}">{{ p.glyph }}</b>{{ p.label }}</div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+        <div style="display: grid; grid-template-columns: {{ mGridCols }}; border-top: 1px solid #d8dde5; background: #fafbfc">
+          <div style="padding: 0 18px; height: 30px; display: flex; align-items: center; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085">Adopted here</div>
+          <div style="border-left: 1px solid #edeff2"></div>
+          <sc-for list="{{ acctTotals }}" as="t" hint-placeholder-count="10">
+            <div title="{{ t.title }}" style="border-left: 1px solid #edeff2; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: {{ t.color }}">{{ t.n }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #eaecf0; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06)">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 18px 12px">
+        <div style="display: flex; align-items: baseline; gap: 10px">
+          <span style="font-size: 15px; font-weight: 700; color: #021e47">Decided</span>
+          <span style="font-size: 12.5px; color: #667085">{{ archive.sub }}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px">
+          <sc-for list="{{ archive.filters }}" as="f" hint-placeholder-count="3">
+            <div onClick="{{ f.onClick }}" style="font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 100px; cursor: pointer; background: {{ f.bg }}; color: {{ f.color }}; border: 1px solid {{ f.border }}">{{ f.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding: 0 18px 14px">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 7px">
+          <span style="font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #003087">{{ archive.fyLabel }}</span>
+          <span style="font-size: 11.5px; color: #667085">{{ archive.fyRange }}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px">
+          <sc-for list="{{ archive.strip }}" as="m" hint-placeholder-count="12">
+            <div onClick="{{ m.onClick }}" title="{{ m.title }}" style="border: 1px solid {{ m.border }}; background: {{ m.bg }}; border-radius: 3px; padding: 6px 4px 5px; text-align: center; cursor: {{ m.cursor }}">
+              <div style="font-size: 10px; font-weight: 700; letter-spacing: .06em; color: {{ m.labelColor }}">{{ m.label }}</div>
+              <div style="font-size: 14px; font-weight: 700; color: {{ m.countColor }}; line-height: 1.3">{{ m.count }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-for list="{{ archive.groups }}" as="g" hint-placeholder-count="2">
+        <div style="border-top: 1px solid #eaecf0">
+          <div style="padding: 9px 18px; background: #fafbfc; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #667085">{{ g.label }}</div>
+          <sc-for list="{{ g.entries }}" as="e" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: minmax(0,340px) minmax(0,1fr) 170px; gap: 18px; align-items: start; padding: 13px 18px; border-top: 1px solid #eef0f3" style-hover="background: #fcfdfe">
+              <div style="min-width: 0">
+                <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap">
+                  <span onClick="{{ e.open }}" style="font-size: 14px; font-weight: 700; color: #021e47; cursor: pointer" style-hover="color: #003087">{{ e.title }}</span>
+                  <span onClick="{{ e.stageMenu }}" style="font-size: 11.5px; font-weight: 700; color: {{ e.badge.color }}; background: {{ e.badge.bg }}; border: 1px solid {{ e.badge.border }}; padding: 3px 9px; border-radius: 100px; cursor: pointer">{{ e.badge.label }} ▾</span>
+                </div>
+                <div style="font-size: 12px; color: #667085; margin-top: 4px">{{ e.meta }}</div>
+              </div>
+              <div style="font-size: 12.5px; color: {{ e.verdictColor }}; line-height: 1.45; text-wrap: pretty">{{ e.verdict }}</div>
+              <div style="font-size: 12px; color: #555; display: flex; flex-direction: column; gap: 3px">
+                <span>{{ e.outcome }}</span>
+                <span style="color: #667085">{{ e.origin }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+      <sc-if value="{{ archive.emptyText }}" hint-placeholder-val="{{ false }}">
+        <div style="border-top: 1px solid #eaecf0; padding: 26px 18px; text-align: center; font-size: 13px; color: #667085">{{ archive.emptyText }}</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ drawer }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; z-index: 60; background: rgba(2,30,71,.45); backdrop-filter: blur(3px); display: flex; justify-content: flex-end">
+      <div onClick="{{ closeDrawer }}" style="flex: 1"></div>
+      <div style="width: 660px; background: #fff; height: 100%; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(2,30,71,.25)">
+        <div style="padding: 18px 22px 14px; border-bottom: 1px solid #eaecf0; flex: none">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px">
+            <div style="min-width: 0">
+              <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087">Initiative · {{ drawer.id }}</div>
+              <div style="font-size: 20px; font-weight: 700; color: #021e47; line-height: 1.2; margin-top: 4px">{{ drawer.title }}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex: none">
+              <div style="border: 1px solid #c3d3ea; color: #003087; font-size: 12px; font-weight: 500; padding: 6px 11px; border-radius: 4px; cursor: pointer" style-hover="background: #e8eff8">Edit</div>
+              <div onClick="{{ closeDrawer }}" style="border: 1px solid #dfe3e9; color: #666; font-size: 12px; padding: 6px 11px; border-radius: 4px; cursor: pointer" style-hover="background: #f1f3f6; color: #222">Close</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 11px; flex-wrap: wrap">
+            <span style="display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: #444"><span style="width: 19px; height: 19px; border-radius: 50%; background: #e8eff8; color: #003087; font-size: 9.5px; font-weight: 700; display: grid; place-items: center">{{ drawer.leadInitials }}</span>{{ drawer.lead }}</span>
+            <span style="font-size: 11.5px; font-weight: 700; color: {{ drawer.stage.color }}; background: {{ drawer.stage.bg }}; border: 1px solid {{ drawer.stage.border }}; padding: 3px 9px; border-radius: 100px">{{ drawer.stage.label }}</span>
+            <span style="font-size: 11.5px; color: #666; background: #f1f3f6; padding: 3px 8px; border-radius: 4px">{{ drawer.shift }}</span>
+            <span style="font-size: 11.5px; color: #666; background: #f1f3f6; padding: 3px 8px; border-radius: 4px">{{ drawer.effort }}</span>
+            <span style="font-size: 11.5px; color: #667085">{{ drawer.touched }}</span>
+          </div>
+        </div>
+
+        <div style="padding: 16px 22px; border-bottom: 1px solid #eaecf0; flex: none; background: #fafbfc">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px">
+            <div>
+              <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085; margin-bottom: 3px">Thesis</div>
+              <div style="font-size: 13px; color: #333; line-height: 1.5; text-wrap: pretty">{{ drawer.thesis }}</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div>
+                <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085; margin-bottom: 3px">Expected impact</div>
+                <div style="font-size: 13px; color: #12693a; font-weight: 500">{{ drawer.impact }}</div>
+              </div>
+              <div>
+                <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #667085; margin-bottom: 3px">Proven at</div>
+                <div style="font-size: 13px; color: #333">{{ drawer.origin }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px; padding: 11px 22px; border-bottom: 1px solid #eaecf0; flex: none">
+          <sc-for list="{{ drawer.tabs }}" as="t" hint-placeholder-count="3">
+            <div onClick="{{ t.onClick }}" style="font-size: 12.5px; font-weight: 500; padding: 6px 13px; border-radius: 100px; cursor: pointer; background: {{ t.bg }}; color: {{ t.color }}; border: 1px solid {{ t.border }}">{{ t.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="flex: 1; overflow: auto; padding: 4px 22px 22px">
+          <sc-for list="{{ drawer.rows }}" as="row" hint-placeholder-count="4">
+            <div style="display: flex; align-items: flex-start; gap: 13px; padding: 12px 0; border-bottom: 1px solid #eef0f3">
+              <span style="width: 16px; text-align: center; font-size: 14px; font-weight: 700; color: {{ row.glyphColor }}; flex: none; padding-top: 1px">{{ row.glyph }}</span>
+              <div style="flex: 1; min-width: 0">
+                <div style="font-size: 13.5px; font-weight: 500; color: #021e47">{{ row.title }}</div>
+                <div style="font-size: 12.5px; color: #666; margin-top: 2px; line-height: 1.45; text-wrap: pretty">{{ row.sub }}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 7px; flex: none">
+                <sc-for list="{{ row.actions }}" as="a" hint-placeholder-count="2">
+                  <div style="border: 1px solid #dfe3e9; color: #555; font-size: 11.5px; padding: 5px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087; background: #e8eff8">{{ a }}</div>
+                </sc-for>
+                <span style="font-size: 11.5px; color: #667085; white-space: nowrap">{{ row.right }}</span>
+              </div>
+            </div>
+          </sc-for>
+          <div style="display: flex; gap: 8px; margin-top: 14px">
+            <div style="flex: 1; border: 1px solid #dfe3e9; border-radius: 4px; padding: 9px 11px; font-size: 13px; color: #667085; background: #fafbfc">{{ drawer.composer }}</div>
+            <div style="background: #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; padding: 10px 14px; border-radius: 4px; cursor: pointer" style-hover="background: #001f5c">{{ drawer.composerCta }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; z-index: 70; background: rgba(2,30,71,.45); backdrop-filter: blur(3px); display: flex; justify-content: flex-end">
+      <div onClick="{{ toggleAdd }}" style="flex: 1"></div>
+      <div style="width: 540px; background: #fff; height: 100%; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(2,30,71,.25)">
+        <div style="padding: 18px 22px 15px; border-bottom: 1px solid #eaecf0; flex: none">
+          <div style="font-size: 18px; font-weight: 700; color: #021e47">New initiative</div>
+          <div style="font-size: 12.5px; color: #666; margin-top: 3px">Starts at Idea. Each account you tap becomes a not-started cell on the matrix.</div>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 18px 22px">
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 10px">1 · The idea</div>
+          <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 14px; color: #667085; margin-bottom: 9px">the theme — e.g. Demand Gen campaigns across Google accounts</div>
+          <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #667085; height: 64px; margin-bottom: 22px">thesis — what we believe, and why it should transfer</div>
+
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 10px">2 · Why it's worth doing</div>
+          <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #667085; margin-bottom: 9px">expected impact — in the business's own terms (−15% CPL on Brady CA ≈ $40K/yr)</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 22px">
+            <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #667085">effort — S / M / L</div>
+            <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #667085">origin — where it was proven</div>
+          </div>
+
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 10px">3 · Who and when</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 9px">
+            <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #333">Courtney</div>
+            <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #667085">shift / theme</div>
+          </div>
+          <div style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 13px; color: #667085; margin-bottom: 6px">next check-in — your own clock for this one</div>
+          <div style="font-size: 11.5px; color: #667085; margin-bottom: 22px">Set a date and it replaces the 14-day staleness timer.</div>
+
+          <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #003087; margin-bottom: 10px">4 · Accounts in scope</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px">
+            <sc-for list="{{ addChips }}" as="c" hint-placeholder-count="10">
+              <div onClick="{{ c.onClick }}" style="font-size: 12px; font-weight: 500; padding: 6px 11px; border-radius: 100px; white-space: nowrap; cursor: pointer; background: {{ c.bg }}; color: {{ c.color }}; border: 1px solid {{ c.border }}">{{ c.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding: 14px 22px; border-top: 1px solid #eaecf0; display: flex; align-items: center; gap: 10px; flex: none">
+          <div style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 10px 18px; border-radius: 4px; white-space: nowrap; cursor: pointer" style-hover="background: #001f5c; border-color: #001f5c">Add initiative</div>
+          <div onClick="{{ toggleAdd }}" style="color: #666; font-size: 12.5px; padding: 10px 6px; cursor: pointer" style-hover="color: #222">Cancel</div>
+          <span style="margin-left: auto; font-size: 11.5px; color: #667085; white-space: nowrap">{{ addChipCount }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1496,&quot;height&quot;:856}}">
+const TODAY = '2026-09-15';
+
+const ACCOUNTS = [
+  ['Brady US', 'BUS'], ['Brady CA/MX/BR', 'BCA'], ['Seton US', 'SUS'], ['EMEDCO', 'EMD'],
+  ['Seton CA', 'SCA'], ['PDC/Wristbands', 'PDC'], ['Amazon', 'AMZ'], ['Social/Awareness', 'SOC'],
+  ['Marking', 'MRK'], ['Cross-account', 'X-A']
+];
+
+const STATES = {
+  'NOT STARTED': { g: '—', w: 'not started', c: '#667085', bg: '#fff' },
+  'TESTING': { g: '◐', w: 'testing', c: '#b45309', bg: '#fff8ec' },
+  'ADOPTED': { g: '✓', w: 'adopted', c: '#12693a', bg: '#eef8f2' },
+  'REJECTED': { g: '✕', w: 'rejected', c: '#a5291a', bg: '#fdf1ef' },
+  'N/A': { g: '·', w: 'n/a', c: '#667085', bg: '#fafbfc' }
+};
+const STATE_ORDER = ['NOT STARTED', 'TESTING', 'ADOPTED', 'REJECTED', 'N/A'];
+
+const STAGES = {
+  IDEA: { label: 'Idea', color: '#555', bg: '#f1f3f6', border: '#dfe3e9', hint: 'parked until it earns a slot' },
+  SCOPING: { label: 'Scoping', color: '#003087', bg: '#e8eff8', border: '#c3d3ea', hint: 'working out what the test would be' },
+  PILOTING: { label: 'Piloting', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8', hint: 'live in at least one account' },
+  'ROLLING OUT': { label: 'Rolling out', color: '#12693a', bg: '#eef8f2', border: '#bfe3ce', hint: 'proven — porting it everywhere' },
+  ADOPTED: { label: 'Adopted', color: '#12693a', bg: '#eef8f2', border: '#bfe3ce', hint: '' },
+  KILLED: { label: 'Killed', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7', hint: '' }
+};
+const LIVE_STAGES = ['IDEA', 'SCOPING', 'PILOTING', 'ROLLING OUT'];
+
+const FY_MONTHS = [
+  ['AUG', '2026-08'], ['SEP', '2026-09'], ['OCT', '2026-10'], ['NOV', '2026-11'], ['DEC', '2026-12'],
+  ['JAN', '2027-01'], ['FEB', '2027-02'], ['MAR', '2027-03'], ['APR', '2027-04'], ['MAY', '2027-05'],
+  ['JUN', '2027-06'], ['JUL', '2027-07']
+];
+const MONTH_NAMES = { '01': 'January', '02': 'February', '03': 'March', '04': 'April', '05': 'May', '06': 'June', '07': 'July', '08': 'August', '09': 'September', '10': 'October', '11': 'November', '12': 'December' };
+
+function daysBetween(a, b) {
+  return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+}
+function initials(name) {
+  return String(name || '').split(/\s+/).map(function (p) { return p.charAt(0); }).join('').slice(0, 2).toUpperCase();
+}
+
+const HUB_REFS = {
+  'SI-001|Brady CA/MX/BR': 'IDEA-231', 'SI-001|Seton US': 'IDEA-234', 'SI-001|Social/Awareness': 'IDEA-238',
+  'SI-002|EMEDCO': 'IDEA-219', 'SI-002|Seton CA': 'IDEA-220',
+  'SI-003|Brady CA/MX/BR': 'IDEA-207', 'SI-003|EMEDCO': 'IDEA-208', 'SI-003|Seton CA': 'IDEA-209'
+};
+
+const SEED = [
+  {
+    id: 'SI-001', title: 'Demand Gen campaigns across Google accounts',
+    thesis: 'Demand Gen replaces the awareness spend we lost when Discovery retired, and the Brady US creative set should transfer with only copy changes.',
+    lead: 'Courtney', shift: 'Shift 2', stage: 'PILOTING', effort: 'M',
+    impact: '−15% CPL on Brady CA ≈ $40K/yr', origin: 'Brady US · EXP-142',
+    nextCheck: '2026-09-22', touched: '2026-09-14', openTodos: 2, doneTodos: 5,
+    cells: { 'Brady US': 'ADOPTED', 'Brady CA/MX/BR': 'TESTING', 'Seton US': 'TESTING', 'EMEDCO': 'NOT STARTED', 'Seton CA': 'NOT STARTED', 'PDC/Wristbands': 'N/A', 'Amazon': 'N/A', 'Social/Awareness': 'TESTING', 'Marking': 'NOT STARTED', 'Cross-account': 'NOT STARTED' }
+  },
+  {
+    id: 'SI-002', title: 'Shared negative-keyword list per brand family',
+    thesis: 'One list per family stops the same waste being excluded five times by hand, and stops accounts bidding against each other.',
+    lead: 'Courtney', shift: 'Shift 1', stage: 'ROLLING OUT', effort: 'S',
+    impact: 'reclaims roughly 6% of non-brand spend', origin: 'Seton US · EXP-118',
+    nextCheck: '', touched: '2026-08-24', openTodos: 1, doneTodos: 9,
+    cells: { 'Brady US': 'ADOPTED', 'Brady CA/MX/BR': 'ADOPTED', 'Seton US': 'ADOPTED', 'EMEDCO': 'TESTING', 'Seton CA': 'TESTING', 'PDC/Wristbands': 'NOT STARTED', 'Amazon': 'N/A', 'Social/Awareness': 'N/A', 'Marking': 'NOT STARTED', 'Cross-account': 'ADOPTED' }
+  },
+  {
+    id: 'SI-003', title: 'Retire broad match on non-brand outside the US',
+    thesis: 'Broad match needs conversion volume the smaller accounts never reach, so it spends into queries no human would buy.',
+    lead: 'Alex', shift: 'Shift 3', stage: 'PILOTING', effort: 'L',
+    impact: 'cleaner search terms on four small accounts', origin: 'Seton CA · IDEA-207',
+    nextCheck: '2026-09-08', touched: '2026-09-02', openTodos: 0, doneTodos: 3,
+    cells: { 'Brady US': 'N/A', 'Brady CA/MX/BR': 'TESTING', 'Seton US': 'N/A', 'EMEDCO': 'TESTING', 'Seton CA': 'TESTING', 'PDC/Wristbands': 'NOT STARTED', 'Amazon': 'N/A', 'Social/Awareness': 'N/A', 'Marking': 'NOT STARTED', 'Cross-account': 'NOT STARTED' }
+  },
+  {
+    id: 'SI-004', title: 'Value-based bidding on the catalogue accounts',
+    thesis: 'Margin varies enough by category that conversion value should not be flat — the feed already carries the numbers.',
+    lead: 'Courtney', shift: 'Shift 2', stage: 'SCOPING', effort: 'L',
+    impact: 'bids follow margin, not order count', origin: 'not proven yet — modelled only',
+    nextCheck: '2026-10-06', touched: '2026-09-11', openTodos: 3, doneTodos: 1,
+    cells: { 'Brady US': 'NOT STARTED', 'Brady CA/MX/BR': 'NOT STARTED', 'Seton US': 'NOT STARTED', 'EMEDCO': 'N/A', 'Seton CA': 'N/A', 'PDC/Wristbands': 'NOT STARTED', 'Amazon': 'N/A', 'Social/Awareness': 'N/A', 'Marking': 'N/A', 'Cross-account': 'NOT STARTED' }
+  },
+  {
+    id: 'SI-005', title: 'Amazon-first budget split for wristbands',
+    thesis: 'Wristband demand that starts on Amazon never reaches the site, so search spend may be paying twice for the same order.',
+    lead: 'Courtney', shift: 'Shift 4', stage: 'IDEA', effort: 'M',
+    impact: 'unknown until we can read both channels together', origin: '',
+    nextCheck: '', touched: '2026-09-15', openTodos: 0, doneTodos: 0,
+    cells: { 'Brady US': 'NOT STARTED', 'Brady CA/MX/BR': 'N/A', 'Seton US': 'NOT STARTED', 'EMEDCO': 'N/A', 'Seton CA': 'N/A', 'PDC/Wristbands': 'NOT STARTED', 'Amazon': 'NOT STARTED', 'Social/Awareness': 'N/A', 'Marking': 'N/A', 'Cross-account': 'NOT STARTED' }
+  },
+  {
+    id: 'SI-006', title: 'Single-keyword ad groups on the top 40 terms',
+    thesis: 'Tight ad groups were meant to lift relevance enough to pay for the maintenance.',
+    lead: 'Alex', shift: 'Shift 1', stage: 'KILLED', effort: 'L',
+    impact: 'no measurable lift after eight weeks', origin: 'Brady US · EXP-96',
+    decidedAt: '2026-08-20', decision: 'Quality Score moved, cost per lead did not. The upkeep cost more hours than the structure returned — not repeating it on any account.',
+    nextCheck: '', touched: '2026-08-20', openTodos: 0, doneTodos: 6,
+    cells: { 'Brady US': 'REJECTED', 'Brady CA/MX/BR': 'REJECTED', 'Seton US': 'N/A', 'EMEDCO': 'N/A', 'Seton CA': 'N/A', 'PDC/Wristbands': 'N/A', 'Amazon': 'N/A', 'Social/Awareness': 'N/A', 'Marking': 'N/A', 'Cross-account': 'N/A' }
+  },
+  {
+    id: 'SI-007', title: 'Brand-term defence budget floor',
+    thesis: 'A floor under brand spend stops competitor bids taking share on the weeks when non-brand eats the budget.',
+    lead: 'Courtney', shift: 'Shift 1', stage: 'ADOPTED', effort: 'S',
+    impact: 'brand impression share held above 90% all quarter', origin: 'Brady US · EXP-131',
+    decidedAt: '2026-09-15', decision: '',
+    nextCheck: '', touched: '2026-09-15', openTodos: 0, doneTodos: 4,
+    cells: { 'Brady US': 'ADOPTED', 'Brady CA/MX/BR': 'ADOPTED', 'Seton US': 'ADOPTED', 'EMEDCO': 'NOT STARTED', 'Seton CA': 'N/A', 'PDC/Wristbands': 'N/A', 'Amazon': 'N/A', 'Social/Awareness': 'N/A', 'Marking': 'N/A', 'Cross-account': 'N/A' }
+  },
+  {
+    id: 'SI-008', title: 'Consolidate PMax into one asset group per family',
+    thesis: 'Fragmented asset groups split the learning signal across accounts that sell the same catalogue.',
+    lead: 'Alex', shift: 'Shift 2', stage: 'ADOPTED', effort: 'M',
+    impact: '−11% cost per order across the family', origin: 'Seton US · EXP-88',
+    decidedAt: '2026-05-12', decision: 'Held for two full learning periods on Seton US, then Brady US. Consolidation wins wherever the catalogue overlaps; keep families separate where the margin profile differs.',
+    nextCheck: '', touched: '2026-05-12', openTodos: 0, doneTodos: 11,
+    cells: { 'Brady US': 'ADOPTED', 'Brady CA/MX/BR': 'ADOPTED', 'Seton US': 'ADOPTED', 'EMEDCO': 'ADOPTED', 'Seton CA': 'REJECTED', 'PDC/Wristbands': 'N/A', 'Amazon': 'N/A', 'Social/Awareness': 'N/A', 'Marking': 'N/A', 'Cross-account': 'ADOPTED' }
+  }
+];
+
+class Component extends DCLogic {
+  state = {
+    data: SEED.map(function (r) { return JSON.parse(JSON.stringify(r)); }),
+    view: 'table',
+    group: 'stage',
+    archFilter: 'all',
+    archMonth: '',
+    open: null,
+    drawerTab: 'accounts',
+    adding: false,
+    pop: null,
+    chips: ['Brady US', 'Seton US']
+  };
+
+  componentDidMount() {
+    this._away = (ev) => {
+      if (this.state.pop && !ev.target.closest('[data-pop]')) this.setState({ pop: null });
+    };
+    document.addEventListener('click', this._away, true);
+  }
+  componentWillUnmount() { document.removeEventListener('click', this._away, true); }
+
+  flags(r) {
+    const stage = r.stage;
+    const piloting = stage === 'PILOTING' || stage === 'ROLLING OUT';
+    const out = [];
+    if (piloting && !r.openTodos) out.push({ kind: 'noNext', glyph: '⚠', text: 'no next action', tone: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7' });
+    if (r.nextCheck && daysBetween(r.nextCheck, TODAY) > 0) out.push({ kind: 'overdue', glyph: '◷', text: 'check-in overdue', tone: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7' });
+    if (!r.nextCheck && piloting && daysBetween(r.touched, TODAY) >= 14) out.push({ kind: 'stale', glyph: '◷', text: 'stale ' + daysBetween(r.touched, TODAY) + 'd', tone: '#b45309', bg: '#fff8ec', border: '#f0d5a8' });
+    return out;
+  }
+
+  setStage(id, stage) {
+    const data = this.state.data.map(function (r) {
+      if (r.id !== id) return r;
+      const n = Object.assign({}, r, { stage: stage, touched: TODAY });
+      if (stage === 'ADOPTED' || stage === 'KILLED') { n.decidedAt = n.decidedAt || TODAY; }
+      else { n.decidedAt = ''; n.decision = ''; }
+      return n;
+    });
+    this.setState({ data: data, pop: null });
+  }
+  setCell(id, acct, st) {
+    const data = this.state.data.map(function (r) {
+      if (r.id !== id) return r;
+      const cells = Object.assign({}, r.cells); cells[acct] = st;
+      return Object.assign({}, r, { cells: cells, touched: TODAY });
+    });
+    this.setState({ data: data, pop: null });
+  }
+
+  cellsFor(r) {
+    const self = this;
+    const pop = this.state.pop;
+    return ACCOUNTS.map(function (a) {
+      const st = r.cells[a[0]] || 'NOT STARTED';
+      const d = STATES[st];
+      const isOpen = !!(pop && pop.kind === 'cell' && pop.id === r.id && pop.acct === a[0]);
+      const nearEdge = ACCOUNTS.indexOf(a) >= ACCOUNTS.length - 2;
+      return {
+        glyph: d.g, color: d.c, bg: d.bg,
+        title: a[0] + ' — ' + d.w,
+        popLeft: isOpen && !nearEdge,
+        popRight: isOpen && nearEdge,
+        onClick: function (ev) { ev.stopPropagation(); self.setState({ pop: isOpen ? null : { kind: 'cell', id: r.id, acct: a[0] } }); },
+        popItems: STATE_ORDER.map(function (s) {
+          return { label: STATES[s].w, glyph: STATES[s].g, color: STATES[s].c, onClick: function (ev) { ev.stopPropagation(); self.setCell(r.id, a[0], s); } };
+        })
+      };
+    });
+  }
+
+  rowFor(r) {
+    const self = this;
+    const fl = this.flags(r);
+    const st = STAGES[r.stage];
+    const pop = this.state.pop;
+    const stageOpen = !!(pop && pop.kind === 'stage' && pop.id === r.id);
+    const counts = {};
+    ACCOUNTS.forEach(function (a) { const s = r.cells[a[0]] || 'NOT STARTED'; counts[s] = (counts[s] || 0) + 1; });
+    const next = r.openTodos
+      ? { line: r.openTodos + (r.openTodos === 1 ? ' open to-do' : ' open to-dos'), color: '#222', weight: '500' }
+      : { line: 'nothing queued', color: fl.length ? '#a5291a' : '#888', weight: fl.length ? '700' : '400' };
+    next.sub = r.nextCheck
+      ? (daysBetween(r.nextCheck, TODAY) > 0 ? 'check-in was ' + r.nextCheck : 'check-in ' + r.nextCheck)
+      : 'touched ' + r.touched;
+    const flag = fl[0];
+    if (flag) {
+      next.flag = true; next.flagGlyph = flag.glyph; next.flagText = flag.text;
+      next.flagColor = flag.tone; next.flagBg = flag.bg; next.flagBorder = flag.border;
+    } else { next.flag = false; }
+    return {
+      id: r.id, title: r.title, thesis: r.thesis, lead: r.lead, leadInitials: initials(r.lead),
+      shift: r.shift || 'no theme', effort: (r.effort || '—') + ' effort',
+      impact: r.impact || '',
+      impactGood: !!r.impact && /[%$]|−\d|\bhold|\breclaim/i.test(r.impact),
+      impactPlain: !!r.impact && !/[%$]|−\d|\bhold|\breclaim/i.test(r.impact),
+      stage: { label: st.label, color: st.color, bg: st.bg, border: st.border },
+      stagePopOpen: stageOpen,
+      stageMenu: function (ev) { ev.stopPropagation(); self.setState({ pop: stageOpen ? null : { kind: 'stage', id: r.id } }); },
+      stagePopItems: Object.keys(STAGES).filter(function (s) { return s !== r.stage; }).map(function (s) {
+        return { label: (s === 'ADOPTED' ? '✓ ' : s === 'KILLED' ? '✕ ' : '→ ') + STAGES[s].label, onClick: function (ev) { ev.stopPropagation(); self.setStage(r.id, s); } };
+      }),
+      open: function () { self.setState({ open: r.id, drawerTab: 'accounts', pop: null }); },
+      next: next,
+      cells: this.cellsFor(r)
+    };
+  }
+
+  matrixRowFor(r) {
+    const self = this;
+    const kinds = this.flags(r).map(function (fl) { return fl.kind; });
+    const st = STAGES[r.stage];
+    return {
+      title: r.title,
+      stage: { label: st.label, color: st.color, bg: st.bg },
+      flagRed: kinds.indexOf('noNext') !== -1 || kinds.indexOf('overdue') !== -1,
+      flagAmber: kinds.length === 1 && kinds[0] === 'stale',
+      open: function () { self.setState({ open: r.id, drawerTab: 'accounts', pop: null }); },
+      cells: this.cellsFor(r)
+    };
+  }
+
+  renderVals() {
+    const self = this;
+    const s = this.state;
+    const live = s.data.filter(function (r) { return LIVE_STAGES.indexOf(r.stage) !== -1; });
+    const decided = s.data.filter(function (r) { return LIVE_STAGES.indexOf(r.stage) === -1; });
+
+    const nav = ['Huddle', 'Metrics', 'Priorities', 'Strategy', 'Headlines', 'To-dos', 'Issues', '1:1s', 'History', 'Team stats', 'Settings', 'How it runs', '?'].map(function (l) {
+      const on = l === 'Strategy';
+      return { label: l, color: on ? '#001f5c' : '#475467', bg: on ? '#e8eff8' : 'transparent' };
+    });
+
+    // --- triage
+    const flagged = [];
+    live.forEach(function (r) {
+      const fl = self.flags(r);
+      if (!fl.length) return;
+      const words = fl.map(function (f) { return f.kind === 'noNext' ? 'nothing queued against it' : f.kind === 'overdue' ? 'the check-in you set passed ' + r.nextCheck : 'no touch in ' + daysBetween(r.touched, TODAY) + ' days and no check-in date'; });
+      flagged.push({
+        id: r.id, title: r.title, kind: fl[0].kind,
+        glyph: fl[0].kind === 'noNext' ? '⚠' : '◷',
+        tone: fl[0].tone,
+        reason: words.join(' · '),
+        meta: STAGES[r.stage].label + ' · ' + r.lead,
+        action: fl[0].kind === 'noNext' ? 'Add a to-do' : 'Set a check-in',
+        fix: function () { self.setState({ open: r.id, drawerTab: fl[0].kind === 'noNext' ? 'todos' : 'accounts', pop: null }); }
+      });
+    });
+    const moving = live.filter(function (r) { return (r.stage === 'PILOTING' || r.stage === 'ROLLING OUT') && !self.flags(r).length; }).length;
+    const anyOverdue = flagged.some(function (f) { return f.kind === 'overdue'; });
+    const triage = flagged.length ? {
+      label: 'Needs you',
+      accent: anyOverdue ? '#d4351c' : '#b45309', border: anyOverdue ? '#f2cdc7' : '#f0d5a8',
+      sub: flagged.length === 1 ? 'One initiative is drifting.' : flagged.length + ' initiatives are drifting. Everything else is moving.',
+      counts: [
+        { n: live.length, label: 'live', color: '#003087' },
+        { n: moving, label: 'moving', color: '#12693a' },
+        { n: flagged.length, label: 'need a nudge', color: anyOverdue ? '#d4351c' : '#b45309' }
+      ],
+      items: flagged
+    } : {
+      label: 'All moving',
+      accent: '#16a34a', border: '#bfe3ce',
+      sub: 'Every live initiative has a next action and a recent touch.',
+      counts: [
+        { n: live.length, label: 'live', color: '#003087' },
+        { n: moving, label: 'moving', color: '#12693a' },
+        { n: 0, label: 'need a nudge', color: '#888' }
+      ],
+      items: []
+    };
+
+    // --- lanes
+    let lanes;
+    if (s.group === 'shift') {
+      const keys = [];
+      live.forEach(function (r) { const k = r.shift || 'No theme yet'; if (keys.indexOf(k) === -1) keys.push(k); });
+      keys.sort();
+      lanes = keys.map(function (k) {
+        const rows = live.filter(function (r) { return (r.shift || 'No theme yet') === k; });
+        return {
+          label: k, count: rows.length + (rows.length === 1 ? ' initiative' : ' initiatives'), hint: '',
+          bg: '#f7f9fc', color: '#003087', rows: rows.map(function (r) { return self.rowFor(r); }), empty: false, emptyText: ''
+        };
+      });
+    } else {
+      lanes = LIVE_STAGES.slice().reverse().map(function (k) {
+        const rows = live.filter(function (r) { return r.stage === k; });
+        return {
+          label: STAGES[k].label, count: rows.length, hint: STAGES[k].hint,
+          bg: rows.length ? '#f7f9fc' : '#fbfcfd', color: rows.length ? '#003087' : '#667085',
+          rows: rows.map(function (r) { return self.rowFor(r); }),
+          empty: !rows.length, emptyText: 'Nothing at this stage.'
+        };
+      });
+    }
+
+    // --- archive
+    const filtered = decided.filter(function (r) {
+      const byVerdict = s.archFilter === 'all' || (s.archFilter === 'adopted' ? r.stage === 'ADOPTED' : r.stage === 'KILLED');
+      const byMonth = !s.archMonth || String(r.decidedAt || '').slice(0, 7) === s.archMonth;
+      return byVerdict && byMonth;
+    });
+    const byMonth = {};
+    filtered.forEach(function (r) {
+      const key = r.decidedAt ? String(r.decidedAt).slice(0, 7) : 'undated';
+      (byMonth[key] = byMonth[key] || []).push(r);
+    });
+    const strip = FY_MONTHS.map(function (m) {
+      const n = (byMonth[m[1]] || []).length;
+      const future = m[1] > TODAY.slice(0, 7);
+      return {
+        label: m[0], count: n || '–',
+        bg: n ? '#e8eff8' : '#fff',
+        border: n ? '#c3d3ea' : '#edeff2',
+        labelColor: n ? '#003087' : '#667085',
+        countColor: n ? '#003087' : '#98a2b3',
+        cursor: n ? 'pointer' : 'default',
+        title: MONTH_NAMES[m[1].slice(5)] + ' ' + m[1].slice(0, 4) + ' — ' + (n ? n + ' decided' : 'nothing decided'),
+        onClick: n ? function () { self.setState({ archMonth: s.archMonth === m[1] ? '' : m[1] }); } : function () {}
+      };
+    });
+    const monthKeys = Object.keys(byMonth).sort().reverse();
+    const groups = monthKeys.map(function (k) {
+      const inFy = FY_MONTHS.some(function (m) { return m[1] === k; });
+      const fy = k === 'undated' ? '' : 'FY' + String(Number(k.slice(2, 4)) + (Number(k.slice(5)) >= 8 ? 1 : 0)) + ' · ';
+      const label = k === 'undated' ? 'No decision date' : fy + MONTH_NAMES[k.slice(5)] + ' ' + k.slice(0, 4);
+      return {
+        label: label,
+        entries: byMonth[k].map(function (r) {
+          const st = STAGES[r.stage];
+          const adopted = ACCOUNTS.filter(function (a) { return r.cells[a[0]] === 'ADOPTED'; }).length;
+          const rejected = ACCOUNTS.filter(function (a) { return r.cells[a[0]] === 'REJECTED'; }).length;
+          const stageOpen = !!(s.pop && s.pop.kind === 'stage' && s.pop.id === r.id);
+          return {
+            title: r.title,
+            badge: { label: st.label, color: st.color, bg: st.bg, border: st.border },
+            meta: r.lead + ' · ' + (r.shift || 'no theme') + ' · decided ' + (r.decidedAt || '—'),
+            verdict: r.decision || 'No verdict written — open it and add the learning.',
+            verdictColor: r.decision ? '#333' : '#b45309',
+            outcome: adopted + ' adopted · ' + rejected + ' rejected',
+            origin: r.origin ? 'from ' + r.origin : '',
+            open: function () { self.setState({ open: r.id, drawerTab: 'accounts', pop: null }); },
+            stageMenu: function (ev) { ev.stopPropagation(); self.setState({ pop: stageOpen ? null : { kind: 'stage', id: r.id } }); }
+          };
+        })
+      };
+    });
+    const archive = {
+      sub: decided.length + ' decided · nothing here is ever deleted',
+      fyLabel: 'FY27', fyRange: 'Aug 2026 – Jul 2027 · ' + FY_MONTHS.reduce(function (n, m) { return n + (byMonth[m[1]] || []).length; }, 0) + ' this fiscal year',
+      filters: [['all', 'All ' + decided.length], ['adopted', 'Adopted ' + decided.filter(function (r) { return r.stage === 'ADOPTED'; }).length], ['killed', 'Killed ' + decided.filter(function (r) { return r.stage === 'KILLED'; }).length]].map(function (f) {
+        const on = s.archFilter === f[0];
+        return {
+          label: f[1], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#555', border: on ? '#003087' : '#dfe3e9',
+          onClick: function () { self.setState({ archFilter: f[0] }); }
+        };
+      }),
+      strip: strip, groups: groups,
+      emptyText: filtered.length ? '' : 'Nothing decided under this filter yet.'
+    };
+
+    // --- drawer
+    let drawer = null;
+    const openRow = s.open ? s.data.filter(function (r) { return r.id === s.open; })[0] : null;
+    if (openRow) {
+      const st = STAGES[openRow.stage];
+      const tab = s.drawerTab;
+      let rows = [];
+      if (tab === 'accounts') {
+        rows = ACCOUNTS.filter(function (a) { return (openRow.cells[a[0]] || 'NOT STARTED') !== 'N/A'; }).map(function (a) {
+          const stt = openRow.cells[a[0]] || 'NOT STARTED';
+          const d = STATES[stt];
+          return {
+            glyph: d.g, glyphColor: d.c, title: a[0],
+            sub: d.w + (HUB_REFS[openRow.id + '|' + a[0]] ? ' · hub ' + HUB_REFS[openRow.id + '|' + a[0]] : ''),
+            actions: stt === 'NOT STARTED' ? ['Make it a test', 'Promote to priority'] : ['Note'],
+            right: ''
+          };
+        });
+      } else if (tab === 'todos') {
+        rows = [
+          { glyph: '○', glyphColor: '#b45309', title: 'Build the CA creative set from the US variants', sub: 'Courtney · due 2026-09-19', actions: ['Done'], right: 'open' },
+          { glyph: '○', glyphColor: '#b45309', title: 'Confirm audience signals map across accounts', sub: 'Alex · due 2026-09-22', actions: ['Done'], right: 'open' },
+          { glyph: '✓', glyphColor: '#12693a', title: 'Pull the US benchmark CPL by campaign', sub: 'Courtney', actions: [], right: 'done 2026-09-10' },
+          { glyph: '✓', glyphColor: '#12693a', title: 'Agree the test window with Stuart', sub: 'Alex', actions: [], right: 'done 2026-09-04' }
+        ];
+      } else {
+        rows = [
+          { glyph: '·', glyphColor: '#667085', title: 'Brady CA/MX/BR → testing', sub: 'Courtney · 2026-09-14 14:20', actions: [], right: '' },
+          { glyph: '·', glyphColor: '#667085', title: 'Creative set signed off, live Monday', sub: 'Courtney · 2026-09-12 09:05', actions: [], right: '' },
+          { glyph: '·', glyphColor: '#667085', title: 'Stage → piloting', sub: 'Alex · 2026-09-08 16:40', actions: [], right: '' },
+          { glyph: '·', glyphColor: '#667085', title: 'Initiative created', sub: 'Courtney · 2026-09-02 11:12', actions: [], right: '' }
+        ];
+      }
+      drawer = {
+        id: openRow.id, title: openRow.title, lead: openRow.lead, leadInitials: initials(openRow.lead),
+        stage: { label: st.label, color: st.color, bg: st.bg, border: st.border },
+        shift: openRow.shift || 'no theme', effort: (openRow.effort || '—') + ' effort',
+        touched: 'last touched ' + openRow.touched + (openRow.nextCheck ? ' · next check-in ' + openRow.nextCheck : ''),
+        thesis: openRow.thesis || 'No thesis written yet.',
+        impact: openRow.impact || '—',
+        origin: openRow.origin || 'not proven anywhere yet',
+        tabs: [['accounts', 'Accounts'], ['todos', 'To-dos ' + openRow.openTodos + '/' + (openRow.openTodos + openRow.doneTodos)], ['trail', 'Trail']].map(function (t) {
+          const on = tab === t[0];
+          return {
+            label: t[1], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#555', border: on ? '#003087' : '#dfe3e9',
+            onClick: function () { self.setState({ drawerTab: t[0] }); }
+          };
+        }),
+        rows: rows,
+        composer: tab === 'todos' ? 'a to-do for this initiative — it becomes an ordinary to-do everywhere else' : tab === 'trail' ? 'add a line to the trail' : 'a note against the account you just changed',
+        composerCta: tab === 'todos' ? 'Add to-do' : 'Post'
+      };
+    }
+
+    return {
+      nav: nav, accounts: ACCOUNTS.map(function (a) { return { name: a[0], abbr: a[1] }; }),
+      gridCols: 'minmax(300px,1fr) 150px repeat(10, 58px)',
+      legend: STATE_ORDER.map(function (k) { return { glyph: STATES[k].g, word: STATES[k].w, color: STATES[k].c }; }),
+      liveCountLabel: live.length + ' live · ' + ACCOUNTS.length + ' accounts on the matrix',
+      groupTabs: [['stage', 'Stage'], ['shift', 'Shift']].map(function (g) {
+        const on = s.group === g[0];
+        return {
+          label: g[1], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#555', border: on ? '#003087' : '#dfe3e9',
+          onClick: function () { self.setState({ group: g[0] }); }
+        };
+      }),
+      isTable: s.view !== 'matrix',
+      isMatrix: s.view === 'matrix',
+      mGridCols: 'minmax(260px,1fr) 108px repeat(10, 58px)',
+      matrixRows: live.slice().sort(function (a, b) { return LIVE_STAGES.indexOf(b.stage) - LIVE_STAGES.indexOf(a.stage); }).map(function (r) { return self.matrixRowFor(r); }),
+      acctTotals: ACCOUNTS.map(function (a) {
+        const n = live.filter(function (r) { return r.cells[a[0]] === 'ADOPTED'; }).length;
+        return { n: n || '–', color: n ? '#12693a' : '#98a2b3', title: a[0] + ' — adopted on ' + n + ' live ' + (n === 1 ? 'initiative' : 'initiatives') };
+      }),
+      viewTabs: [['table', 'Table'], ['matrix', 'Matrix']].map(function (v) {
+        const on = (s.view || 'table') === v[0];
+        return {
+          label: v[1], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467', border: on ? '#003087' : '#dfe3e9',
+          onClick: function () { self.setState({ view: v[0], pop: null }); }
+        };
+      }),
+      triage: triage, lanes: lanes, archive: archive, drawer: drawer,
+      adding: s.adding,
+      toggleAdd: function () { self.setState({ adding: !s.adding, pop: null }); },
+      closeDrawer: function () { self.setState({ open: null, pop: null }); },
+      addChips: ACCOUNTS.map(function (a) {
+        const on = s.chips.indexOf(a[0]) !== -1;
+        return {
+          label: a[0], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#555', border: on ? '#003087' : '#dfe3e9',
+          onClick: function () {
+            const next = s.chips.slice();
+            const i = next.indexOf(a[0]);
+            if (i === -1) next.push(a[0]); else next.splice(i, 1);
+            self.setState({ chips: next });
+          }
+        };
+      }),
+      addChipCount: s.chips.length + ' of ' + ACCOUNTS.length + ' accounts selected'
+    };
+  }
+}
+</script>
+</body>
+</html>

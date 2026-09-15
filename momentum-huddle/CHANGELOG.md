@@ -5,7 +5,37 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.14.3 (2026-09-15)** · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.15 (2026-09-15)** · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.15 (2026-09-15) — Strategy page redesigned to the UX canvas
+
+Alex's Claude Design canvas ("Forgemini UX redesign — Strategy Page") applied to
+the live page. Same data model, endpoints and flag rules as v2.14.x; the page is
+rebuilt around what needs attention. Both copies; harness green in both.
+
+- **Triage first.** A "Needs you" / "All moving" card leads the page: live ·
+  moving · need-a-nudge counts, then one row per drifting initiative with the
+  reasons spelled out and the fix one click away (Add a to-do → the drawer's
+  To-dos tab; Set a check-in → the editor).
+- **Board and matrix merged.** One row per initiative — title, thesis, lead,
+  shift, effort, stage pill, expected impact — with a **Next action** column and
+  the account cells inline (glyph only, abbreviated headers, click for the
+  picker). Lanes by stage (Rolling out → Idea, each with a hint) or by shift.
+  A dense **Matrix** view stays behind the toggle, with an "Adopted here" footer.
+- **Archive compressed.** "Decided": filter chips, a 12-cell fiscal-month strip
+  (click a month to filter), entries grouped by month with the verdict, the
+  per-account outcome and the origin.
+- **Composer in a sheet.** "+ New initiative" opens a right-hand panel in four
+  steps (the idea · why it's worth doing · who and when · accounts in scope);
+  the always-on add card is gone.
+- **Drawer restyled** as a right-hand sheet: summary band (thesis, impact,
+  proven at, verdict), tabs Accounts / To-dos / Trail; the editor lives behind
+  Edit. Escape closes whichever sheet is on top.
+- Kept: the app's own tokens (Inter, accent blue, pill system). Adopted from
+  the canvas: the semantic tones for cell states (testing amber, adopted green,
+  rejected red) and stages. Glyph + word everywhere colour carries meaning.
+- No schema change, no repair-tabs step. **Re-paste**: `L10Css`, `L10Js`.
+- Out of scope, parked: the canvas's To-dos page redesign.
 
 ## v2.14.3 (2026-09-15) — Strategy: the archive, by fiscal month
 
