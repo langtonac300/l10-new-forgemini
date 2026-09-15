@@ -150,6 +150,9 @@ overrides the first, so this app deliberately doesn't define one.
 5. **Deploy:** Deploy → New deployment → Web app → Execute as **me**, access:
    only yourself (or anyone in the org if the team should open it themselves).
    Bookmark the URL. The in-sheet menu's "Open huddle" works without deploying.
+   Current deployment (Alex, 2026-09-15):
+   https://script.google.com/macros/s/AKfycbzIi1WUDjtc2pqpYTJMwVMycEnGNsaa6ro8wxAMZ6TMqQWARn84iPcOFG7tTE5gvvII/exec
+   — a new deployment (not a new version of the same one) changes this link.
 6. Optional: edit `L10_Config` — segment minutes (default = classic 90-min L10;
    the Monday slot may want a 60-min profile), team roster, tags, hub URL.
 

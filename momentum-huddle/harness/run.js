@@ -230,7 +230,18 @@ async function clickNav(page, target) {
   if (siCards.length !== 3) errors.push('strategy board should show 3 live initiatives, got ' + siCards.length);
   const siText = await page.$eval('#page-strategy', (el) => el.textContent);
   if (!/no next action/.test(siText)) errors.push('strategy page did not flag SI-002 (rolling out, no open to-do) as "no next action"');
-  if (!/stale 2\dd/.test(siText)) errors.push('strategy page did not flag SI-002 as stale (last touched 20 days ago)');
+  if (!/stale 2\dd/.test(siText)) errors.push('strategy page did not flag SI-002 as stale (rolling out, no check-in date, last touched 20 days ago)');
+  // An IDEA untouched for 40 days is NOT stale — ideas parked during goal-setting are never nagged.
+  if (!/1 stale/.test(siText)) errors.push('stale count should be exactly 1 (the rolling-out one); an untouched Idea must not count: ' + (siText.match(/\d+ stale/) || [''])[0]);
+  // A future Next Check-in shows on the card; expected impact + effort render.
+  if (!/Expected:/.test(siText) || !/M effort/.test(siText)) errors.push('card does not show expected impact / effort');
+  // Group by shift / theme: lanes = distinct shift values among live initiatives (Shift 2, Shift 1) — 2 lanes.
+  await page.click('[data-sigroup="shift"]');
+  await page.waitForTimeout(150);
+  const lanes = await page.$$('.si-board--lanes .si-col');
+  if (lanes.length !== 2) errors.push('group-by-shift should render 2 lanes (Shift 1, Shift 2), got ' + lanes.length);
+  await page.click('[data-sigroup="stage"]');
+  await page.waitForTimeout(120);
   if (!/Decided/.test(siText)) errors.push('strategy page did not list the killed initiative under Decided');
   // Matrix view: one cell per (initiative, account) with a glyph + word, never colour alone.
   await page.click('[data-siview="matrix"]');

@@ -5,7 +5,44 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.14 (2026-09-15)** · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.14.2 (2026-09-15)** · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.14.2 (2026-09-15) — Strategy: her own clock, a pitch line, room for the verdict
+
+Three fixes from an adversarial read of the tab from Courtney's chair (Alex asked
+for it, then said "change those first few"). Both copies; harness green in both.
+
+- **The stale flag stops being a productivity tracker.** Three columns appended to
+  `L10_Initiatives` (end of row, same rule as every late column): `Next Check-in`,
+  `Expected Impact`, `Effort`. When the lead sets a **Next Check-in** date, that date
+  is the only staleness clock ("check-in overdue 2026-10-01"). With no date set,
+  the `INITIATIVE_STALE_DAYS` timer applies **only while PILOTING or ROLLING OUT** —
+  an idea parked for a month during goal-setting is never flagged, on the page, in
+  the 1:1 pack or in a digest. Client `initFlags_` and server `l10InitiativeFlags_`
+  both changed (they are twins). Harness now asserts an untouched 40-day-old Idea
+  is *not* counted.
+- **The Idea column can be pitched.** `Expected Impact` (one line in the business's
+  own terms) and `Effort` (S / M / L) on the add form, the drawer editor, the card and
+  the email cards. The board gains **Group by: Stage | Shift / theme** — one lane per
+  distinct shift value — so the FY28 brainstorm reads as themes, not pipeline stages.
+- **The verdict gets a text box.** Adopt / Kill now opens a multi-line popover
+  (`promptText_`, Ctrl/⌘+Enter saves) instead of a one-line input; `Decision` was
+  already 500 characters.
+- `l10_addInitiative` now writes by the sheet's own headers (a pre-repair 13-column
+  tab still gets a row as wide as it is); `l10_editInitiative` refuses the new fields
+  loudly until **Setup / repair tabs** has added the columns.
+- **Re-paste**: `L10Setup.gs`, `L10Code.gs`, `L10Mail.gs`, `L10Css`, `L10Js`; then
+  **Setup / repair tabs** once (adds the three columns + the Effort dropdown).
+
+## v2.14.1 (2026-09-15) — Strategy: shift / theme is free text
+
+Alex, after the first live initiative went in: *"Let her add in the shift
+herself — we're idea-generating the goals for the new fiscal soon."* The
+Strategy add form and the drawer editor now take **free text** for Shift
+(`initShiftListHtml_` offers the current four shifts plus anything already
+typed as a datalist, nothing forced). Rocks keep their fixed Shift 1–4
+dropdown — that vocabulary is this year's, and the tags still line up when
+the same strings are used. Server unchanged: it always stored any string.
 
 ## v2.14 (2026-09-15) — Strategy tab: cross-account initiatives, outside the meeting
 

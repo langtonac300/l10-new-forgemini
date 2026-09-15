@@ -123,8 +123,13 @@ var L10 = {
     // against the initiative (edit, stage, cell, trail note, to-do added or
     // completed) and drives the staleness flag; 'Decided At'/'Decision' are
     // stamped when Stage lands on ADOPTED or KILLED.
+    // 'Next Check-in' / 'Expected Impact' / 'Effort' sit at the END on purpose
+    // (v2.14.2; same append rule as every other late column): the lead's own
+    // review date (drives the stale flag when set), the business case in one
+    // line, and S / M / L.
     L10_Initiatives: ['ID', 'Initiative', 'Thesis', 'Lead', 'Shift', 'Stage', 'Origin',
-      'Target Quarter', 'Notes', 'Created', 'Last Touched', 'Decided At', 'Decision'],
+      'Target Quarter', 'Notes', 'Created', 'Last Touched', 'Decided At', 'Decision',
+      'Next Check-in', 'Expected Impact', 'Effort'],
     // The initiative × account matrix, one row per pair (upserted, never
     // duplicated). 'Hub Ref' = the Experiment Hub id this cell's test lives
     // under; 'Rock ID' = the rock created from this cell.
@@ -171,6 +176,7 @@ var L10 = {
   INITIATIVE_LIVE_STAGES: ['IDEA', 'SCOPING', 'PILOTING', 'ROLLING OUT'],
   // Per-account rollout state (the matrix cell).
   INITIATIVE_ACCOUNT_STATES: ['NOT STARTED', 'TESTING', 'ADOPTED', 'REJECTED', 'N/A'],
+  INITIATIVE_EFFORTS: ['S', 'M', 'L'],
   DIGEST_WEEKDAYS: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 };
 
@@ -193,7 +199,7 @@ var L10_CONFIG_DEFAULTS = [
   ['ACCOUNT_TAGS', 'Brady US, Brady CA/MX/BR, Seton US, EMEDCO, Seton CA, PDC/Wristbands, Amazon, Social/Awareness, Marking, Cross-account',
     'Account tags for rocks + issues (comma-separated).'],
   ['INITIATIVE_LEAD', 'Courtney', 'Strategy page: the roster name preselected as lead on a new initiative (the team strategist).'],
-  ['INITIATIVE_STALE_DAYS', 14, 'Strategy page: days since an initiative was last touched (any edit, cell change, note or to-do activity) before it is flagged STALE on the page, the 1:1 page and digests.'],
+  ['INITIATIVE_STALE_DAYS', 14, 'Strategy page: for an initiative that is PILOTING or ROLLING OUT with no Next Check-in date set, days since it was last touched (any edit, cell change, note or to-do activity) before it is flagged STALE. Ideas and scoping are never timer-flagged; a Next Check-in date always wins.'],
   ['ISSUE_CATEGORIES', 'Tracking/Data, Budget/Pacing, Platform/Engine, Creative/LP, Feeds, Process/SOP, Test idea, Other',
     'Issue categories (comma-separated).'],
   ['PARK_TARGETS', 'Courtney 1:1 (Wed 9:30), CJ 1:1 (Wed 10:30), Scott 1:1 (Fri 11:00), Stuart 1:1 (Thu 10:00), Seton/EMEDCO weekly (Wed 2:00)',
@@ -429,6 +435,7 @@ function l10ApplyValidations_(ss) {
   var si = ss.getSheetByName(L10.TABS.INITIATIVES);
   if (si) {
     l10ListValidation_(si, 6, rows, L10.INITIATIVE_STAGES);
+    l10ListValidation_(si, 16, rows, L10.INITIATIVE_EFFORTS);
     l10StatusColors_(si, 6, {
       'IDEA': '#fce8b2', 'SCOPING': '#fce8b2', 'PILOTING': '#c9daf8', 'ROLLING OUT': '#c9daf8',
       'ADOPTED': '#b7e1cd', 'KILLED': '#d9d9d9'
