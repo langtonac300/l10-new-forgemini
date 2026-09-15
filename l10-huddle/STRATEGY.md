@@ -109,35 +109,52 @@ Surfaces, none of them the huddle:
 Deliberately not built: nag to-dos (they train people to close the nag), a huddle
 brief strip (Alex's call, off for v1), auto-pulling results from Google Ads.
 
-## Page anatomy (`page-strategy`, nav **Strategy**)
+## Page anatomy (`page-strategy`, nav **Strategy**) — v2.15 layout
 
-1. Title + sub, summary strip.
-2. View toggle **Board** / **Matrix** (client-only, remembered per browser).
-3. **Board**: grouped by **stage** (one column per live stage: Idea, Scoping, Piloting,
-   Rolling out) or by **shift / theme** (one lane per distinct Shift value — the
-   goal-setting view, v2.14.2). Decided initiatives are not on the board — they
-   live in the archive (7).
-   Card = title · thesis · expected impact · lead · shift tag · effort · next check-in ·
-   flags · account-state summary · stage pill (menu) · Open.
-4. **Matrix**: rows = live initiatives, columns = `ACCOUNT_TAGS`. Each cell shows an
-   icon + word (`— not started`, `◐ testing`, `✓ adopted`, `✕ rejected`, `n/a`);
-   clicking opens a state picker. Colour is secondary to the glyph (Alex is colorblind).
-5. **Add an initiative** card: title, lead, shift (free text), thesis, origin, expected
-   impact, effort, next check-in, accounts (multi-chip).
-7. **Archive — "Completed, rolled out & killed"** (v2.14.3), underneath everything:
-   every ADOPTED / KILLED initiative, bucketed by the **fiscal month of `Decided At`**
-   on the same Aug–Jul calendar as the header. The current fiscal year shows all
-   twelve buckets (future months dimmed, like the board); earlier years show only
-   the months with entries; undated ones get their own bucket. Filter chips All /
-   Adopted / Killed. Entries carry lead, shift, decided date, the per-account
-   outcome counts and the verdict; the stage pill still works, so a killed idea can
-   be reopened. Nothing is ever deleted. To back-fill history, add the initiative,
-   move it to Adopted / Killed with its verdict, then edit **Decided on** in the
-   drawer to the month it really happened.
-6. **Drawer** (overlay, editable): thesis / origin / quarter / notes; per-account rows
-   with state, note, **Make it a test** (→ hub Ideas with the initiative id in the
-   note), **Promote to rock** (→ `L10_Rocks` with `Source = SI-###`); to-dos +
-   composer; the trail + a note box; stage buttons incl. Adopt / Kill with a verdict line.
+Redesigned 2026-09-15 from Alex's Claude Design canvas ("Strategy Page Redesign"):
+triage first, one row per initiative with the account matrix inline, the archive
+compressed to a month strip, and the composer moved into a side sheet. The
+app's own tokens (Inter, the accent blue, the pill system) are kept; the design's
+semantic tones for cell states and stages are adopted.
+
+1. **Header**: title, one-line sub with a **How this page works** disclosure (the
+   long explanation, hidden by default), and **+ New initiative** on the right.
+2. **Triage card** ("Needs you" / "All moving", top border red / amber / green by
+   severity): counts *live · moving · need a nudge*, then one row per flagged
+   initiative — glyph, title, the reasons in words ("nothing queued against it ·
+   no touch in 20 days and no check-in date"), stage · lead, and a fix button:
+   **Add a to-do** (opens the drawer on its To-dos tab) or **Set a check-in**
+   (opens the drawer's editor).
+3. **Live initiatives card**: header with the count, View **Table | Matrix**, the
+   five-state legend (glyph + word), and (Table only) Group **Stage | Shift**.
+   - **Table**: lanes (Rolling out → Piloting → Scoping → Idea, each with a one-line
+     hint; or one lane per shift / theme), one row per initiative:
+     title · thesis · lead · shift · effort · stage pill (menu) · expected impact
+     (green when it carries a number) | **Next action** column (open to-do count or
+     "nothing queued", check-in / touched date, the flag badge) | one 58px cell per
+     `ACCOUNT_TAGS` account (abbreviated header, full name on hover) — glyph only,
+     click for the state picker.
+   - **Matrix**: dense 32px rows — flag glyph, title, stage, cells — with an
+     **Adopted here** footer count per account.
+4. **Decided card** (the archive): count + filter chips All / Adopted / Killed; a
+   **12-cell fiscal-month strip** for the current fiscal year (count per month,
+   click a month to filter, click again to clear); entries grouped by month,
+   newest first ("FY27 · September 2026"; undated ones last): title + stage pill
+   (reopen from here), lead · shift · decided date | the verdict (or an amber
+   "No verdict written — open it and add the learning.") | "n adopted · m
+   rejected" + origin. Nothing is ever deleted.
+5. **New-initiative sheet** (right-hand panel): 1 · The idea (title, thesis) ·
+   2 · Why it's worth doing (expected impact, effort, origin) · 3 · Who and when
+   (lead, shift / theme with the datalist, next check-in) · 4 · Accounts in scope
+   (chips, "n of m selected"). Draft survives re-renders.
+6. **Initiative drawer** (right-hand sheet): kicker + title, Edit / Close; chips
+   (lead, stage pill, shift, effort, last touched · next check-in, flags); a grey
+   summary band (Thesis, Notes | Expected impact, Proven at, Verdict once decided);
+   tabs **Accounts** (per-account rows: state pill picker, Note, Make it a test,
+   Promote to rock, plus Add-account chips; N/A rows dimmed last) ·
+   **To-dos n/m** (open to-dos, the shared composer sourced to the initiative,
+   done list) · **Trail** (the log + a Post box). Edit swaps the body for the
+   field editor (incl. Decided on + verdict once decided).
 
 ## Server endpoints (L10Code.gs)
 
