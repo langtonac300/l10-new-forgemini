@@ -631,6 +631,162 @@ async function clickNav(page, target) {
   if (!(await pageI.$('#mh-intro'))) errors.push('brand intro overlay missing on reload');
   await pageI.close();
 
+  // --- Forge (v2.17): room screen walks Lobby → Locked; then the player view ---
+  const pageF = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  pageF.on('console', (m) => { if (m.type() === 'error') errors.push('forge console.error: ' + m.text()); });
+  pageF.on('pageerror', (e) => errors.push('forge pageerror: ' + e.message));
+  await pageF.emulateMedia({ reducedMotion: 'reduce' });
+  await pageF.goto('file://' + path.join(HERE, 'preview.html'));
+  await pageF.waitForFunction(() => { const el = document.querySelector('#page-huddle'); return el && !el.querySelector('.spinner'); }, { timeout: 10000 });
+  if (await pageF.$('#forge-gate')) errors.push('the passphrase gate rose at app boot (must wait for the Forge page to be opened)');
+  await clickNav(pageF, 'forge');
+  // The passphrase gate: shows on first open, has a way back, denies a wrong word, opens on the right one.
+  await pageF.waitForSelector('#forge-gate .fgate-back', { timeout: 5000 }).catch(() => errors.push('forge gate has no way back to the huddle'));
+  await pageF.click('#forge-gate .fgate-back'); await pageF.waitForTimeout(150);
+  if (!(await pageF.$eval('#page-huddle', (el) => el.classList.contains('visible')))) errors.push('gate back button did not return to the huddle');
+  await clickNav(pageF, 'forge');
+  await pageF.waitForSelector('#forge-gate .fgate-pass', { timeout: 5000 }).catch(() => errors.push('forge gate did not ask for the passphrase'));
+  await pageF.fill('#forge-gate .fgate-pass', 'wrong');
+  await pageF.click('#forge-gate .fgate-go'); await pageF.waitForTimeout(300);
+  const denied = await pageF.$eval('#forge-gate .fgate-msg', (el) => el.textContent).catch(() => '');
+  if (!/denied|not the passphrase/i.test(denied)) errors.push('gate did not deny a wrong passphrase: "' + denied + '"');
+  await pageF.fill('#forge-gate .fgate-pass', 'Welcome');
+  await pageF.click('#forge-gate .fgate-go');
+  await pageF.waitForFunction(() => { const g = document.querySelector('#forge-gate'); return !g || g.style.display === 'none'; }, { timeout: 5000 }).catch(() => errors.push('gate did not open on the right passphrase'));
+  await pageF.waitForSelector('[data-fg-me="Alex"]', { timeout: 5000 }).catch(() => errors.push('forge home did not offer the roster pick'));
+  await pageF.click('[data-fg-me="Alex"]');
+  await pageF.waitForSelector('.js-fg-create', { timeout: 5000 }).catch(() => errors.push('forge home did not render the create form'));
+  const openCard = await pageF.$('.resume-card [data-fg-open="FS-001"]');
+  if (!openCard) errors.push('forge home did not list the open fixture session FS-001');
+  await pageF.fill('.js-fg-title', 'Harness goals day');
+  await pageF.click('.js-fg-create');
+  await pageF.waitForSelector('[data-fg-act="start"]', { timeout: 5000 }).catch(() => errors.push('creating a session did not open the Lobby'));
+  const lobbyRoster = await pageF.$$('.fg-roster .who');
+  if (lobbyRoster.length !== 4) errors.push('forge lobby roster should list 4 names, got ' + lobbyRoster.length);
+  const fgAct = async (action) => { await pageF.click(`[data-fg-act="${action}"]`); await pageF.waitForTimeout(260); };
+  const fgPhase = async () => pageF.evaluate(() => state.forge.s.session.phase + '/' + state.forge.s.session.round);
+  await fgAct('start');
+  if ((await fgPhase()) !== 'OPENER/1') errors.push('forge start did not enter OPENER: ' + (await fgPhase()));
+  if (!(await pageF.$('.fg-op'))) errors.push('opener view missing');
+  await fgAct('reveal');
+  const opCells = await pageF.$$eval('.fg-op td.lab', (els) => els.length);
+  if (opCells < 4) errors.push('opener reveal did not show the label grid: ' + opCells + ' cells');
+  await fgAct('next');
+  if ((await fgPhase()) !== 'DIVERGE/1') errors.push('expected DIVERGE/1, got ' + (await fgPhase()));
+  const wall = await pageF.$$('.fg-wall .fg-card');
+  if (wall.length < 3) errors.push('diverge wall should show the 3 seeded cards, got ' + wall.length);
+  const leaked = await pageF.$$eval('.fg-wall .fg-card .fg-cm', (els) => els.filter((e) => /Courtney|CJ|Scott/.test(e.textContent)).length);
+  if (leaked) errors.push('diverge cards leaked author names before Claim');
+  const clock = await pageF.$eval('.fg-clock [data-fg-clock]', (el) => el.textContent);
+  if (!/^\+?\d+:\d\d$/.test(clock)) errors.push('phase clock not showing a time: ' + clock);
+  await fgAct('pause');
+  if (!(await pageF.$('[data-fg-act="resume"]'))) errors.push('pause did not flip the control to Resume');
+  await fgAct('resume');
+  await fgAct('next'); await fgAct('next');
+  await fgAct('next');
+  if ((await fgPhase()) !== 'RELAY/1') errors.push('expected RELAY/1, got ' + (await fgPhase()));
+  await fgAct('next'); await fgAct('next');
+  if ((await fgPhase()) !== 'CLUSTER/1') errors.push('expected CLUSTER/1, got ' + (await fgPhase()));
+  if (!(await pageF.$('[data-fg-cluster-save]'))) errors.push('cluster editor missing');
+  // Each placement re-renders the editor, so re-locate the selects every time.
+  const nPlace = (await pageF.$$('[data-fg-place]')).length;
+  if (nPlace < 3) errors.push('cluster editor lists ' + nPlace + ' cards, expected the 3 seeded ones');
+  for (let i = 0; i < nPlace; i++) { await pageF.locator('[data-fg-place]').nth(i).selectOption('T1'); await pageF.waitForTimeout(120); }
+  const placedTxt = await pageF.$eval('.js-fg-placed', (el) => el.textContent).catch(() => '');
+  if (!/^3 of 3 cards placed/.test(placedTxt.trim()) && nPlace === 3) errors.push('cluster counter did not read 3 of 3: "' + placedTxt + '"');
+  await pageF.click('[data-fg-cluster-save]'); await pageF.waitForTimeout(350);
+  if (!(await pageF.evaluate(() => window.__GS_CALLS.some((c) => c.fn === 'l10_forgeCluster')))) errors.push('cluster save did not call l10_forgeCluster');
+  await fgAct('next');
+  if ((await fgPhase()) !== 'VOTE/1') errors.push('expected VOTE/1, got ' + (await fgPhase()));
+  const tallyLeak = await pageF.$('.fg-theme .fg-tt');
+  if (tallyLeak) errors.push('vote phase showed tallies on the room screen (must stay blind)');
+  await fgAct('next');
+  if (!(await pageF.$('.fg-theme .fg-tt'))) errors.push('committee tallies missing');
+  await pageF.check('[data-fg-sel="T1"]');
+  await pageF.fill('[data-fg-stop="T1"]', 'Stop the weekly slide deck');
+  await pageF.click('[data-fg-committee-save]'); await pageF.waitForTimeout(350);
+  await fgAct('next');
+  if ((await fgPhase()) !== 'CLAIM/1') errors.push('expected CLAIM/1, got ' + (await fgPhase()));
+  if (!(await pageF.$$('.fg-wall .fg-card')).length) errors.push('claim shortlist empty after the committee chose T1');
+  const namesNow = await pageF.$$eval('.fg-wall .fg-card .fg-cm', (els) => els.filter((e) => /Courtney|CJ|Scott/.test(e.textContent)).length);
+  if (!namesNow) errors.push('author names should show from Claim on');
+  await fgAct('next');
+  if (!(await pageF.$('.fg-ho'))) errors.push('handoff board missing');
+  await fgAct('next');
+  if (!(await pageF.$('.fg-people'))) errors.push('forge-the-goal progress tiles missing');
+  await fgAct('next'); await fgAct('next');
+  if ((await fgPhase()) !== 'DOCTOR/2') errors.push('expected DOCTOR/2, got ' + (await fgPhase()));
+  await fgAct('next');
+  if ((await fgPhase()) !== 'COMMIT/1') errors.push('expected COMMIT/1, got ' + (await fgPhase()));
+  const cf = await pageF.$('[data-fg-commitform]');
+  if (!cf) errors.push('commit form missing for the seeded goal');
+  else {
+    await cf.$eval('[data-cf="ms1"]', (el) => { el.value = 'Tiers live on Seton US'; });
+    await cf.$eval('[data-cf="ms1Due"]', (el) => { el.value = '2026-10-30'; });
+    await pageF.click('[data-fg-commit]'); await pageF.waitForTimeout(350);
+    const commitCall = await pageF.evaluate(() => window.__GS_CALLS.filter((c) => c.fn === 'l10_forgeCommit').pop());
+    if (!commitCall || commitCall.args[2].ms1 !== 'Tiers live on Seton US') errors.push('commit did not send the Q1 milestone');
+    if (!(await pageF.$('.fg-goal .tag.shift'))) errors.push('committed goal not marked on its card');
+  }
+  // Timed write from the room: banner appears, endWrite clears it.
+  await pageF.click('[data-fg-tw]'); await pageF.waitForTimeout(150);
+  await pageF.fill('#forge-tw-overlay .js-tw-prompt', 'Harness thought experiment');
+  await pageF.click('#forge-tw-overlay .js-tw-go'); await pageF.waitForTimeout(400);
+  if (!(await pageF.$('.fg-tw'))) errors.push('timed write banner did not appear on the room screen');
+  await fgAct('endWrite');
+  if (await pageF.$('.fg-tw')) errors.push('timed write banner did not clear after endWrite');
+  // The wheel: opens, spins (reduced motion = instant), lands on a roster name.
+  await pageF.click('[data-fg-wheel]'); await pageF.waitForTimeout(150);
+  await pageF.click('#wheel-overlay .js-wh-spin'); await pageF.waitForTimeout(250);
+  const winner = await pageF.$eval('#wheel-overlay .wheel-win', (el) => el.textContent.trim());
+  if (!['Alex', 'Courtney', 'CJ', 'Scott'].includes(winner)) errors.push('wheel did not land on a roster name: "' + winner + '"');
+  await pageF.click('#wheel-overlay .js-wh-out'); await pageF.waitForTimeout(120);
+  const outSeats = await pageF.$$eval('#wheel-overlay .wheel-seat.out', (els) => els.length);
+  if (outSeats !== 1) errors.push('taking the winner out did not grey exactly one seat');
+  await pageF.click('#wheel-overlay .wheel-card [data-wh-close]'); await pageF.waitForTimeout(100);
+  // Lock: preview, then the armed confirm, then the locked summary.
+  await pageF.click('[data-fg-lock]');
+  await pageF.waitForSelector('#forge-lock-overlay .js-lk-go', { timeout: 4000 }).catch(() => errors.push('lock preview did not render'));
+  const planTxt = await pageF.$eval('#forge-lock-overlay .ids-card', (el) => el.textContent).catch(() => '');
+  if (!/priorit|rock/i.test(planTxt) || !/No to-dos/.test(planTxt)) errors.push('lock preview should name priorities/rocks and say no to-dos');
+  await pageF.click('#forge-lock-overlay .js-lk-go'); await pageF.waitForTimeout(150);
+  await pageF.click('#forge-lock-overlay .js-lk-go'); await pageF.waitForTimeout(500);
+  if (!(await pageF.evaluate(() => window.__GS_CALLS.some((c) => c.fn === 'l10_forgeLock')))) errors.push('lock confirm did not call l10_forgeLock');
+  if (!/^LOCKED/.test(await fgPhase())) errors.push('session did not read LOCKED after lock: ' + (await fgPhase()));
+  if (!(await pageF.$('.tiles'))) errors.push('locked summary tiles missing');
+  const todoCalls = await pageF.evaluate(() => window.__GS_CALLS.map((c) => c.fn).filter((f) => /l10_addTodo|l10_setTodoStatus/.test(f)));
+  if (todoCalls.length) errors.push('Forge touched to-dos: ' + todoCalls.join(','));
+  await shot(pageF, 'forge-locked');
+  await pageF.close();
+
+  // Player view (?forge=FS-001): phone width, name pick, add a card, see it come back as mine.
+  const pageP = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  pageP.on('console', (m) => { if (m.type() === 'error') errors.push('player console.error: ' + m.text()); });
+  pageP.on('pageerror', (e) => errors.push('player pageerror: ' + e.message));
+  await pageP.emulateMedia({ reducedMotion: 'reduce' });
+  await pageP.goto('file://' + path.join(HERE, 'preview-player.html'));
+  await pageP.waitForSelector('#forge-gate .fgate-pass', { timeout: 6000 }).catch(() => errors.push('player gate did not ask for the passphrase'));
+  await pageP.fill('#forge-gate .fgate-pass', 'welcome');
+  await pageP.press('#forge-gate .fgate-pass', 'Enter');
+  await pageP.waitForSelector('[data-fg-me="CJ"]', { timeout: 6000 }).catch(() => errors.push('player view did not offer the roster pick after the gate'));
+  if (!(await pageP.evaluate(() => document.body.classList.contains('forge-player')))) errors.push('player route did not set body.forge-player');
+  const hdrShown = await pageP.$eval('header', (el) => getComputedStyle(el).display);
+  if (hdrShown !== 'none') errors.push('player view still shows the app header');
+  await pageP.click('[data-fg-me="CJ"]');
+  await pageP.waitForSelector('.js-fg-text', { timeout: 4000 }).catch(() => errors.push('player did not reach the card input (CJ is already in the seeded session)'));
+  if (!(await pageP.$('.fg-dock'))) errors.push('player dock missing');
+  await pageP.fill('.js-fg-text', 'For Seton CA, fix the Bing identity because ads are dark, so that spend resumes.');
+  await pageP.press('.js-fg-text', 'Enter');
+  await pageP.waitForTimeout(500);
+  const plAddCall = await pageP.evaluate(() => window.__GS_CALLS.filter((c) => c.fn === 'l10_forgeAddIdea').pop());
+  if (!plAddCall || plAddCall.args[1] !== 'CJ') errors.push('player Enter did not add the card as CJ');
+  const mineCards = await pageP.$$('.fg-card.mine');
+  if (!mineCards.length) errors.push('player did not show the new card as "yours" after the poll');
+  const cleared = await pageP.$eval('.js-fg-text', (el) => el.value);
+  if (cleared !== '') errors.push('player input not cleared after adding');
+  await shot(pageP, 'forge-player');
+  await pageP.close();
+
   await browser.close();
 
   if (errors.length) {

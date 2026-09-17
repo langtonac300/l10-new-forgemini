@@ -36,7 +36,15 @@ var L10 = {
     // rollout cells, and an append-only trail. Documented in the folder README.
     INITIATIVES: 'L10_Initiatives',
     INIT_ACCOUNTS: 'L10_Initiative_Accounts',
-    INIT_LOG: 'L10_Initiative_Log'
+    INIT_LOG: 'L10_Initiative_Log',
+    // Forge (v2.17): the timed idea-generation / goal-setting session — a
+    // session row, its cards, one row per vote, the handoff board, and the
+    // goals that come out of it. Documented in IDEA-FORGE.md.
+    FORGE_SESSIONS: 'L10_Forge_Sessions',
+    FORGE_IDEAS: 'L10_Forge_Ideas',
+    FORGE_VOTES: 'L10_Forge_Votes',
+    FORGE_HANDOFFS: 'L10_Forge_Handoffs',
+    GOALS: 'L10_Goals'
   },
   // Column-header strings double as row-object keys across the codebase (e.g.
   // r['Rock'], 'Segue (JSON)') — treat them as internal identifiers and do not
@@ -136,7 +144,40 @@ var L10 = {
     L10_Initiative_Accounts: ['ID', 'Initiative ID', 'Account', 'State', 'Hub Ref', 'Rock ID',
       'Note', 'Updated At'],
     // Append-only trail — same shape and rule as L10_Todo_Log.
-    L10_Initiative_Log: ['ID', 'Initiative ID', 'At', 'Who', 'Note']
+    L10_Initiative_Log: ['ID', 'Initiative ID', 'At', 'Who', 'Note'],
+    // Forge session (FS-###). Phase is a key (LOBBY / OPENER / DIVERGE / RELAY /
+    // CLUSTER / VOTE / COMMITTEE / CLAIM / HANDOFFS / FORGE / DOCTOR / COMMIT /
+    // LOCKED); 'Phase Started At' and 'Paused At' are epoch milliseconds so every
+    // device computes the same clock; 'Version' is bumped by every write and is
+    // what the clients poll against.
+    L10_Forge_Sessions: ['ID', 'Date', 'Title', 'Status', 'Facilitator', 'Phase', 'Round',
+      'Phase Started At', 'Phase Seconds', 'Paused At', 'Prompt Deck (JSON)', 'Themes (JSON)',
+      'Ratings (JSON)', 'Participants', 'Created', 'Locked At', 'Notes', 'Timed Write (JSON)',
+      'Flags (JSON)', 'Version'],
+    // One card (FI-###). 'By' is always stored; Anon = YES hides it until Claim.
+    // 'Build By'/'Build' are relay pass 1; pass 2 sits at the END as 'Relay 2 By'/
+    // 'Relay 2' (same append rule as every late column). Round: O = opener,
+    // P = pre-work, T = timed write, 1..n = diverge rounds.
+    L10_Forge_Ideas: ['ID', 'Session ID', 'Round', 'Prompt', 'Idea', 'By', 'Anon', 'Created',
+      'Build By', 'Build', 'Theme', 'Account', 'Shift', 'Lever', 'Dots', 'Super Votes', 'Status',
+      'Claimed By', 'Goal ID', 'Parked To', 'Updated At', 'Relay 2 By', 'Relay 2'],
+    // One row per vote (FV-###) so blind voting is auditable; a taken-back vote
+    // is voided in place ('VOID DOT'), never deleted.
+    L10_Forge_Votes: ['ID', 'Session ID', 'Target ID', 'By', 'Kind', 'At'],
+    // "I need ___ from ___ by ___; I will provide ___" (FH-###) with a state the
+    // named recipient sets. A recipient off the roster stays UNCONFIRMED.
+    L10_Forge_Handoffs: ['ID', 'Session ID', 'From', 'To', 'Need', 'Provide', 'Due', 'Status',
+      'Goal ID', 'Created', 'Updated At'],
+    // The goals (G-###). The HR-facing copy is each person's own
+    // "<Name> — FY27 Goals" tab, written by Lock. 'Guardrail' … 'Verdict' sit at
+    // the END on purpose (v2 of the spec added them).
+    L10_Goals: ['ID', 'Session ID', 'Person', 'FY', 'Goal No', 'Type', 'Title', 'Revenue Line',
+      'Rung', 'Lever', 'Metric', 'Metric Source', 'Baseline', 'Target', 'Deadline', 'Done When',
+      'Leading Indicator', 'Dollars At Stake', 'Shift', 'Milestone Q1', 'Milestone Q1 Due',
+      'Milestone Q2', 'Milestone Q2 Due', 'Doctor By', 'Doctor Checks (JSON)', 'Doctor Note',
+      'Status', 'Idea ID', 'Rock ID', 'Written To Sheet At', 'Created', 'Updated At',
+      'Guardrail', 'Dependency', 'Private', 'Doctor 2 By', 'Doctor 2 Checks (JSON)',
+      'Doctor 2 Note', 'Verdict']
   },
   ROCK_STATUSES: ['ON TRACK', 'OFF TRACK', 'DONE', 'DROPPED'],
   MILESTONE_STATUSES: ['OPEN', 'DONE'],
@@ -177,8 +218,98 @@ var L10 = {
   // Per-account rollout state (the matrix cell).
   INITIATIVE_ACCOUNT_STATES: ['NOT STARTED', 'TESTING', 'ADOPTED', 'REJECTED', 'N/A'],
   INITIATIVE_EFFORTS: ['S', 'M', 'L'],
-  DIGEST_WEEKDAYS: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  DIGEST_WEEKDAYS: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  // Forge enums (v2.17). A card's life: RAW → BUILT (relay) → SHORTLIST (in a
+  // chosen theme) → CLAIMED → GOAL; PARKED / DROPPED are the exits.
+  FORGE_SESSION_STATUSES: ['OPEN', 'LOCKED', 'DISCARDED'],
+  FORGE_IDEA_STATUSES: ['RAW', 'BUILT', 'SHORTLIST', 'CLAIMED', 'GOAL', 'PARKED', 'DROPPED'],
+  FORGE_HANDOFF_STATUSES: ['PROPOSED', 'ACCEPTED', 'NEGOTIATED', 'UNCONFIRMED', 'WITHDRAWN'],
+  GOAL_STATUSES: ['DRAFT', 'COMMITTED', 'LOCKED', 'SUPERSEDED'],
+  GOAL_TYPES: ['Business', 'Personal'],
+  GOAL_VERDICTS: ['READY', 'REVISE', 'NEEDS EVIDENCE']
 };
+
+// Forge defaults (v2.17). Editable in L10_Config once seeded; these are the
+// fallbacks when a key is blank or unparseable. Phase = [key, label, seconds,
+// rounds]; keys are fixed (the renderer switches on them), the rest is free.
+var L10_FORGE_PHASES_DEFAULT = JSON.stringify([
+  ['OPENER', 'Goal, project or chore?', 300], ['DIVERGE', 'Diverge', 300, 3], ['RELAY', 'Relay', 240, 2],
+  ['CLUSTER', 'Cluster', 480], ['VOTE', 'Vote', 300], ['COMMITTEE', 'Investment committee', 600],
+  ['CLAIM', 'Claim', 300], ['HANDOFFS', 'Handoff contracts', 600], ['FORGE', 'Forge the goal', 2100],
+  ['DOCTOR', 'Goal doctor', 480, 2], ['COMMIT', 'Commit', 300]
+]);
+var L10_FORGE_PROMPTS_DEFAULT = JSON.stringify({
+  opener: [
+    { text: 'Launch a podcast sponsorship.', answer: 'project' },
+    { text: 'Run four experiments.', answer: 'task' },
+    { text: 'Grow PDC sales-accepted pipeline within an agreed cost and quality limit.', answer: 'outcome' },
+    { text: 'Save five hours a week preparing reports.', answer: 'incomplete' }
+  ],
+  openerLabels: [['outcome', 'Outcome'], ['project', 'Project'], ['task', 'Recurring task'], ['incomplete', 'Incomplete goal']],
+  rounds: [
+    { title: 'Your line', prompt: 'Look at your FY27 number. Write ideas that move THAT line. One idea per card.' },
+    { title: 'Wildcard', prompt: 'Draw a wildcard (below) and answer it for your accounts. One idea per card.' },
+    { title: "Stuart's list, made concrete", prompt: "Take any item from Stuart's list and make it concrete for YOUR accounts. What would you actually launch?" }
+  ],
+  wildcards: [
+    '+$250K lands in your budget tomorrow. Where does it go, what does it return?',
+    'Cut 10% of spend and hold revenue. How?',
+    'What would you stop doing?',
+    'Steal a play that works in another account.',
+    'What is the 10x version, not the 10%?',
+    'What can a customer not find or buy from us today?',
+    'Automate one thing you do every week.'
+  ],
+  card: 'For [customer / account], change [thing] because [reason], so that [business result]. We would look for [evidence].',
+  relay: ['Strengthen the customer or revenue link on the two most promising cards you were dealt.',
+    'Add a test, a missing assumption, or an extension.'],
+  thought: [
+    { title: 'July 31, 2027', minutes: 10, prompt: 'It is the last day of FY27. Write the two-sentence TLDR Stuart sends Nicole about YOUR accounts. Then list the three things you did that made it true.' },
+    { title: 'The 20% cut', minutes: 10, prompt: 'Tomorrow your budget drops 20% and the revenue number does not move. Write what you stop, what you protect, and what you automate.' },
+    { title: 'Swap seats', minutes: 10, prompt: 'Write the #1 goal you would set for the person on your left, in THEIR new role.' },
+    { title: 'Be the customer', minutes: 10, prompt: 'You are a hospital facilities manager, or a plant electrician. Write how you would find and buy from us today, step by step, and exactly where you give up.' },
+    { title: 'Ten times', minutes: 10, prompt: 'Success is leads x10, not +10%. What would have to be true? What would you have to stop believing?' },
+    { title: "Stuart's chair", minutes: 10, prompt: "You are Stuart reading the team's five goals on Friday. Write the first question you ask, and the goal you would send back." },
+    { title: 'The number nobody can see', minutes: 10, prompt: 'Name one number you would need to make a decision this year that no tool gives you today. How would you get it, and what would it cost?' },
+    { title: 'Kill list', minutes: 10, prompt: 'List everything you run that you would not restart if it were switched off today.' },
+    { title: 'Twice the leads', minutes: 10, prompt: 'Lead volume doubles next quarter and sales-accepted leads stay flat. Write what happened, and what you would have measured to see it coming.' },
+    { title: 'Efficient and shrinking', minutes: 10, prompt: 'Your ROAS improves all year while revenue falls. Did you succeed? Write the sentence you would say to Stuart.' },
+    { title: 'No new platforms', minutes: 10, prompt: 'No new platform for 90 days. Where does growth come from?' }
+  ],
+  doctor: [
+    'Specific enough that a stranger could start Monday?',
+    'Has a number, a source and a date?',
+    'Names a revenue line and a rung?',
+    'Achievable inside their actual role, with the dependencies accepted?',
+    'Would the manager know by the Q1 check-in whether it is on track?',
+    'Distinct from the owner\'s other goals?',
+    'Could the owner hit this metric WITHOUT helping the business?'
+  ],
+  stuart: [
+    'What is the why? What mechanism moves the number?',
+    'Per business day, what does that look like? Delta to plan?',
+    'Is this volume or efficiency? If efficiency, does it kill leads?',
+    'What does the business get, in one sentence I could give Nicole?',
+    'What did you automate before asking for money or people?',
+    'If the FY27 spend ask is not honored, does this goal survive?'
+  ],
+  rungs: ['Revenue / pacing', 'Leading indicator', 'Volume', 'Automation'],
+  levers: ['Spend allocation', 'Efficiency', 'Conversion (LP / feed / creative)', 'New channel or audience', 'Measurement', 'Automation'],
+  shifts: ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4']
+});
+// Revenue lines as label → the FY27 number AS TEXT (the app never computes with
+// them; they are what a goal names). Edit FORGE_LINES in L10_Config to change.
+var L10_FORGE_LINES_DEFAULT = JSON.stringify([
+  ['Brady US paid search', '$8.54M spend · $23.67M revenue · ROAS 2.77'],
+  ['Brady CA paid search', '$0.43M spend · $1.92M revenue · ROAS 4.45'],
+  ['Seton US paid search', '$4.00M spend · $4.31M revenue · ROAS 1.08'],
+  ['EMEDCO paid search', '$1.43M spend · $1.96M revenue · ROAS 1.37 (managed decline)'],
+  ['Seton CA paid search', '$0.35M spend · $0.52M revenue · ROAS 1.47'],
+  ['Awareness media', '$979,548 · lead and pipeline lines'],
+  ['Amazon', '$819,786 · ACOS under 15%'],
+  ['PDC Healthcare', '$300K · lead-gen push, no target yet'],
+  ['Cross-account / capacity', 'enabling work — name the constraint it removes']
+]);
 
 var L10_CONFIG_DEFAULTS = [
   ['MEETING_NAME', 'Paid Media Momentum Huddle', 'Shown in the app header and recaps.'],
@@ -233,7 +364,29 @@ var L10_CONFIG_DEFAULTS = [
   ['CALENDAR_DAY_START', 7, 'First hour (0–23) shown on the scheduler day view.'],
   ['CALENDAR_DAY_END', 19, 'Last hour (1–24) shown on the scheduler day view.'],
   ['CALENDAR_SLOT_MIN', 30, 'Snap granularity in minutes for picking a start time on the day view.'],
-  ['CALENDAR_DEFAULT_DURATION', 30, 'Default meeting length in minutes when the scheduler opens.']
+  ['CALENDAR_DEFAULT_DURATION', 30, 'Default meeting length in minutes when the scheduler opens.'],
+  // Forge (v2.17)
+  ['FORGE_ENABLED', 'YES', 'Show the Forge page (timed idea-generation / goal-setting sessions). NO = hide the nav entry.'],
+  ['FORGE_PASSWORD', 'Welcome', 'Passphrase the Forge page and the player link ask for before anything shows (case-insensitive). Keeps the room from being opened before the day. Blank = no gate.'],
+  ['WHEEL_ENABLED', 'YES', 'Show the "Pick someone" wheel (random person from the roster, with team photos) in Forge and in the huddle.'],
+  ['FORGE_PHASES', L10_FORGE_PHASES_DEFAULT, 'Forge phases as JSON [[key, label, seconds, rounds], …]. Keys are fixed (OPENER DIVERGE RELAY CLUSTER VOTE COMMITTEE CLAIM HANDOFFS FORGE DOCTOR COMMIT); labels, seconds and round counts are yours to edit. Order matters.'],
+  ['FORGE_PROMPTS', L10_FORGE_PROMPTS_DEFAULT, 'The prompt deck as JSON: opener statements, diverge rounds, wildcards, the card format, relay instructions, thought experiments (for Timed write), the doctor checklist, the manager-test questions, rungs, levers, shifts.'],
+  ['FORGE_LINES', L10_FORGE_LINES_DEFAULT, 'Revenue lines a goal can name, as JSON [[label, number-as-text], …]. Kept as text on purpose — the app never computes with them.'],
+  ['FORGE_VOTE_MODE', 'TOKENS', 'TOKENS = investment tokens on the clustered themes (forces the committee conversation); DOTS = dots on individual cards.'],
+  ['FORGE_TOKENS', 10, 'Tokens per person in TOKENS mode.'],
+  ['FORGE_TOKEN_MAX_PER_THEME', 4, 'Most tokens one person may put on one theme.'],
+  ['FORGE_DOTS', 5, 'Dots per person in DOTS mode.'],
+  ['FORGE_DOT_MAX_PER_IDEA', 2, 'Most dots one person may put on one card.'],
+  ['FORGE_SUPER_VOTES', 1, 'Revenue super-votes per person (the "is this about the number?" vote), either mode.'],
+  ['FORGE_IDEA_TARGET', 40, 'The team card-count target shown on the room screen during Diverge.'],
+  ['FORGE_REVIEWS_PER_GOAL', 2, 'Goal-doctor rounds; each round assigns a different reviewer.'],
+  ['FORGE_SHORTLIST', 12, 'DOTS mode only: how many top cards are eligible to claim.'],
+  ['FORGE_GOALS_PER_PERSON', 5, 'Goal cards per person, the personal one included (4 business + 1 personal = 5).'],
+  ['FORGE_Q1_MILESTONE_BY', '2026-10-31', 'Latest allowed date for a goal\'s Q1 milestone (the fiscal Q1 end). Blank = no check.'],
+  ['FORGE_FY', 'FY27', 'Fiscal-year label stamped on goals.'],
+  ['FORGE_GOAL_SHEET_SUFFIX', ' — FY27 Goals', 'Lock writes each person\'s goals into the tab named "<Name>" + this suffix (the Goal N blocks are found by scanning column B). No tab = the goals stay in L10_Goals only.'],
+  ['FORGE_POLL_SEC', 3, 'How often player and room screens poll for the session state, in seconds.'],
+  ['FORGE_TIMED_WRITE_MIN', 10, 'Default minutes for an ad-hoc Timed write ("for the next N minutes, everyone write…").']
 ];
 
 function l10BuildMenu() {
@@ -322,6 +475,7 @@ function l10OpenDashboard() {
   // standalone tab, not the modal). The template var must still be defined.
   var t = HtmlService.createTemplateFromFile('L10Index');
   t.webAppUrl = '';
+  t.forgePlayer = '';
   t.bootJson = l10BootJson_();
   var html = t.evaluate().setWidth(1400).setHeight(850).setTitle('Momentum Huddle');
   SpreadsheetApp.getUi().showModalDialog(html, 'Momentum Huddle');
@@ -334,12 +488,17 @@ function l10OpenGuide() {
   SpreadsheetApp.getUi().showModalDialog(html, 'Momentum Huddle — New Member Guide');
 }
 
-function doGet() {
+function doGet(e) {
   // Standalone web-app tab: hand the page its own URL so Present can pop out
   // here and go full-screen (full-screen is blocked inside the Sheets modal).
   var t = HtmlService.createTemplateFromFile('L10Index');
   t.webAppUrl = l10WebAppUrl_();
-  t.bootJson = l10BootJson_();
+  // ?forge=FS-001 serves the phone-first Forge player view for that session
+  // instead of the full app (one boot call, no four-slice fetch). The id is
+  // validated to its own shape so nothing user-typed reaches the page.
+  var fp = String((e && e.parameter && e.parameter.forge) || '').trim();
+  t.forgePlayer = /^FS-\d{3,}$/.test(fp) ? fp : '';
+  t.bootJson = t.forgePlayer ? 'null' : l10BootJson_();
   return t.evaluate()
       .setTitle('Momentum Huddle')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -473,6 +632,34 @@ function l10ApplyValidations_(ss) {
     // round-trips as a string — Sheets otherwise coerces a date-like write into a
     // Date, which would break the runner's string-equality dedup and re-send.
     dg.getRange(2, 9, dRows, 1).setNumberFormat('@');
+  }
+  // Forge tabs (v2.17): status dropdowns + the same grey-out colours as elsewhere.
+  var fs = ss.getSheetByName(L10.TABS.FORGE_SESSIONS);
+  if (fs) {
+    l10ListValidation_(fs, 4, 200, L10.FORGE_SESSION_STATUSES);
+    l10StatusColors_(fs, 4, { 'OPEN': '#fce8b2', 'LOCKED': '#b7e1cd', 'DISCARDED': '#d9d9d9' });
+    // Epoch-millisecond clocks + the version counter stay plain numbers.
+    fs.getRange(2, 8, 200, 1).setNumberFormat('0');
+    fs.getRange(2, 10, 200, 1).setNumberFormat('0');
+    fs.getRange(2, 20, 200, 1).setNumberFormat('0');
+  }
+  var fi = ss.getSheetByName(L10.TABS.FORGE_IDEAS);
+  if (fi) {
+    l10ListValidation_(fi, 17, rows, L10.FORGE_IDEA_STATUSES);
+    l10StatusColors_(fi, 17, { 'SHORTLIST': '#fce8b2', 'CLAIMED': '#c9daf8', 'GOAL': '#b7e1cd', 'PARKED': '#e6e0f8', 'DROPPED': '#d9d9d9' });
+  }
+  var fh = ss.getSheetByName(L10.TABS.FORGE_HANDOFFS);
+  if (fh) {
+    l10ListValidation_(fh, 8, rows, L10.FORGE_HANDOFF_STATUSES);
+    l10StatusColors_(fh, 8, { 'PROPOSED': '#fce8b2', 'ACCEPTED': '#b7e1cd', 'NEGOTIATED': '#c9daf8', 'UNCONFIRMED': '#f4c7c3', 'WITHDRAWN': '#d9d9d9' });
+  }
+  var gl = ss.getSheetByName(L10.TABS.GOALS);
+  if (gl) {
+    l10ListValidation_(gl, 6, rows, L10.GOAL_TYPES);
+    l10ListValidation_(gl, 27, rows, L10.GOAL_STATUSES);
+    l10ListValidation_(gl, 35, rows, ['YES', 'NO']);
+    l10ListValidation_(gl, 39, rows, L10.GOAL_VERDICTS);
+    l10StatusColors_(gl, 27, { 'DRAFT': '#fce8b2', 'COMMITTED': '#c9daf8', 'LOCKED': '#b7e1cd', 'SUPERSEDED': '#d9d9d9' });
   }
 }
 

@@ -1,0 +1,1444 @@
+<script>
+// ── Forge (v2.17) — timed idea-generation / goal-setting session ────────────
+// Two views of one server-authoritative state: the ROOM (projector, run by the
+// facilitator) and the PLAYER (each person's phone, served on ?forge=FS-###).
+// Both poll l10_forgeState every few seconds and compute the clock from the
+// server's timestamps, so every screen shows the same seconds. Writes go
+// straight through; the next poll paints the result. Relies on L10Js.html's
+// helpers ($, esc, gs, notify, who, avatar, personColor, lensGet_, togglePresent).
+
+state.forge = {
+  sid: null, s: null, version: 0, offset: 0, pollH: null, tickH: null, inflight: false,
+  home: null, homeInflight: false, view: 'room', me: '', dirty: false, overSaid: false,
+  cluster: null, plan: null, wheelEx: {}, wheelSpinning: false, newTitle: '', goalOpen: {},
+  saveT: {}, tok: '', gate: null
+};
+
+// --- the passphrase gate --------------------------------------------------------
+// A full-screen "loading" curtain that plays while the first call is in flight,
+// then either dissolves (no password set, or already unlocked today) or asks for
+// the passphrase. The word is checked on the server; the token it returns is
+// kept for the day on this browser.
+function forgeTok_() {
+  if (state.forge.tok) return state.forge.tok;
+  try {
+    if (localStorage.getItem('l10ForgeTokDay') !== localToday()) return '';
+    return localStorage.getItem('l10ForgeTok') || '';
+  } catch (e) { return ''; }
+}
+function forgeTokSet_(t) {
+  state.forge.tok = t;
+  try { localStorage.setItem('l10ForgeTok', t); localStorage.setItem('l10ForgeTokDay', localToday()); } catch (e) {}
+}
+function forgeTokDrop_() {
+  state.forge.tok = '';
+  try { localStorage.removeItem('l10ForgeTok'); } catch (e) {}
+}
+var L10_GATE_LINES_ = ['Initialising the room', 'Sealing the cards', 'Loading the roster', 'Syncing the clock', 'Awaiting passphrase'];
+function forgeGateShow_(onOpen) {
+  var g = state.forge.gate;
+  if (g) { g.onOpen = onOpen; return g; }
+  var ov = $('forge-gate');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'forge-gate'; document.body.appendChild(ov); }
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  ov.innerHTML = '<div class="fgate-grid"></div><div class="fgate-scan"></div><div class="fgate-in" role="dialog" aria-modal="true" aria-label="Forge is locked">' +
+    '<div class="fgate-mark"><span class="fgate-bar"></span><span class="fgate-bar"></span><span class="fgate-bar"></span></div>' +
+    '<div class="fgate-word">Momentum Huddle <b>Forge</b></div>' +
+    '<div class="fgate-lines">' + L10_GATE_LINES_.map(function (l, i) { return '<div class="fgate-line" data-gl="' + i + '"><span class="fgate-dot">▸</span><span class="fgate-txt">' + esc(l) + '</span><span class="fgate-ok"></span></div>'; }).join('') + '</div>' +
+    '<div class="fgate-track"><div class="fgate-fill"></div></div>' +
+    '<form class="fgate-form" hidden><label class="fgate-lbl" for="fgate-pass">Passphrase</label><div class="fgate-row"><input id="fgate-pass" class="fgate-pass" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="••••••••"><button type="submit" class="fgate-go">Enter</button></div><div class="fgate-msg" aria-live="assertive"></div></form>' +
+    '<div class="fgate-foot">Nothing on this screen is visible until the room is open.' +
+    (document.body.classList.contains('forge-player') ? '' : ' <button type="button" class="fgate-back">Not now — back to the huddle</button>') + '</div></div>';
+  ov.style.display = 'block';
+  ov.classList.remove('fgate-open', 'fgate-deny');
+  dlgOpened_('forge-gate');
+  g = state.forge.gate = { ov: ov, onOpen: onOpen, step: 0, asking: false, timers: [] };
+  var lines = ov.querySelectorAll('.fgate-line'), fill = ov.querySelector('.fgate-fill');
+  var advance = function (to) {
+    for (var i = 0; i < lines.length; i++) {
+      lines[i].classList.toggle('on', i <= to);
+      lines[i].classList.toggle('done', i < to);
+    }
+    fill.style.width = Math.min(92, (to + 1) / lines.length * 92) + '%';
+    g.step = to;
+  };
+  if (reduce) advance(lines.length - 2);
+  else {
+    for (var i = 0; i < lines.length - 1; i++) (function (i) { g.timers.push(setTimeout(function () { advance(i); }, 260 + i * 420)); })(i);
+  }
+  var back = ov.querySelector('.fgate-back');
+  if (back) back.addEventListener('click', function () {
+    g.timers.forEach(clearTimeout);
+    ov.style.display = 'none';
+    dlgClosed_('forge-gate');
+    state.forge.gate = null;
+    state.forge.homeInflight = false;
+    try { showPage('huddle'); } catch (e) {}
+  });
+  var form = ov.querySelector('.fgate-form');
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var inp = ov.querySelector('.fgate-pass'), btn = ov.querySelector('.fgate-go'), msg = ov.querySelector('.fgate-msg');
+    var pw = inp.value.trim();
+    if (!pw) { msg.textContent = 'Type the passphrase.'; return; }
+    btn.disabled = true; msg.textContent = 'Checking…';
+    gs('l10_forgeUnlock', pw).then(function (r) {
+      btn.disabled = false;
+      if (!r || r.ok === false) {
+        msg.textContent = 'Denied. ' + ((r && r.error) || 'Try again.');
+        ov.classList.remove('fgate-deny'); void ov.offsetWidth; ov.classList.add('fgate-deny');
+        inp.select();
+        return;
+      }
+      forgeTokSet_(r.token);
+      g.open();
+    }).catch(function (e) { btn.disabled = false; msg.textContent = 'Could not check: ' + ((e && e.message) || e); });
+  });
+  g.askPass = function (why) {
+    g.timers.forEach(clearTimeout); g.timers = [];
+    advance(lines.length - 1);
+    form.hidden = false;
+    g.asking = true;
+    var msg = ov.querySelector('.fgate-msg');
+    if (why) msg.textContent = why;
+    setTimeout(function () { try { ov.querySelector('.fgate-pass').focus(); } catch (e) {} }, 50);
+  };
+  g.open = function () {
+    g.timers.forEach(clearTimeout); g.timers = [];
+    for (var i = 0; i < lines.length; i++) { lines[i].classList.add('on', 'done'); }
+    lines[lines.length - 1].querySelector('.fgate-txt').textContent = 'Access granted';
+    fill.style.width = '100%';
+    form.hidden = true;
+    ov.classList.add('fgate-open');
+    var done = function () {
+      ov.style.display = 'none';
+      dlgClosed_('forge-gate');
+      state.forge.gate = null;
+      if (typeof g.onOpen === 'function') g.onOpen();
+    };
+    if (reduce) done(); else setTimeout(done, 900);
+  };
+  return g;
+}
+// Every gated call routes its result through here: a locked answer raises the
+// curtain (or switches it to the passphrase prompt); anything else lowers it.
+function forgeGated_(res, retry) {
+  if (res && res.ok === false && res.locked) {
+    forgeTokDrop_();
+    var g = forgeGateShow_(retry);
+    g.onOpen = retry;
+    g.askPass(res.error === 'Enter the passphrase first.' ? '' : res.error);
+    return true;
+  }
+  if (state.forge.gate && !state.forge.gate.asking) {
+    if (!forgeTok_()) forgeTokSet_('open');
+    var gg = state.forge.gate; gg.onOpen = null; gg.open();
+  }
+  return false;
+}
+
+// --- identity: the roster name this device speaks as (kept per browser) -----
+function forgeMe_() {
+  if (state.forge.me) return state.forge.me;
+  var n = '';
+  try { n = localStorage.getItem('l10ForgeMe') || ''; } catch (e) {}
+  if (!n) { try { n = lensGet_() || ''; } catch (e2) {} }
+  state.forge.me = n;
+  return n;
+}
+function forgeSetMe_(n) {
+  state.forge.me = n;
+  try { localStorage.setItem('l10ForgeMe', n); } catch (e) {}
+}
+function forgeTeam_() {
+  var s = state.forge.s;
+  if (s && s.cfg && s.cfg.team && s.cfg.team.length) return s.cfg.team;
+  return (state.boot && state.boot.team) || [];
+}
+function forgePickHtml_(label) {
+  return '<div class="card"><h3>' + esc(label || 'Who are you on this device?') + '</h3><div class="fg-pick">' +
+    forgeTeam_().map(function (n) { return '<button type="button" data-fg-me="' + esc(n) + '">' + avatar(n) + esc(n) + '</button>'; }).join('') +
+    '</div><div class="help">Remembered on this browser. No login — the roster is the door.</div></div>';
+}
+
+// --- entry points -----------------------------------------------------------
+function renderForge(opened) {
+  var el = $('page-forge');
+  if (!el || state.forge.view === 'player') return;
+  if (!state.boot || !hyd('core')) { el.innerHTML = '<div class="spinner">Loading…</div>'; return; }
+  if (state.forge.sid) { forgeRenderRoom_(); return; }
+  // Background hydration passes (hydRender_) only repaint what is already
+  // loaded; the fetch — and the passphrase curtain — wait for a real open.
+  if (!opened && !state.forge.home) { el.innerHTML = '<div class="spinner">Open Forge to load the sessions.</div>'; return; }
+  if (opened && !forgeTok_() && !state.forge.home && !state.forge.gate) forgeGateShow_(null);
+  if (opened || !state.forge.home) forgeFetchHome_();
+  forgeRenderHome_();
+}
+function forgeFetchHome_() {
+  if (state.forge.homeInflight) return;
+  state.forge.homeInflight = true;
+  gs('l10_forgeHome', forgeTok_()).then(function (h) {
+    state.forge.homeInflight = false;
+    if (forgeGated_(h, forgeFetchHome_)) return;
+    state.forge.home = h;
+    if (!state.forge.sid) forgeRenderHome_();
+  }).catch(function (e) { state.forge.homeInflight = false; errToast(e); });
+}
+
+function forgeRenderHome_() {
+  var el = $('page-forge');
+  var h = state.forge.home;
+  var me = forgeMe_();
+  var html = '<div class="fg-head"><h2 class="page-title">Forge</h2><span class="muted txt-sub">timed idea-generation and goal-setting, phones + one screen</span></div>';
+  if (!h) { el.innerHTML = html + '<div class="spinner">Loading sessions…</div>'; return; }
+  if (h.enabled === false) { el.innerHTML = html + '<div class="banner info">Forge is switched off (FORGE_ENABLED = NO in L10_Config).</div>'; return; }
+  if (!h.ready) {
+    el.innerHTML = html + '<div class="banner warn">The Forge tabs are not in this workbook yet — run <b>Momentum Huddle → Setup / repair tabs</b> once, then reload.</div>';
+    return;
+  }
+  if (!me) { el.innerHTML = html + forgePickHtml_(); forgeWireHome_(el); return; }
+  html += '<div class="row row--mid mb-2"><span class="who-chip">' + avatar(me) + esc(me) + '</span><button class="btn mini subtle" data-fg-changeme>not me</button>' +
+    (h.wheel !== false ? '<button class="btn mini subtle" data-fg-wheel>🎡 Pick someone</button>' : '') + '</div>';
+  var open = (h.sessions || []).filter(function (x) { return x.status === 'OPEN'; });
+  if (open.length) {
+    html += '<div class="card resume-card"><h3>A session is open</h3>' + open.map(function (x) {
+      return '<div class="fg-sess"><div><div class="t">' + esc(x.title) + ' <span class="muted">' + esc(x.id) + '</span></div>' +
+        '<div class="m">' + esc(x.date) + ' · ' + esc(x.phase) + ' · ' + x.participants.length + ' in · ' + x.ideas + ' cards · ' + x.goals + ' goals · run by ' + esc(x.facilitator) + '</div></div>' +
+        '<button class="btn" data-fg-open="' + esc(x.id) + '">Open the room</button>' +
+        '<button class="btn subtle mini" data-fg-discard="' + esc(x.id) + '">discard</button></div>';
+    }).join('') + '</div>';
+  }
+  html += '<div class="card"><h3>New session</h3><div class="row row--end">' +
+    '<div class="field f-2"><label>Title</label><input class="js-fg-title" placeholder="FY27 goals day" value="' + esc(state.forge.newTitle) + '"></div>' +
+    '<div class="field f-fix"><button class="btn js-fg-create">Create and open the room</button></div></div>' +
+    '<div class="help">You become the facilitator. The room opens in the Lobby; everyone else joins from their phone with the link the Lobby shows.</div></div>';
+  var past = (h.sessions || []).filter(function (x) { return x.status !== 'OPEN'; });
+  if (past.length) {
+    html += '<div class="card"><h3>Past sessions</h3>' + past.map(function (x) {
+      return '<div class="fg-sess"><div><div class="t">' + esc(x.title) + ' <span class="muted">' + esc(x.id) + '</span></div>' +
+        '<div class="m">' + esc(x.date) + ' · ' + esc(x.status.toLowerCase()) + ' · ' + x.ideas + ' cards · ' + x.goals + ' goals' + (x.rating !== null ? ' · rated ' + x.rating + '/10' : '') + '</div></div>' +
+        '<button class="btn mini subtle" data-fg-open="' + esc(x.id) + '">view</button></div>';
+    }).join('') + '</div>';
+  }
+  html += '<div class="card"><h3>How it runs</h3><p class="fg-note">Opener → Diverge (private cards) → Relay (build on a dealt card) → Cluster → blind Vote → Committee (what we stop) → Claim → Handoffs → Forge the goal → Doctor (two peer reviews) → Commit → Lock. The facilitator can fire a <b>Timed write</b> ("next 10 minutes, everyone write…") at any point and spin the <b>wheel</b> whenever someone has to go first. Lock writes goals to each person\'s FY27 Goals tab and creates priorities from the Q1 milestones. It never creates to-dos.</p></div>';
+  el.innerHTML = html;
+  forgeWireHome_(el);
+}
+function forgeWireHome_(el) {
+  el.querySelectorAll('[data-fg-me]').forEach(function (b) {
+    b.addEventListener('click', function () { forgeSetMe_(b.dataset.fgMe); renderForge(); });
+  });
+  var chg = el.querySelector('[data-fg-changeme]');
+  if (chg) chg.addEventListener('click', function () { forgeSetMe_(''); renderForge(); });
+  var wh = el.querySelector('[data-fg-wheel]');
+  if (wh) wh.addEventListener('click', function () { wheelOpen_(forgeTeam_(), 'home'); });
+  var ti = el.querySelector('.js-fg-title');
+  if (ti) ti.addEventListener('input', function () { state.forge.newTitle = ti.value; });
+  var cr = el.querySelector('.js-fg-create');
+  if (cr) cr.addEventListener('click', function () {
+    cr.disabled = true;
+    gs('l10_forgeCreate', state.forge.newTitle, forgeMe_(), forgeTok_()).then(function (r) {
+      cr.disabled = false;
+      if (forgeGated_(r, function () { renderForge(true); })) return;
+      if (!r || r.ok === false) { errToast(r || 'Create failed'); return; }
+      state.forge.newTitle = '';
+      forgeOpen_(r.id);
+    }).catch(function (e) { cr.disabled = false; errToast(e); });
+  });
+  el.querySelectorAll('[data-fg-open]').forEach(function (b) {
+    b.addEventListener('click', function () { forgeOpen_(b.dataset.fgOpen); });
+  });
+  el.querySelectorAll('[data-fg-discard]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!armedConfirm(b, { label: 'discard it?', danger: true }, function () {
+        gs('l10_forgeDiscard', b.dataset.fgDiscard).then(function (r) {
+          if (!r || r.ok === false) { errToast(r || 'Discard failed'); return; }
+          notify('Session discarded', 'ok'); forgeFetchHome_();
+        }).catch(errToast);
+      })) return;
+    });
+  });
+}
+
+// --- session open / poll / clock -------------------------------------------
+function forgeOpen_(sid) {
+  forgeStop_();
+  state.forge.sid = sid;
+  state.forge.version = 0;
+  state.forge.s = null;
+  state.forge.cluster = null;
+  state.forge.overSaid = false;
+  forgePollNow_();
+  var sec = 3;
+  state.forge.pollH = setInterval(forgePollNow_, sec * 1000);
+  state.forge.tickH = setInterval(forgeTick_, 1000);
+  var el = $('page-forge');
+  if (el && state.forge.view !== 'player') el.innerHTML = '<div class="spinner">Opening the room…</div>';
+}
+function forgeStop_() {
+  clearInterval(state.forge.pollH); clearInterval(state.forge.tickH);
+  state.forge.pollH = null; state.forge.tickH = null;
+}
+function forgeClose_() {
+  forgeStop_();
+  state.forge.sid = null; state.forge.s = null;
+  state.forge.home = null;
+  renderForge(true);
+}
+function forgePollNow_(force) {
+  if (!state.forge.sid) return;
+  if (force === true) state.forge.forceRender = true;
+  if (state.forge.inflight) { state.forge.pollAgain = true; return; }
+  if (document.visibilityState === 'hidden') return;
+  state.forge.inflight = true;
+  gs('l10_forgeState', state.forge.sid, state.forge.version, forgeMe_(), forgeTok_()).then(function (st) {
+    state.forge.inflight = false;
+    if (forgeGated_(st, forgePollNow_)) return;
+    forgeApply_(st);
+    if (state.forge.pollAgain) { state.forge.pollAgain = false; forgePollNow_(); }
+  }).catch(function (e) { state.forge.inflight = false; console.warn('forge poll', e); });
+}
+function forgeApply_(st) {
+  if (!st) return;
+  if (st.ok === false) { errToast(st); if (!state.forge.s) forgeClose_(); return; }
+  if (st.serverNow) state.forge.offset = Date.now() - st.serverNow;
+  if (st.unchanged) return;
+  var prevPhase = state.forge.s ? state.forge.s.session.phase + '/' + state.forge.s.session.round : '';
+  state.forge.s = st;
+  state.forge.version = st.version;
+  var nowPhase = st.session.phase + '/' + st.session.round;
+  if (prevPhase && prevPhase !== nowPhase) {
+    state.forge.overSaid = false;
+    state.forge.cluster = null;
+    var live = $('fg-live');
+    if (live) live.textContent = 'Now: ' + forgePhaseLabel_() + '.';
+    if (state.forge.view === 'player') try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+  }
+  // If a poll adjusts the pollSec, re-arm.
+  if (st.cfg && st.cfg.pollSec && state.forge.pollH) {
+    clearInterval(state.forge.pollH);
+    state.forge.pollH = setInterval(forgePollNow_, Math.max(2, st.cfg.pollSec) * 1000);
+  }
+  forgeRender_();
+}
+function forgeAfterWrite_(res, okMsg) {
+  if (res && res.ok === false) { errToast(res); return false; }
+  if (okMsg) notify(okMsg, 'ok', 1800);
+  forgePollNow_(true); // our own write: repaint even if a box has focus (and keep that focus)
+  return true;
+}
+function forgeTyping_() {
+  var a = document.activeElement;
+  if (!a) return false;
+  var tag = a.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return false;
+  var pg = $('page-forge');
+  return !!(pg && pg.contains(a) && a.hasAttribute('data-fg-keep'));
+}
+function forgeRender_() {
+  var force = state.forge.forceRender;
+  state.forge.forceRender = false;
+  if (!force && forgeTyping_()) { state.forge.dirty = true; return; }
+  // A forced repaint (after our own write) remembers the focused control by
+  // its class and hands focus back, so a phone keyboard never drops mid-burst.
+  var a = document.activeElement, keep = null, keepVal = null;
+  if (force && a && a.hasAttribute && a.hasAttribute('data-fg-keep')) {
+    keep = a.className.split(/\s+/).filter(function (c) { return c.indexOf('js-') === 0; })[0] || null;
+    keepVal = (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT') ? a.value : null;
+  }
+  state.forge.dirty = false;
+  if (state.forge.view === 'player') forgeRenderPlayer_(); else forgeRenderRoom_();
+  if (keep) {
+    var el2 = document.querySelector('#page-forge .' + keep);
+    if (el2) { if (keepVal !== null && keepVal !== '' && el2.value === '') el2.value = keepVal; try { el2.focus({ preventScroll: true }); } catch (e) { el2.focus(); } }
+  }
+}
+document.addEventListener('focusout', function () {
+  if (state.forge.dirty && state.forge.sid) setTimeout(function () { if (state.forge.dirty && !forgeTyping_()) forgeRender_(); }, 150);
+});
+
+function forgeNow_() { return Date.now() - state.forge.offset; }
+function forgeRemain_(ses) {
+  if (!ses || !ses.phaseStartedAt || !ses.phaseSeconds) return null;
+  var end = ses.phaseStartedAt + ses.phaseSeconds * 1000;
+  var now = ses.pausedAt || forgeNow_();
+  return Math.round((end - now) / 1000);
+}
+function forgeTwRemain_(tw) {
+  if (!tw) return null;
+  return Math.round((tw.startedAt + tw.seconds * 1000 - forgeNow_()) / 1000);
+}
+function forgeFmt_(sec) {
+  var over = sec < 0, t = Math.abs(sec);
+  return (over ? '+' : '') + Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+}
+function forgeTick_() {
+  var s = state.forge.s;
+  if (!s) return;
+  var ses = s.session;
+  var tw = ses.timedWrite;
+  var rem = tw ? forgeTwRemain_(tw) : forgeRemain_(ses);
+  var total = tw ? tw.seconds : ses.phaseSeconds;
+  document.querySelectorAll('[data-fg-clock]').forEach(function (el) {
+    if (rem === null) { el.textContent = '--:--'; return; }
+    el.textContent = forgeFmt_(rem);
+    el.classList.toggle('over', rem < 0);
+    el.classList.toggle('paused', !tw && !!ses.pausedAt);
+  });
+  document.querySelectorAll('[data-fg-fill]').forEach(function (el) {
+    if (rem === null || !total) { el.style.width = '0%'; return; }
+    el.style.width = Math.min(100, (total - rem) / total * 100) + '%';
+    el.classList.toggle('over', rem < 0);
+  });
+  var gl = $('fg-glyph');
+  if (gl) gl.textContent = tw ? '✎ writing' : (ses.pausedAt ? '⏸ paused' : (rem !== null && rem < 0 ? '⚑ over time' : '▶ running'));
+  if (rem !== null && rem < 0 && !state.forge.overSaid) {
+    state.forge.overSaid = true;
+    var live = $('fg-live');
+    if (live) live.textContent = 'Time is up.';
+    if (state.forge.view === 'room' && String(((state.boot || {}).config || {}).TIMER_CHIME || 'YES').toUpperCase() !== 'NO') { try { l10Chime_(); } catch (e) {} }
+  }
+}
+
+// --- phase helpers ----------------------------------------------------------
+function forgeS_() { return state.forge.s; }
+function forgePhaseKey_() { var s = forgeS_(); return s ? s.session.phase : 'LOBBY'; }
+function forgePhaseDef_(key) {
+  var s = forgeS_();
+  if (!s) return null;
+  for (var i = 0; i < s.phases.length; i++) if (s.phases[i].key === key) return s.phases[i];
+  return null;
+}
+function forgePhaseIdx_(key) {
+  var s = forgeS_();
+  if (!s) return -1;
+  for (var i = 0; i < s.phases.length; i++) if (s.phases[i].key === key) return i;
+  return key === 'LOCKED' ? s.phases.length : -1;
+}
+function forgePast_(key) { return forgePhaseIdx_(forgePhaseKey_()) >= forgePhaseIdx_(key); }
+function forgePhaseLabel_() {
+  var k = forgePhaseKey_();
+  if (k === 'LOBBY') return 'Lobby';
+  if (k === 'LOCKED') return 'Locked';
+  var d = forgePhaseDef_(k);
+  var s = forgeS_();
+  return (d ? d.label : k) + (d && d.rounds > 1 ? ' · round ' + s.session.round + ' of ' + d.rounds : '');
+}
+function forgeIsFac_() { var s = forgeS_(); return !!s && s.session.facilitator === forgeMe_(); }
+function forgeCards_() {
+  var s = forgeS_();
+  return (s ? s.ideas : []).filter(function (i) { return i.status !== 'DROPPED'; });
+}
+function forgePrompts_() { var s = forgeS_(); return (s && s.prompts) || {}; }
+function forgeRoundPrompt_() {
+  var s = forgeS_(), p = forgePrompts_();
+  var r = (p.rounds || [])[(s.session.round || 1) - 1];
+  return r ? { title: String(r.title || ''), prompt: String(r.prompt || r) } : { title: 'Round ' + s.session.round, prompt: '' };
+}
+function forgeThemes_() { var s = forgeS_(); return (s && s.session.themes) || []; }
+function forgeThemeOf_(card) {
+  var t = forgeThemes_().filter(function (x) { return x.name === card.theme; });
+  return t.length ? t[0] : null;
+}
+function forgeShortlist_() {
+  var s = forgeS_();
+  var cards = forgeCards_().filter(function (c) { return c.round !== 'O'; });
+  if (s.cfg.voteMode === 'TOKENS') {
+    var sel = {};
+    forgeThemes_().forEach(function (t) { if (t.selected) sel[t.name] = true; });
+    var inSel = cards.filter(function (c) { return sel[c.theme]; });
+    return inSel.length ? inSel : cards.filter(function (c) { return c.status === 'SHORTLIST' || c.status === 'CLAIMED' || c.status === 'GOAL'; });
+  }
+  var tal = s.tallies || {};
+  return cards.slice().sort(function (a, b) {
+    var ta = tal[a.id] || { dots: 0, supers: 0 }, tb = tal[b.id] || { dots: 0, supers: 0 };
+    return (tb.supers - ta.supers) || (tb.dots - ta.dots);
+  }).slice(0, s.cfg.shortlist);
+}
+function forgeTally_(id) { var s = forgeS_(); return (s.tallies || {})[id] || { dots: 0, supers: 0 }; }
+function forgeHandoffById_() {
+  var m = {};
+  (forgeS_().handoffs || []).forEach(function (h) { m[h.id] = h; });
+  return m;
+}
+// The SMART meter: five tiles lit from the card's own fields (A and R also
+// from the peer verdict). Word + glyph, never colour alone.
+function forgeMeter_(g) {
+  var hb = forgeHandoffById_();
+  var dep = g.dependency ? hb[g.dependency] : null;
+  var depOk = !g.dependency || (dep && (dep.status === 'ACCEPTED' || dep.status === 'NEGOTIATED'));
+  var personal = g.type === 'Personal';
+  var ready = g.verdict === 'READY';
+  return {
+    S: !!(g.title && g.doneWhen),
+    M: !!(g.metric && g.source && g.target && g.baseline),
+    A: personal ? !!g.title : (depOk && (ready || !!g.baseline)),
+    R: personal ? !!g.title : !!(g.line && g.rung && g.guardrail),
+    T: !!g.deadline
+  };
+}
+function forgeMeterHtml_(g) {
+  var m = forgeMeter_(g);
+  return '<div class="fg-meter" aria-label="SMART check">' + ['S', 'M', 'A', 'R', 'T'].map(function (k) {
+    var on = m[k];
+    var names = { S: 'Specific', M: 'Measurable', A: 'Achievable', R: 'Relevant', T: 'Time-bound' };
+    return '<span class="t' + (on ? ' on' : '') + '" title="' + names[k] + '"><span class="g">' + (on ? '●' : '○') + '</span>' + k + '</span>';
+  }).join('') + '</div>';
+}
+function forgeCardHtml_(c, opts) {
+  opts = opts || {};
+  var s = forgeS_();
+  var by = c.by ? who(c.by) : '<span class="muted">anonymous</span>';
+  var tal = forgePast_('COMMITTEE') && s.cfg.voteMode === 'DOTS' ? forgeTally_(c.id) : null;
+  var html = '<div class="fg-card' + (c.mine ? ' mine' : '') + (c.claimedBy ? ' claimed' : '') + '" data-fg-card="' + esc(c.id) + '">' +
+    '<div class="fg-ct">' + esc(c.idea) + '</div>';
+  if (c.build) html += '<div class="fg-add"><b>Pass 1' + (c.buildBy && forgePast_('CLAIM') ? ' · ' + esc(c.buildBy) : '') + '</b><br>' + esc(c.build) + '</div>';
+  if (c.relay2) html += '<div class="fg-add"><b>Pass 2' + (c.relay2By && forgePast_('CLAIM') ? ' · ' + esc(c.relay2By) : '') + '</b><br>' + esc(c.relay2) + '</div>';
+  html += '<div class="fg-cm">' + by +
+    (c.theme ? '<span class="tag cat">' + esc(c.theme) + '</span>' : '') +
+    (c.round === 'T' ? '<span class="tag">timed write</span>' : c.round === 'P' ? '<span class="tag">pre-work</span>' : '') +
+    (c.claimedBy ? '<span class="tag shift">claimed · ' + esc(c.claimedBy) + '</span>' : '') +
+    (c.status === 'GOAL' ? '<span class="tag shift">→ goal</span>' : '') +
+    (c.status === 'PARKED' ? '<span class="tag">parked' + (c.parkedTo ? ' → ' + esc(c.parkedTo) : '') + '</span>' : '') +
+    (tal ? '<span class="fg-tally">' + tal.dots + ' ●' + (tal.supers ? ' <span class="s">' + tal.supers + ' $</span>' : '') + '</span>' : '') +
+    '</div>';
+  if (opts.acts) html += '<div class="fg-acts">' + opts.acts + '</div>';
+  html += '</div>';
+  return html;
+}
+
+// --- ROOM -------------------------------------------------------------------
+function forgeRenderRoom_() {
+  var el = $('page-forge');
+  var s = forgeS_();
+  if (!el) return;
+  if (!s) { el.innerHTML = '<div class="spinner">Opening the room…</div>'; return; }
+  var ses = s.session, me = forgeMe_(), fac = forgeIsFac_(), key = ses.phase;
+  var link = forgePlayerLink_();
+  var html = '<div class="fg-head"><h2 class="page-title">' + esc(ses.title) + ' <span class="muted txt-sub">' + esc(ses.id) + ' · ' + esc(ses.date) + '</span></h2>' +
+    '<span class="who-chip" title="This device">' + avatar(me) + esc(me || '?') + (fac ? ' · facilitator' : '') + '</span>' +
+    '<span class="grow"></span>' +
+    (s.cfg.wheel ? '<button class="btn mini subtle" data-fg-wheel>🎡 Pick someone</button>' : '') +
+    '<button class="btn mini subtle" data-fg-present>⛶ Present</button>' +
+    '<button class="btn mini subtle" data-fg-exit>← Sessions</button></div>' +
+    '<span id="fg-live" class="sr-only" aria-live="polite"></span>';
+  // Phase rail
+  var cur = forgePhaseIdx_(key);
+  html += '<div class="fg-rail">' + s.phases.map(function (p, i) {
+    var cls = i === cur ? 'cur' : (i < cur ? 'done' : '');
+    return '<div class="fg-ph ' + cls + '"><span class="n">' + esc(p.label) + '</span><span class="m">' + Math.round(p.seconds / 60) + ' min' + (p.rounds > 1 ? ' × ' + p.rounds : '') + '</span></div>';
+  }).join('') + '<div class="fg-ph ' + (key === 'LOCKED' ? 'cur' : '') + '"><span class="n">Locked</span><span class="m">done</span></div></div>';
+  // Timed write banner or the phase clock
+  if (ses.timedWrite) {
+    html += '<div class="fg-tw"><div class="fg-twt">Timed write · everyone, silently</div><div class="fg-twp">' + esc(ses.timedWrite.prompt) + '</div>' +
+      '<div class="row row--mid"><span class="fg-twc" data-fg-clock>--:--</span>' + (fac ? '<button class="btn subtle" data-fg-act="endWrite">End the write, resume the phase</button>' : '') + '</div></div>';
+  } else if (key !== 'LOBBY' && key !== 'LOCKED') {
+    html += '<div class="fg-clock"><span class="fg-time" data-fg-clock>--:--</span><span class="fg-glyph" id="fg-glyph"></span>' +
+      '<div class="fg-track"><div class="fg-fill" data-fg-fill style="width:0%"></div></div><span class="muted">' + esc(forgePhaseLabel_()) + '</span></div>';
+  }
+  // Facilitator controls
+  if (fac && ses.status === 'OPEN') {
+    html += '<div class="fg-ctl">';
+    if (key === 'LOBBY') html += '<button class="btn big" data-fg-act="start">▶ Start with the opener</button>';
+    else {
+      html += '<button class="btn subtle" data-fg-act="back" title="Previous round or phase">←</button>' +
+        (key === 'COMMIT' ? '<button class="btn big" data-fg-lock>🔒 Lock the goals…</button>' :
+          '<button class="btn" data-fg-act="next">Next ' + (function () { var d = forgePhaseDef_(key); return d && ses.round < d.rounds ? 'round' : 'phase'; })() + ' →</button>') +
+        '<button class="btn subtle" data-fg-act="' + (ses.pausedAt ? 'resume' : 'pause') + '">' + (ses.pausedAt ? '▶ Resume' : '⏸ Pause') + '</button>' +
+        '<button class="btn subtle" data-fg-act="add60">+60 s</button>' +
+        '<button class="btn subtle" data-fg-act="end">End the clock</button>';
+      if (key === 'OPENER' && !(ses.flags && ses.flags.openerRevealed)) html += '<button class="btn ghost" data-fg-act="reveal">Reveal everyone\'s labels</button>';
+    }
+    html += '<button class="btn ghost" data-fg-tw>✎ Timed write…</button>';
+    html += '<span class="fg-note">' + esc(ses.participants.length) + ' in the room' + (link ? ' · <button class="btn mini subtle" data-fg-copylink>copy player link</button>' : '') + '</span>';
+    html += '</div>';
+  }
+  html += '<div id="fg-body">' + forgeRoomBody_(key) + '</div>';
+  el.innerHTML = html;
+  forgeWireRoom_(el);
+  forgeTick_();
+}
+function forgePlayerLink_() {
+  var base = window.__L10_WEBAPP_URL || (state.forge.home && state.forge.home.webAppUrl) || '';
+  if (!base) return '';
+  return base + (base.indexOf('?') !== -1 ? '&' : '?') + 'forge=' + encodeURIComponent(state.forge.sid);
+}
+function forgeRoomBody_(key) {
+  var s = forgeS_(), ses = s.session, p = forgePrompts_();
+  var cards = forgeCards_();
+  var html = '';
+  switch (key) {
+    case 'LOBBY': {
+      var link = forgePlayerLink_();
+      html += '<div class="card"><h3>Who is in</h3><div class="fg-roster">' + forgeTeam_().map(function (n) {
+        var inn = ses.participants.indexOf(n) !== -1;
+        return '<span class="who' + (inn ? ' in' : '') + '">' + avatar(n) + esc(n) + ' <span class="st">' + (inn ? '✓ in' : 'not yet') + '</span></span>';
+      }).join('') + '</div>' +
+        (link ? '<div class="fg-link mt-2"><span class="muted">Players open:</span><code>' + esc(link) + '</code><button class="btn mini subtle" data-fg-copylink>copy</button></div>' :
+          '<div class="help">Deploy the project as a web app to get a player link (Settings shows it). Until then everyone can use this page on their own laptop and pick their name.</div>') +
+        '</div>';
+      var pre = cards.filter(function (c) { return c.round === 'P'; });
+      html += '<div class="card"><h3>Pre-work cards</h3><div class="fg-count"><span class="v">' + pre.length + '</span><span class="l">loaded before the day</span></div>' +
+        (pre.length ? '<div class="fg-wall">' + pre.map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>' : '<div class="help">Nothing yet. Players can add cards from their phone while the room is in the Lobby.</div>') + '</div>';
+      break;
+    }
+    case 'OPENER': {
+      var st = p.opener || [], labels = p.openerLabels || [];
+      var ans = s.opener || { answered: [], answers: {} };
+      var revealed = !!(ses.flags && ses.flags.openerRevealed);
+      html += '<div class="fg-prompt"><div class="fg-pt">Goal, project or chore?</div><div class="fg-px">Label each statement on your phone: ' + labels.map(function (l) { return esc(l[1]); }).join(' · ') + '.</div>' +
+        '<div class="fg-ps">Everyone answers privately; the labels appear together when the facilitator reveals them.</div></div>';
+      html += '<div class="card fg-op"><div class="fg-roster mb-2">' + ses.participants.map(function (n) {
+        var done = ans.answered.indexOf(n) !== -1;
+        return '<span class="who' + (done ? ' in' : '') + '">' + avatar(n) + esc(n) + ' <span class="st">' + (done ? '✓ answered' : 'thinking') + '</span></span>';
+      }).join('') + '</div>';
+      html += '<table><tr><th>Statement</th>' + (revealed ? ses.participants.map(function (n) { return '<th>' + esc(n) + '</th>'; }).join('') : '<th>Labels</th>') + '</tr>' +
+        st.map(function (q, qi) {
+          return '<tr><td class="fg-opq">' + esc(q.text) + '</td>' + (revealed ? ses.participants.map(function (n) {
+            var a = (ans.answers[n] || {})[qi] || '';
+            var lab = labels.filter(function (l) { return l[0] === a; });
+            return '<td class="lab' + (a && a === q.answer ? ' ok' : '') + '">' + (lab.length ? esc(lab[0][1]) : '—') + '</td>';
+          }).join('') : '<td class="muted">hidden until reveal</td>') + '</tr>';
+        }).join('') + '</table>' +
+        (revealed ? '<div class="help mt-2">Only the pipeline statement is an outcome direction — and it still lacks a baseline, a target and a date. Ask of the others: what business result does it produce?</div>' : '') + '</div>';
+      break;
+    }
+    case 'DIVERGE': {
+      var rp = forgeRoundPrompt_();
+      var live = cards.filter(function (c) { return c.round !== 'O' && c.round !== 'P'; });
+      var hit = live.length >= s.cfg.ideaTarget;
+      html += '<div class="fg-prompt"><div class="fg-pt">Round ' + ses.round + ' · ' + esc(rp.title) + ' · <span class="fg-quiet">🤫 quiet round — write, don\'t talk</span></div><div class="fg-px">' + esc(rp.prompt) + '</div>' +
+        (rp.title.toLowerCase().indexOf('wildcard') !== -1 ? '<div class="fg-ps">Wildcards: ' + (p.wildcards || []).map(esc).join(' · ') + '</div>' : '') +
+        '<div class="fg-ps">Card format: ' + esc(p.card || '') + '</div></div>';
+      html += '<div class="fg-count' + (hit ? ' hit' : '') + '"><span class="v">' + live.length + '</span><span class="l">cards from the room · target ' + s.cfg.ideaTarget + (hit ? ' · hit ✓' : '') + '</span></div>';
+      html += '<div class="fg-wall">' + live.slice().reverse().map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>';
+      break;
+    }
+    case 'RELAY': {
+      var r = ses.round, instr = (p.relay || [])[r - 1] || '';
+      var pool = cards.filter(function (c) { return c.round !== 'O' && c.round !== 'P'; });
+      var doneN = pool.filter(function (c) { return r === 1 ? !!c.build : !!c.relay2; }).length;
+      html += '<div class="fg-prompt"><div class="fg-pt">Relay · pass ' + r + '</div><div class="fg-px">' + esc(instr) + '</div><div class="fg-ps">Each card was dealt to someone who did not write it. The author\'s words stay; the addition shows under them.</div></div>';
+      html += '<div class="fg-count"><span class="v">' + doneN + '</span><span class="l">of ' + pool.length + ' cards built on this pass</span></div>';
+      html += '<div class="fg-wall">' + pool.map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>';
+      break;
+    }
+    case 'CLUSTER': html += forgeClusterHtml_(); break;
+    case 'VOTE': {
+      var voted = s.voted || [];
+      html += '<div class="fg-prompt"><div class="fg-pt">Blind vote</div><div class="fg-px">' + (s.cfg.voteMode === 'TOKENS' ? s.cfg.tokens + ' investment tokens each across the themes, at most ' + s.cfg.tokenMax + ' on one' : s.cfg.dots + ' dots each on the cards, at most ' + s.cfg.dotMax + ' on one') + ', plus ' + s.cfg.superVotes + ' revenue vote ($).</div><div class="fg-ps">Tallies stay hidden until the committee. The facilitator\'s ballot joins only when they add it.</div></div>';
+      html += '<div class="card"><div class="fg-roster">' + ses.participants.map(function (n) {
+        var d = voted.indexOf(n) !== -1;
+        return '<span class="who' + (d ? ' in' : '') + '">' + avatar(n) + esc(n) + ' <span class="st">' + (d ? '✓ voted' : 'voting') + '</span></span>';
+      }).join('') + '</div></div>';
+      if (s.cfg.voteMode === 'TOKENS') {
+        html += '<div class="fg-themes">' + forgeThemes_().map(function (t) {
+          return '<div class="fg-theme"><div class="fg-tn"><b>' + esc(t.name) + '</b></div><div class="fg-tl">' + t.ideaIds.map(function (id) {
+            var c = cards.filter(function (x) { return x.id === id; })[0];
+            return c ? '<div class="fg-ti">' + esc(c.idea) + '</div>' : '';
+          }).join('') + '</div></div>';
+        }).join('') + '</div>';
+      } else html += '<div class="fg-wall">' + cards.filter(function (c) { return c.round !== 'O'; }).map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>';
+      break;
+    }
+    case 'COMMITTEE': html += forgeCommitteeHtml_(); break;
+    case 'CLAIM': {
+      var sl = forgeShortlist_();
+      html += '<div class="fg-prompt"><div class="fg-pt">Claim</div><div class="fg-px">One owner per card, claimed from your phone. Leftovers go to the parking lot at Lock.</div></div>';
+      html += '<div class="fg-wall">' + sl.map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>';
+      break;
+    }
+    case 'HANDOFFS': html += forgeHandoffsHtml_(true); break;
+    case 'FORGE': html += forgeProgressHtml_(); break;
+    case 'DOCTOR': html += forgeDoctorRoomHtml_(); break;
+    case 'COMMIT': html += forgeCommitHtml_(); break;
+    case 'LOCKED': html += forgeLockedHtml_(); break;
+    default: html += '<div class="card">Unknown phase ' + esc(key) + '</div>';
+  }
+  return html;
+}
+function forgeClusterHtml_() {
+  var s = forgeS_();
+  var cards = forgeCards_().filter(function (c) { return c.round !== 'O'; });
+  if (!state.forge.cluster) {
+    var themes = forgeThemes_().map(function (t) { return { id: t.id, name: t.name, ideaIds: t.ideaIds.slice(), selected: !!t.selected, stop: t.stop || '' }; });
+    if (!themes.length) themes = [{ id: 'T1', name: 'Theme 1', ideaIds: [], selected: false, stop: '' }, { id: 'T2', name: 'Theme 2', ideaIds: [], selected: false, stop: '' }, { id: 'T3', name: 'Theme 3', ideaIds: [], selected: false, stop: '' }];
+    state.forge.cluster = { themes: themes };
+  }
+  var cl = state.forge.cluster;
+  var themeOf = {};
+  cl.themes.forEach(function (t) { t.ideaIds.forEach(function (id) { themeOf[id] = t.id; }); });
+  var html = '<div class="fg-prompt"><div class="fg-pt">Cluster</div><div class="fg-px">Group the cards into 6–8 themes. Name the theme by the outcome, not the channel.</div><div class="fg-ps">Pick a theme on each card; rename themes in place; save when the wall reads right. Votes go on themes next.</div></div>';
+  html += '<div class="row row--mid mb-2"><button class="btn mini subtle" data-fg-theme-add>+ theme</button><button class="btn" data-fg-cluster-save>Save the clusters</button><span class="fg-note js-fg-placed">' + Object.keys(themeOf).length + ' of ' + cards.length + ' cards placed</span></div>';
+  html += '<div class="fg-themes">' + cl.themes.map(function (t) {
+    return '<div class="fg-theme"><div class="fg-tn"><input data-fg-keep data-fg-theme-name="' + esc(t.id) + '" value="' + esc(t.name) + '" placeholder="Theme name"><button class="btn mini subtle" data-fg-theme-del="' + esc(t.id) + '" title="Remove this theme (cards become unplaced)">✕</button></div>' +
+      '<div class="fg-tl">' + t.ideaIds.map(function (id) { var c = cards.filter(function (x) { return x.id === id; })[0]; return c ? '<div class="fg-ti">' + esc(c.idea) + '</div>' : ''; }).join('') + '</div></div>';
+  }).join('') + '</div>';
+  html += '<h3 class="mt-2">Cards</h3><div class="fg-wall">' + cards.map(function (c) {
+    var sel = '<select data-fg-place="' + esc(c.id) + '"><option value="">— unplaced —</option>' + cl.themes.map(function (t) {
+      return '<option value="' + esc(t.id) + '"' + (themeOf[c.id] === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>';
+    }).join('') + '</select>';
+    return forgeCardHtml_(c, { acts: sel });
+  }).join('') + '</div>';
+  return html;
+}
+function forgeCommitteeHtml_() {
+  var s = forgeS_(), ses = s.session, cards = forgeCards_();
+  var tal = s.tallies || {};
+  var themes = forgeThemes_().map(function (t) {
+    var tt = s.cfg.voteMode === 'TOKENS' ? (tal[t.id] || { dots: 0, supers: 0 }) : t.ideaIds.reduce(function (a, id) { var x = tal[id] || { dots: 0, supers: 0 }; return { dots: a.dots + x.dots, supers: a.supers + x.supers }; }, { dots: 0, supers: 0 });
+    return { t: t, n: tt };
+  }).sort(function (a, b) { return (b.n.supers - a.n.supers) || (b.n.dots - a.n.dots); });
+  var html = '<div class="fg-prompt"><div class="fg-pt">Investment committee</div><div class="fg-px">Argue the biggest disagreements first. Pick 3–5 themes. Every chosen theme names what we stop, defer or simplify to make room.</div>' +
+    '<div class="fg-ps">Alex rules last and writes down why when the call differs from the vote.' + (!(ses.flags && ses.flags.facilitatorShown) ? ' The facilitator\'s ballot is not in these numbers yet.' : '') + '</div></div>';
+  if (forgeIsFac_() && !(ses.flags && ses.flags.facilitatorShown)) html += '<div class="row mb-2"><button class="btn subtle" data-fg-act="showMine">Add my votes to the tally</button></div>';
+  html += '<div class="fg-themes">' + themes.map(function (x) {
+    var t = x.t;
+    return '<div class="fg-theme' + (t.selected ? ' sel' : '') + '"><div class="fg-tn"><b class="grow">' + esc(t.name) + '</b><span class="fg-tt">' + x.n.dots + (x.n.supers ? ' <span class="s">+' + x.n.supers + ' $</span>' : '') + '</span></div>' +
+      (forgeIsFac_() ? '<label class="fg-check"><span><input type="checkbox" data-fg-sel="' + esc(t.id) + '"' + (t.selected ? ' checked' : '') + '> <b>Chosen</b> — we invest here</span></label>' +
+        '<div class="field field--tight fg-stop"><label>What we stop / defer / simplify to make room</label><textarea data-fg-keep data-fg-stop="' + esc(t.id) + '" placeholder="one line">' + esc(t.stop || '') + '</textarea></div>' :
+        (t.selected ? '<span class="tag shift">chosen</span>' : '') + (t.stop ? '<div class="fg-note">Stop: ' + esc(t.stop) + '</div>' : '')) +
+      '<div class="fg-tl">' + t.ideaIds.map(function (id) { var c = cards.filter(function (y) { return y.id === id; })[0]; return c ? '<div class="fg-ti">' + esc(c.idea) + '</div>' : ''; }).join('') + '</div></div>';
+  }).join('') + '</div>';
+  if (forgeIsFac_()) html += '<div class="card mt-2"><div class="field"><label>Decided against the vote because… (leave blank if the vote stands)</label><textarea data-fg-keep data-fg-cnote>' + esc((ses.flags || {}).committeeNote || '') + '</textarea></div><button class="btn" data-fg-committee-save>Save the committee\'s decisions</button></div>';
+  else if ((ses.flags || {}).committeeNote) html += '<div class="card"><b>Decided against the vote:</b> ' + esc(ses.flags.committeeNote) + '</div>';
+  return html;
+}
+function forgeHandoffsHtml_(room) {
+  var s = forgeS_();
+  var hs = s.handoffs || [];
+  var html = room ? '<div class="fg-prompt"><div class="fg-pt">Handoff contracts</div><div class="fg-px">"I need ___ from ___ by ___, and I will provide ___." The named person accepts or negotiates on their phone.</div><div class="fg-ps">A request to someone not in the room stays unconfirmed. A dependency nobody accepted is a risk on the goal card, not a plan.</div></div>' : '';
+  html += '<div class="fg-ho">' + (hs.length ? hs.map(function (h) { return forgeHandoffRow_(h, room); }).join('') : '<div class="help">No handoffs yet.</div>') + '</div>';
+  return html;
+}
+function forgeHandoffRow_(h, room) {
+  var me = forgeMe_();
+  var acts = '';
+  if (!room) {
+    if (h.to === me && (h.status === 'PROPOSED' || h.status === 'NEGOTIATED')) {
+      acts += '<button class="btn mini" data-fg-ho="' + esc(h.id) + '|ACCEPTED">Accept</button>' +
+        '<button class="btn mini subtle" data-fg-ho-neg="' + esc(h.id) + '">Negotiate…</button>';
+    }
+    if (h.from === me && h.status !== 'WITHDRAWN' && h.status !== 'ACCEPTED') acts += '<button class="btn mini subtle" data-fg-ho="' + esc(h.id) + '|WITHDRAWN">Withdraw</button>';
+  }
+  return '<div class="h"><div class="grow"><b>' + esc(h.from) + '</b> needs <b>' + esc(h.need) + '</b> from <b>' + esc(h.to) + '</b>' + (h.due ? ' by <b>' + esc(h.due) + '</b>' : '') +
+    (h.provide ? '<br>and will provide ' + esc(h.provide) : '') + '</div><span class="fg-st ' + esc(h.status) + '">' + esc(h.status.toLowerCase()) + '</span>' + (acts ? '<span class="fg-acts">' + acts + '</span>' : '') + '</div>';
+}
+// Everyone the room must account for: whoever joined, plus anyone who owns a
+// goal (a person who dropped off the poll still gets their Commit form).
+function forgePeople_() {
+  var s = forgeS_();
+  var out = (s.session.participants || []).slice();
+  (s.goals || []).forEach(function (g) { if (g.person && out.indexOf(g.person) === -1) out.push(g.person); });
+  return out;
+}
+function forgeGoalsOf_(person) {
+  return (forgeS_().goals || []).filter(function (g) { return g.person === person; }).sort(function (a, b) { return a.goalNo - b.goalNo; });
+}
+function forgeGoalCardHtml_(g, opts) {
+  opts = opts || {};
+  if (g.hidden) return '<div class="fg-goal personal"><div class="fg-gt">Personal goal · private</div><div class="fg-gm">' + esc(g.person) + ' has a plan. Shared only if they choose to.</div></div>';
+  var html = '<div class="fg-goal' + (g.type === 'Personal' ? ' personal' : '') + '" data-fg-goalcard="' + esc(g.id) + '">' +
+    '<div class="fg-gt">' + (g.title ? esc(g.title) : '<span class="muted">untitled ' + esc(g.type.toLowerCase()) + ' goal</span>') + '</div>' +
+    '<div class="fg-gm">' + (g.type === 'Personal' ? 'Personal' : esc(g.line || 'no revenue line yet')) + (g.rung ? ' · ' + esc(g.rung) : '') + (g.lever ? ' · ' + esc(g.lever) : '') + (g.deadline ? ' · by <b>' + esc(g.deadline) + '</b>' : '') + '</div>' +
+    (g.metric ? '<div class="fg-gm"><b>' + esc(g.metric) + '</b>' + (g.source ? ' (' + esc(g.source) + ')' : '') + (g.baseline || g.target ? ': ' + esc(g.baseline || '?') + ' → ' + esc(g.target || '?') : '') + '</div>' : '') +
+    (g.guardrail ? '<div class="fg-gm">Guardrail: ' + esc(g.guardrail) + '</div>' : '') +
+    (g.doneWhen ? '<div class="fg-gm">Done when: ' + esc(g.doneWhen) + '</div>' : '') +
+    (g.ms1 ? '<div class="fg-gm">Q1: ' + esc(g.ms1) + (g.ms1Due ? ' by ' + esc(g.ms1Due) : '') + (g.ms2 ? ' · Q2: ' + esc(g.ms2) + (g.ms2Due ? ' by ' + esc(g.ms2Due) : '') : '') + '</div>' : '') +
+    forgeMeterHtml_(g) +
+    (g.verdict ? '<div><span class="fg-st ' + esc(g.verdict.split(' ')[0]) + '">' + esc(g.verdict.toLowerCase()) + '</span>' + (g.doctorNote ? ' <span class="fg-note">' + esc(g.doctorBy) + ': ' + esc(g.doctorNote) + '</span>' : '') + (g.doctor2Note ? ' <span class="fg-note">' + esc(g.doctor2By) + ': ' + esc(g.doctor2Note) + '</span>' : '') + '</div>' : '') +
+    (g.status === 'COMMITTED' || g.status === 'LOCKED' ? '<span class="tag shift">' + esc(g.status.toLowerCase()) + (g.rockId ? ' · ' + esc(g.rockId) : '') + '</span>' : '') +
+    (opts.acts ? '<div class="fg-acts">' + opts.acts + '</div>' : '') + '</div>';
+  return html;
+}
+function forgeProgressHtml_() {
+  var s = forgeS_(), ses = s.session;
+  var html = '<div class="fg-prompt"><div class="fg-pt">Forge the goal</div><div class="fg-px">Four business goals each, in the ladder form on your phone. Allaina: two on the 90-day frame, two on FY27.</div><div class="fg-ps">A draft with "baseline needed + who + when" is valid. An invented number is not. The meter lights as the fields fill.</div></div>';
+  html += '<div class="fg-people">' + forgePeople_().map(function (n) {
+    var gs_ = forgeGoalsOf_(n);
+    var lit = gs_.reduce(function (a, g) { if (g.hidden) return a; var m = forgeMeter_(g); return a + ['S', 'M', 'A', 'R', 'T'].filter(function (k) { return m[k]; }).length; }, 0);
+    var max = gs_.filter(function (g) { return !g.hidden; }).length * 5;
+    return '<div class="fg-person">' + who(n) + '<div class="v">' + gs_.length + ' <span class="l">of ' + s.cfg.goalsPerPerson + ' cards</span></div><div class="l">' + lit + ' of ' + max + ' SMART tiles lit</div></div>';
+  }).join('') + '</div>';
+  html += '<div class="fg-goals mt-2">' + forgePeople_().map(function (n) { return forgeGoalsOf_(n).map(function (g) { return forgeGoalCardHtml_(g); }).join(''); }).join('') + '</div>';
+  return html;
+}
+function forgeDoctorRoomHtml_() {
+  var s = forgeS_(), ses = s.session, r = ses.round;
+  var goals = (s.goals || []).filter(function (g) { return !g.hidden; });
+  var reviewed = goals.filter(function (g) { return r >= 2 ? !!g.doctor2By : !!g.doctorBy; }).length;
+  var html = '<div class="fg-prompt"><div class="fg-pt">Goal doctor · round ' + r + '</div><div class="fg-px">Read another person\'s cards, two minutes each. Answer the checklist, leave one concrete improvement, give a verdict.</div><div class="fg-ps">The killer question: could the owner hit this metric without helping the business? No public ranking of people.</div></div>';
+  html += '<div class="fg-count"><span class="v">' + reviewed + '</span><span class="l">of ' + goals.length + ' goals reviewed this round</span></div>';
+  html += '<div class="fg-people">' + ses.participants.map(function (n) {
+    var rv = (s.doctorAssign[n] || [])[r - 1] || '—';
+    return '<div class="fg-person">' + who(n) + '<div class="l">reviewed by <b>' + esc(rv) + '</b></div></div>';
+  }).join('') + '</div>';
+  html += '<div class="fg-goals mt-2">' + goals.map(function (g) { return forgeGoalCardHtml_(g); }).join('') + '</div>';
+  return html;
+}
+function forgeCommitHtml_() {
+  var s = forgeS_(), ses = s.session, fac = forgeIsFac_();
+  var html = '<div class="fg-prompt"><div class="fg-pt">Commit</div><div class="fg-px">Per business goal: the weekly metric it moves, a milestone by ' + esc(s.cfg.q1By || 'the end of Q1') + ', a Q2 milestone. Then Lock.</div><div class="fg-ps">Q1 milestones become priorities on Lock. Nothing becomes a to-do today.</div></div>';
+  html += forgePeople_().map(function (n) {
+    var gl = forgeGoalsOf_(n);
+    return '<div class="card"><h3>' + who(n) + '</h3><div class="fg-goals">' + gl.map(function (g) {
+      if (g.hidden || g.type === 'Personal') return forgeGoalCardHtml_(g);
+      var form = fac || n === forgeMe_() ? '<div class="fg-form" data-fg-commitform="' + esc(g.id) + '"><div class="row">' +
+        '<div class="field f-2"><label>Leading indicator (weekly metric)</label><select data-fg-keep data-cf="indicator"><option value="">— none —</option>' + (s.scorecard || []).map(function (m) { return '<option value="' + esc(m.id) + '"' + (g.indicator === m.id ? ' selected' : '') + '>' + esc(m.id + ' · ' + m.name) + '</option>'; }).join('') + '</select></div></div>' +
+        '<div class="row"><div class="field f-2"><label>Q1 milestone</label><input data-fg-keep data-cf="ms1" value="' + esc(g.ms1) + '" placeholder="the first 90-day slice"></div><div class="field f-160"><label>by</label><input type="date" data-fg-keep data-cf="ms1Due" value="' + esc(g.ms1Due) + '"' + (s.cfg.q1By ? ' max="' + esc(s.cfg.q1By) + '"' : '') + '></div></div>' +
+        '<div class="row"><div class="field f-2"><label>Q2 milestone</label><input data-fg-keep data-cf="ms2" value="' + esc(g.ms2) + '"></div><div class="field f-160"><label>by</label><input type="date" data-fg-keep data-cf="ms2Due" value="' + esc(g.ms2Due) + '"></div></div>' +
+        '<button class="btn mini" data-fg-commit="' + esc(g.id) + '">' + (g.status === 'COMMITTED' ? '✓ Committed — update' : 'Commit this goal') + '</button></div>' : '';
+      return forgeGoalCardHtml_(g, { acts: form });
+    }).join('') + '</div></div>';
+  }).join('');
+  return html;
+}
+function forgeLockedHtml_() {
+  var s = forgeS_(), ses = s.session;
+  var r = ses.ratings || {}, ks = Object.keys(r);
+  var avg = ks.length ? Math.round(ks.reduce(function (a, k) { return a + Number(r[k] || 0); }, 0) / ks.length * 10) / 10 : null;
+  var cards = forgeCards_().filter(function (c) { return c.round !== 'O'; });
+  var html = '<div class="card"><h3>Locked ' + esc(ses.lockedAt) + '</h3><div class="tiles">' +
+    '<div class="tile"><div class="v">' + cards.length + '</div><div class="l">cards</div></div>' +
+    '<div class="tile"><div class="v">' + (s.goals || []).length + '</div><div class="l">goals locked</div></div>' +
+    '<div class="tile"><div class="v">' + (s.goals || []).filter(function (g) { return g.rockId; }).length + '</div><div class="l">priorities created</div></div>' +
+    '<div class="tile"><div class="v">' + cards.filter(function (c) { return c.status === 'PARKED'; }).length + '</div><div class="l">parked</div></div>' +
+    '<div class="tile"><div class="v">' + (avg === null ? '—' : avg) + '</div><div class="l">rating · ' + ks.length + ' of ' + ses.participants.length + '</div></div></div>' +
+    '<div class="help">Rate the day from your phone (1–10). Goals are in each person\'s FY27 Goals tab and on the Priorities page; parked cards are IDEA-stage initiatives on the Strategy page.</div></div>';
+  html += '<div class="fg-goals">' + forgePeople_().map(function (n) { return forgeGoalsOf_(n).map(function (g) { return forgeGoalCardHtml_(g); }).join(''); }).join('') + '</div>';
+  return html;
+}
+
+function forgeWireRoom_(el) {
+  var sid = state.forge.sid, me = forgeMe_();
+  var q = function (sel, fn) { el.querySelectorAll(sel).forEach(fn); };
+  q('[data-fg-exit]', function (b) { b.addEventListener('click', forgeClose_); });
+  q('[data-fg-present]', function (b) { b.addEventListener('click', togglePresent); });
+  q('[data-fg-wheel]', function (b) { b.addEventListener('click', function () { wheelOpen_(forgeS_().session.participants.length ? forgeS_().session.participants : forgeTeam_(), 'forge'); }); });
+  q('[data-fg-copylink]', function (b) {
+    b.addEventListener('click', function () {
+      var link = forgePlayerLink_();
+      if (!link) { notify('Deploy the web app first — no player link yet.', 'warn'); return; }
+      try { navigator.clipboard.writeText(link).then(function () { notify('Player link copied', 'ok', 1800); }); }
+      catch (e) { notify(link, 'info', 8000); }
+    });
+  });
+  q('[data-fg-act]', function (b) {
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      gs('l10_forgePhase', sid, b.dataset.fgAct).then(function (r) { b.disabled = false; forgeAfterWrite_(r); })
+        .catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  q('[data-fg-tw]', function (b) { b.addEventListener('click', forgeTwOpen_); });
+  q('[data-fg-lock]', function (b) { b.addEventListener('click', forgeLockOpen_); });
+  // Cluster editor
+  var cl = state.forge.cluster;
+  q('[data-fg-theme-name]', function (inp) {
+    inp.addEventListener('input', function () { var t = cl.themes.filter(function (x) { return x.id === inp.dataset.fgThemeName; })[0]; if (t) t.name = inp.value; });
+  });
+  q('[data-fg-theme-add]', function (b) {
+    b.addEventListener('click', function () {
+      var n = cl.themes.length + 1;
+      cl.themes.push({ id: 'T' + Date.now().toString(36).slice(-4).toUpperCase(), name: 'Theme ' + n, ideaIds: [], selected: false, stop: '' });
+      forgeRenderRoom_();
+    });
+  });
+  q('[data-fg-theme-del]', function (b) {
+    b.addEventListener('click', function () { cl.themes = cl.themes.filter(function (x) { return x.id !== b.dataset.fgThemeDel; }); forgeRenderRoom_(); });
+  });
+  q('[data-fg-place]', function (sel) {
+    sel.addEventListener('change', function () {
+      var id = sel.dataset.fgPlace;
+      cl.themes.forEach(function (t) { t.ideaIds = t.ideaIds.filter(function (x) { return x !== id; }); });
+      var t = cl.themes.filter(function (x) { return x.id === sel.value; })[0];
+      if (t) t.ideaIds.push(id);
+      forgeRenderRoom_();
+    });
+  });
+  q('[data-fg-cluster-save]', function (b) {
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      gs('l10_forgeCluster', sid, cl.themes).then(function (r) { b.disabled = false; if (forgeAfterWrite_(r, 'Clusters saved')) state.forge.cluster = null; })
+        .catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  // Committee
+  q('[data-fg-committee-save]', function (b) {
+    b.addEventListener('click', function () {
+      var themes = forgeThemes_().map(function (t) {
+        var chk = el.querySelector('[data-fg-sel="' + t.id + '"]'), st = el.querySelector('[data-fg-stop="' + t.id + '"]');
+        return { id: t.id, name: t.name, ideaIds: t.ideaIds, selected: chk ? chk.checked : !!t.selected, stop: st ? st.value : (t.stop || '') };
+      });
+      var note = el.querySelector('[data-fg-cnote]');
+      b.disabled = true;
+      gs('l10_forgeCommittee', sid, themes, note ? note.value : '').then(function (r) { b.disabled = false; forgeAfterWrite_(r, 'Committee saved'); })
+        .catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  // Commit forms
+  q('[data-fg-commit]', function (b) {
+    b.addEventListener('click', function () {
+      var f = el.querySelector('[data-fg-commitform="' + b.dataset.fgCommit + '"]');
+      var p = {};
+      f.querySelectorAll('[data-cf]').forEach(function (i) { p[i.dataset.cf] = i.value; });
+      b.disabled = true;
+      gs('l10_forgeCommit', b.dataset.fgCommit, me, p).then(function (r) { b.disabled = false; forgeAfterWrite_(r, 'Committed'); })
+        .catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+}
+
+// --- Timed write ------------------------------------------------------------
+function forgeTwOpen_() {
+  var s = forgeS_();
+  if (!s) return;
+  var p = forgePrompts_();
+  var ov = $('forge-tw-overlay');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'forge-tw-overlay'; document.body.appendChild(ov); }
+  var mins = s.cfg.timedWriteMin || 10;
+  ov.innerHTML = '<div class="ids-backdrop" data-tw-close></div><div class="ids-card" role="dialog" aria-modal="true" aria-label="Timed write">' +
+    '<h3>✎ Timed write — "for the next N minutes, everyone write…"</h3>' +
+    '<div class="field"><label>Pick a thought experiment, or type your own prompt</label><select class="js-tw-pick"><option value="">— type my own —</option>' +
+    (p.thought || []).map(function (t, i) { return '<option value="' + i + '">' + esc(t.title) + ' (' + esc(t.minutes || mins) + ' min)</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label>Prompt (what everyone\'s screen will say)</label><textarea class="js-tw-prompt" rows="3"></textarea></div>' +
+    '<div class="row row--mid"><span class="muted">Minutes</span>' + [3, 5, 7, 10, 15].map(function (m) { return '<button type="button" class="pill pill--btn js-tw-min' + (m === mins ? ' on' : '') + '" data-min="' + m + '">' + m + '</button>'; }).join('') +
+    '<label class="ml-2"><input type="checkbox" class="js-tw-share"> then one line each out loud</label></div>' +
+    '<div class="help">Every player screen switches to this prompt with the same clock; the phase clock pauses underneath. Cards land as "timed write" and can be clustered and voted like any other.</div>' +
+    '<div class="row mt-2"><button class="btn big js-tw-go">Go</button><button class="btn subtle" data-tw-close>Cancel</button></div></div>';
+  ov.style.display = 'block';
+  dlgOpened_('forge-tw-overlay');
+  var minSel = mins;
+  ov.querySelectorAll('.js-tw-min').forEach(function (b) {
+    b.addEventListener('click', function () { ov.querySelectorAll('.js-tw-min').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on'); minSel = Number(b.dataset.min); });
+  });
+  ov.querySelector('.js-tw-pick').addEventListener('change', function () {
+    var t = (p.thought || [])[Number(this.value)];
+    if (t) {
+      ov.querySelector('.js-tw-prompt').value = t.prompt;
+      var m = Number(t.minutes) || mins;
+      ov.querySelectorAll('.js-tw-min').forEach(function (x) { x.classList.toggle('on', Number(x.dataset.min) === m); });
+      minSel = m;
+    }
+  });
+  var close = function () { ov.style.display = 'none'; dlgClosed_('forge-tw-overlay'); };
+  ov.querySelectorAll('[data-tw-close]').forEach(function (b) { b.addEventListener('click', close); });
+  ov.querySelector('.js-tw-go').addEventListener('click', function () {
+    var prompt = ov.querySelector('.js-tw-prompt').value.trim();
+    if (!prompt) { notify('Type the prompt first.', 'warn'); return; }
+    var share = ov.querySelector('.js-tw-share').checked;
+    gs('l10_forgeTimedWrite', state.forge.sid, prompt, minSel * 60, share ? 'share' : 'silent').then(function (r) {
+      if (forgeAfterWrite_(r, 'Timed write is live')) close();
+    }).catch(errToast);
+  });
+  ov.querySelector('.js-tw-prompt').focus();
+}
+
+// --- Lock preview -----------------------------------------------------------
+function forgeLockOpen_() {
+  var ov = $('forge-lock-overlay');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'forge-lock-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML = '<div class="ids-backdrop" data-lk-close></div><div class="ids-card" role="dialog" aria-modal="true" aria-label="Lock the goals"><div class="spinner">Checking what Lock will write…</div></div>';
+  ov.style.display = 'block';
+  dlgOpened_('forge-lock-overlay');
+  var close = function () { ov.style.display = 'none'; dlgClosed_('forge-lock-overlay'); };
+  gs('l10_forgeLockPreview', state.forge.sid).then(function (plan) {
+    if (!plan || plan.ok === false) { errToast(plan || 'Preview failed'); close(); return; }
+    var html = '<h3>🔒 Lock — what will happen</h3>';
+    if (plan.warnings.length) html += '<div class="fg-warn"><b>Check these first:</b><ul class="fg-plan">' + plan.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
+    html += '<ul class="fg-plan">' + plan.people.map(function (p) {
+      return '<li><b>' + esc(p.person) + '</b> · ' + p.business + ' business + ' + p.personal + ' personal → ' + (p.sheet ? '<span class="mono">' + esc(p.sheet) + '</span> (' + p.blocks + ' blocks found)' : 'no goals tab (kept in L10_Goals only)') +
+        '<ul>' + p.items.map(function (it) { return '<li>' + esc(it.title || '(untitled)') + ' → ' + (it.block ? 'Goal ' + it.block + ' block' : 'not written to the tab') + (it.rock ? ' · <b>priority</b> from the Q1 milestone' : '') + '</li>'; }).join('') + '</ul></li>';
+    }).join('') + '</ul>';
+    html += '<p><b>' + plan.goals + '</b> goals · <b>' + plan.sheets + '</b> tab writes · <b>' + plan.rocks + '</b> priorities · <b>' + plan.parks.length + '</b> cards parked' + (plan.strategyReady ? ' as IDEA-stage initiatives' : '') + '. No to-dos. The recap goes to the team chat if the webhook is set.</p>';
+    html += '<div class="row mt-2"><button class="btn big danger js-lk-go">Lock it</button><button class="btn subtle" data-lk-close>Not yet</button></div>';
+    ov.querySelector('.ids-card').innerHTML = html;
+    ov.querySelectorAll('[data-lk-close]').forEach(function (b) { b.addEventListener('click', close); });
+    ov.querySelector('.js-lk-go').addEventListener('click', function () {
+      var b = this;
+      if (!armedConfirm(b, { label: 'Yes — lock the goals', danger: true }, function () {
+        b.disabled = true;
+        gs('l10_forgeLock', state.forge.sid, forgeMe_()).then(function (r) {
+          if (!r || r.ok === false) { b.disabled = false; errToast(r || 'Lock failed'); return; }
+          close();
+          notify('Locked: ' + r.written + ' tab writes, ' + r.rocks + ' priorities, ' + r.parked + ' parked' + (r.errors && r.errors.length ? ' · ' + r.errors.length + ' problem(s)' : ''), r.errors && r.errors.length ? 'warn' : 'ok', 8000);
+          (r.errors || []).forEach(function (e) { notify(e, 'warn', 9000); });
+          forgePollNow_();
+          // The priorities/strategy pages changed underneath — refresh them when the room closes.
+          state.forge.home = null;
+        }).catch(function (e) { b.disabled = false; errToast(e); });
+      })) return;
+    });
+  }).catch(function (e) { errToast(e); close(); });
+}
+
+// --- PLAYER -----------------------------------------------------------------
+function forgePlayerBoot_(sid) {
+  state.forge.view = 'player';
+  document.body.classList.add('forge-player');
+  try { var o = $('mh-intro'); if (o && o.parentNode) o.parentNode.removeChild(o); document.documentElement.className = document.documentElement.className.replace(/\s*mh-intro-(on|play)/g, ''); } catch (e) {}
+  var pg = $('page-forge');
+  if (pg) pg.innerHTML = '<div class="spinner">Joining…</div>';
+  state.hydrated = { core: true, work: false, plan: false, scorecard: false };
+  if (!forgeTok_() && !state.forge.gate) forgeGateShow_(null);
+  gs('l10_forgePlayerBoot', sid, forgeMe_(), forgeTok_()).then(function (r) {
+    if (forgeGated_(r, function () { forgePlayerBoot_(sid); })) return;
+    if (!r || r.ok === false) { if (pg) pg.innerHTML = '<div class="banner bad">' + esc((r && r.error) || 'Could not open this session.') + '</div>'; return; }
+    state.boot = { team: r.team || [], photos: r.photos || {}, config: {}, segments: [], events: [] };
+    state.forge.sid = sid;
+    forgeApply_(r.state);
+    var sec = (r.state && r.state.cfg && r.state.cfg.pollSec) || 3;
+    state.forge.pollH = setInterval(forgePollNow_, Math.max(2, sec) * 1000);
+    state.forge.tickH = setInterval(forgeTick_, 1000);
+  }).catch(function (e) { if (pg) pg.innerHTML = '<div class="banner bad">' + esc((e && e.message) || e) + '</div>'; });
+}
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && state.forge.sid) forgePollNow_(); });
+
+function forgeRenderPlayer_() {
+  var el = $('page-forge');
+  var s = forgeS_();
+  if (!el || !s) return;
+  var ses = s.session, me = forgeMe_(), key = ses.phase;
+  var html = '<div class="fg-pl-head">' + (me ? avatar(me) : '') + '<div><div class="fg-pl-t">' + esc(ses.title) + '</div><div class="fg-pl-s">' + esc(forgePhaseLabel_()) + (me ? ' · you are ' + esc(me) : '') + '</div></div>' +
+    (me ? '<button class="btn mini subtle" data-fg-changeme style="margin-left:auto">not me</button>' : '') + '</div>' +
+    '<span id="fg-live" class="sr-only" aria-live="polite"></span>';
+  if (!me) { el.innerHTML = html + forgePickHtml_('Pick your name'); forgeWirePlayer_(el); return; }
+  var inRoom = ses.participants.indexOf(me) !== -1;
+  if (!inRoom && ses.status === 'OPEN') {
+    html += '<div class="card"><h3>Join the room</h3><button class="btn big" data-fg-join>I\'m in as ' + esc(me) + '</button></div>';
+    el.innerHTML = html; forgeWirePlayer_(el); return;
+  }
+  if (ses.timedWrite) {
+    html += '<div class="fg-tw"><div class="fg-twt">Timed write · silently</div><div class="fg-twp">' + esc(ses.timedWrite.prompt) + '</div><div class="fg-twc" data-fg-clock>--:--</div></div>' +
+      forgeInputHtml_('Write it here, one thought per card', 'Add card') + forgeMyCardsHtml_(function (c) { return c.round === 'T'; });
+    el.innerHTML = html + forgeDockHtml_(); forgeWirePlayer_(el); forgeTick_(); return;
+  }
+  var p = forgePrompts_();
+  switch (key) {
+    case 'LOBBY':
+      html += '<div class="card"><h3>You\'re in. ' + esc(ses.participants.length) + ' in the room.</h3><div class="help">While we wait: load your pre-work cards (one win, one problem, three rough opportunities, one thing to stop).</div></div>' +
+        forgeInputHtml_('One card at a time', 'Add card') + forgeMyCardsHtml_(function (c) { return c.round === 'P'; });
+      break;
+    case 'OPENER': {
+      var st = p.opener || [], labels = p.openerLabels || [];
+      var mine = ((s.opener || {}).answers || {})[me] || {};
+      html += '<div class="fg-prompt"><div class="fg-pt">Goal, project or chore?</div><div class="fg-px">Label each one. Nobody sees your answers until the reveal.</div></div>';
+      html += '<div class="card">' + st.map(function (q, qi) {
+        return '<div class="field"><label>' + esc(q.text) + '</label><div class="row">' + labels.map(function (l) {
+          return '<button type="button" class="pill pill--btn' + (mine[qi] === l[0] ? ' on' : '') + '" data-fg-oplab="' + qi + '|' + esc(l[0]) + '">' + esc(l[1]) + '</button>';
+        }).join('') + '</div></div>';
+      }).join('') + '<button class="btn big" data-fg-opsave>' + (Object.keys(mine).length ? 'Update my labels' : 'Submit my labels') + '</button></div>';
+      state.forge.opDraft = state.forge.opDraft || JSON.parse(JSON.stringify(mine));
+      break;
+    }
+    case 'DIVERGE': {
+      var rp = forgeRoundPrompt_();
+      html += '<div class="fg-prompt"><div class="fg-pt">Round ' + ses.round + ' · ' + esc(rp.title) + '</div><div class="fg-px">' + esc(rp.prompt) + '</div>' +
+        (rp.title.toLowerCase().indexOf('wildcard') !== -1 ? '<div class="fg-ps">Your wildcard: <b>' + esc(forgeWildcardFor_(me)) + '</b></div>' : '') + '</div>';
+      html += forgeInputHtml_(p.card || 'One idea per card', 'Add card') + forgeMyCardsHtml_(function (c) { return c.round === String(ses.round); });
+      break;
+    }
+    case 'RELAY': {
+      var r = ses.round, instr = (p.relay || [])[r - 1] || '';
+      var dealt = forgeCards_().filter(function (c) { return c.round !== 'O' && c.round !== 'P' && (r >= 2 ? c.relay2By === me : c.buildBy === me); });
+      html += '<div class="fg-prompt"><div class="fg-pt">Relay · pass ' + r + '</div><div class="fg-px">' + esc(instr) + '</div><div class="fg-ps">These cards were dealt to you. Their author\'s words stay; yours go underneath.</div></div>';
+      html += dealt.length ? dealt.map(function (c) {
+        var cur = r >= 2 ? c.relay2 : c.build;
+        return forgeCardHtml_(c, { acts: '<div class="field field--tight grow"><textarea data-fg-keep data-fg-build="' + esc(c.id) + '" placeholder="yes-and: make it bigger, name the one thing it needs, add a test…">' + esc(cur) + '</textarea></div><button class="btn mini" data-fg-build-save="' + esc(c.id) + '">' + (cur ? 'Update' : 'Add') + '</button>' });
+      }).join('') : '<div class="card">No cards dealt to you this pass (fewer cards than people). Read the wall on the big screen.</div>';
+      break;
+    }
+    case 'CLUSTER':
+      html += '<div class="card"><h3>Clustering on the big screen</h3><div class="help">The facilitator is grouping the cards into themes. Votes come next.</div></div>';
+      break;
+    case 'VOTE': html += forgeVotePlayerHtml_(); break;
+    case 'COMMITTEE': {
+      html += '<div class="card"><h3>Investment committee</h3><div class="help">Tallies are on the big screen. Argue the disagreements; every chosen theme names what we stop.</div>' +
+        forgeThemes_().map(function (t) { return '<div class="fg-ti mb-2">' + (t.selected ? '✓ ' : '') + esc(t.name) + (t.stop ? ' · stop: ' + esc(t.stop) : '') + '</div>'; }).join('') + '</div>';
+      break;
+    }
+    case 'CLAIM': {
+      var sl = forgeShortlist_();
+      var myN = sl.filter(function (c) { return c.claimedBy === me; }).length;
+      html += '<div class="fg-prompt"><div class="fg-pt">Claim</div><div class="fg-px">Tap Claim on the cards you will turn into goals. One owner each.</div><div class="fg-ps">You hold ' + myN + '. Four business goals is the target; claim the ones you can own.</div></div>';
+      html += sl.map(function (c) {
+        var acts = c.claimedBy === me ? '<button class="btn mini subtle" data-fg-unclaim="' + esc(c.id) + '">Release</button>' :
+          (c.claimedBy ? '' : '<button class="btn mini" data-fg-claim="' + esc(c.id) + '">Claim</button>');
+        return forgeCardHtml_(c, { acts: acts });
+      }).join('');
+      break;
+    }
+    case 'HANDOFFS': {
+      html += '<div class="fg-prompt"><div class="fg-pt">Handoff contracts</div><div class="fg-px">I need ___ from ___ by ___; I will provide ___.</div></div>';
+      html += '<div class="card fg-form"><div class="field"><label>From whom</label><select data-fg-keep class="js-ho-to">' + forgeTeam_().filter(function (n) { return n !== me; }).map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '<option value="__other">someone not in the room…</option></select></div>' +
+        '<div class="field js-ho-other" style="display:none"><label>Their name</label><input data-fg-keep class="js-ho-toname" placeholder="e.g. Carson (feeds), Tyler (analytics)"></div>' +
+        '<div class="field"><label>I need</label><input data-fg-keep class="js-ho-need" placeholder="the specific input"></div>' +
+        '<div class="field"><label>I will provide</label><input data-fg-keep class="js-ho-provide" placeholder="the specific output"></div>' +
+        '<div class="field"><label>By</label><input type="date" data-fg-keep class="js-ho-due"></div>' +
+        '<button class="btn big js-ho-add">Add the handoff</button></div>';
+      html += '<h3>The board</h3>' + forgeHandoffsHtml_(false);
+      break;
+    }
+    case 'FORGE': html += forgeGoalsPlayerHtml_(); break;
+    case 'DOCTOR': html += forgeDoctorPlayerHtml_(); break;
+    case 'COMMIT': {
+      html += '<div class="card"><h3>Commit</h3><div class="help">On the big screen: each business goal gets its weekly metric and its Q1 / Q2 milestones. Your cards, read-only:</div></div><div class="fg-goals">' + forgeGoalsOf_(me).map(function (g) { return forgeGoalCardHtml_(g); }).join('') + '</div>';
+      break;
+    }
+    case 'LOCKED': {
+      var mineR = (ses.ratings || {})[me];
+      html += '<div class="card"><h3>Locked. Rate the day.</h3><div class="rate-row">' + who(me) + '<input type="range" min="1" max="10" step="1" value="' + (mineR || 8) + '" class="js-fg-rate"><span class="rate-val js-fg-rateval">' + (mineR || 8) + '</span></div>' +
+        '<div class="field"><label>Where did it lose you? (optional, only Alex reads it)</label><textarea data-fg-keep class="js-fg-ratenote"></textarea></div>' +
+        '<button class="btn big js-fg-ratesave">' + (mineR ? 'Update my rating' : 'Send my rating') + '</button></div>';
+      html += '<div class="fg-goals">' + forgeGoalsOf_(me).map(function (g) { return forgeGoalCardHtml_(g); }).join('') + '</div>';
+      break;
+    }
+    default: html += '<div class="card">' + esc(key) + '</div>';
+  }
+  el.innerHTML = html + forgeDockHtml_();
+  forgeWirePlayer_(el);
+  forgeTick_();
+}
+function forgeWildcardFor_(name) {
+  var s = forgeS_(), w = (forgePrompts_().wildcards || []);
+  if (!w.length) return '';
+  var i = s.session.participants.indexOf(name);
+  return w[(i < 0 ? 0 : i) % w.length];
+}
+function forgeInputHtml_(ph, label) {
+  return '<div class="card fg-pl-in"><textarea data-fg-keep class="js-fg-text" placeholder="' + esc(ph) + '"></textarea><button class="btn big js-fg-add">' + esc(label) + '</button></div>';
+}
+function forgeMyCardsHtml_(filter) {
+  var mine = forgeCards_().filter(function (c) { return c.mine && filter(c); });
+  if (!mine.length) return '';
+  return '<h3>Your cards · ' + mine.length + '</h3>' + mine.slice().reverse().map(function (c) {
+    return forgeCardHtml_(c, { acts: '<button class="btn mini subtle" data-fg-edit="' + esc(c.id) + '">edit</button><button class="btn mini subtle" data-fg-drop="' + esc(c.id) + '">drop</button>' });
+  }).join('');
+}
+function forgeDockHtml_() {
+  var s = forgeS_(), me = forgeMe_();
+  var mine = forgeCards_().filter(function (c) { return c.mine && c.round !== 'O'; }).length;
+  var total = forgeCards_().filter(function (c) { return c.round !== 'O'; }).length;
+  var key = s.session.phase;
+  var showClock = s.session.timedWrite || (key !== 'LOBBY' && key !== 'LOCKED');
+  return '<div class="fg-dock"><span class="fg-dk"><b>' + mine + '</b> yours · <b>' + total + '</b> total</span><span class="fg-dk">' + esc(forgePhaseLabel_()) + '</span>' + (showClock ? '<span class="fg-time" data-fg-clock>--:--</span>' : '') + '</div>';
+}
+function forgeVotePlayerHtml_() {
+  var s = forgeS_(), me = forgeMe_(), my = s.myVotes || {};
+  var isTok = s.cfg.voteMode === 'TOKENS';
+  var budget = isTok ? s.cfg.tokens : s.cfg.dots, cap = isTok ? s.cfg.tokenMax : s.cfg.dotMax;
+  var spent = 0, sup = 0;
+  Object.keys(my).forEach(function (k) { spent += my[k].dots || 0; sup += my[k].supers || 0; });
+  var html = '<div class="fg-prompt"><div class="fg-pt">Blind vote</div><div class="fg-px">' + (isTok ? 'Invest ' + budget + ' tokens across the themes, at most ' + cap + ' on one.' : 'Spend ' + budget + ' dots on the cards, at most ' + cap + ' on one.') + ' One $ for the theme that is most about the number.</div></div>';
+  html += '<div class="fg-budget"><span>tokens left <b>' + (budget - spent) + '</b> of ' + budget + '</span><span>$ left <b>' + (s.cfg.superVotes - sup) + '</b></span></div>';
+  var targets = isTok ? forgeThemes_().map(function (t) { return { id: t.id, text: t.name, sub: t.ideaIds.length + ' cards' }; }) :
+    forgeCards_().filter(function (c) { return c.round !== 'O'; }).map(function (c) { return { id: c.id, text: c.idea, sub: c.theme }; });
+  html += targets.map(function (t) {
+    var m = my[t.id] || { dots: 0, supers: 0 };
+    return '<div class="fg-card"><div class="fg-ct">' + esc(t.text) + '</div>' + (t.sub ? '<div class="fg-cm">' + esc(t.sub) + '</div>' : '') +
+      '<div class="fg-vote"><button class="btn mini subtle" data-fg-unvote="' + esc(t.id) + '|DOT"' + (m.dots ? '' : ' disabled') + '>−</button><span class="n">' + m.dots + '</span><button class="btn mini" data-fg-vote="' + esc(t.id) + '|DOT">+</button>' +
+      '<button class="btn mini ' + (m.supers ? '' : 'subtle') + '" data-fg-vote="' + esc(t.id) + '|' + (m.supers ? 'UNSUPER' : 'SUPER') + '">' + (m.supers ? '$ ✓' : '$') + '</button></div></div>';
+  }).join('');
+  return html;
+}
+function forgeGoalsPlayerHtml_() {
+  var s = forgeS_(), me = forgeMe_(), p = forgePrompts_();
+  var mine = forgeGoalsOf_(me);
+  var biz = mine.filter(function (g) { return g.type === 'Business'; }).length, per = mine.filter(function (g) { return g.type === 'Personal'; }).length;
+  var claimed = forgeCards_().filter(function (c) { return c.claimedBy === me && c.status === 'CLAIMED'; });
+  var html = '<div class="fg-prompt"><div class="fg-pt">Forge the goal</div><div class="fg-px">' + biz + ' of ' + (s.cfg.goalsPerPerson - 1) + ' business · ' + per + ' of 1 personal</div><div class="fg-ps">Fill what you can. "Size first" is a valid baseline. The meter lights as you go.</div></div>';
+  if (claimed.length) html += '<div class="card"><h3>Your claimed cards → goals</h3>' + claimed.map(function (c) {
+    return '<div class="itemline"><div class="grow"><div class="t">' + esc(c.idea) + '</div></div><button class="btn mini" data-fg-newgoal="Business|' + esc(c.id) + '">Make it a goal</button></div>';
+  }).join('') + '</div>';
+  html += '<div class="row mb-2"><button class="btn" data-fg-newgoal="Business|">+ business goal</button><button class="btn subtle" data-fg-newgoal="Personal|">+ personal goal</button></div>';
+  html += mine.map(function (g) { return forgeGoalFormHtml_(g); }).join('');
+  return html;
+}
+function forgeGoalFormHtml_(g) {
+  var s = forgeS_(), p = forgePrompts_();
+  var open = state.forge.goalOpen[g.id] !== false;
+  var sel = function (f, opts, cur, blank) {
+    return '<select data-fg-keep data-gf="' + f + '">' + (blank ? '<option value="">' + esc(blank) + '</option>' : '') + opts.map(function (o) {
+      var v = typeof o === 'string' ? o : o[0], l = typeof o === 'string' ? o : o[1];
+      return '<option value="' + esc(v) + '"' + (cur === v ? ' selected' : '') + '>' + esc(l) + '</option>';
+    }).join('') + '</select>';
+  };
+  var inp = function (f, cur, ph, type) { return '<input data-fg-keep data-gf="' + f + '" type="' + (type || 'text') + '" value="' + esc(cur || '') + '" placeholder="' + esc(ph || '') + '">'; };
+  var ta = function (f, cur, ph) { return '<textarea data-fg-keep data-gf="' + f + '" placeholder="' + esc(ph || '') + '">' + esc(cur || '') + '</textarea>'; };
+  var myHo = (s.handoffs || []).filter(function (h) { return h.from === forgeMe_() && h.status !== 'WITHDRAWN'; });
+  var head = '<div class="row row--mid"><b class="grow">' + (g.title ? esc(g.title) : '<span class="muted">untitled ' + esc(g.type.toLowerCase()) + ' goal</span>') + '</b>' + forgeMeterHtml_(g) +
+    '<button class="btn mini subtle" data-fg-goaltoggle="' + esc(g.id) + '">' + (open ? 'collapse' : 'edit') + '</button></div>';
+  if (!open) return '<div class="fg-goal' + (g.type === 'Personal' ? ' personal' : '') + '">' + head + '</div>';
+  var f = '<div class="fg-form" data-fg-goalform="' + esc(g.id) + '">' +
+    '<div class="field"><label>Title (verb + object)</label>' + inp('title', g.title, 'Restructure Seton Shopping into performance tiers') + '</div>';
+  if (g.type === 'Business') {
+    f += '<div class="row"><div class="field f-2"><label>Revenue line</label>' + sel('line', (s.cfg.lines || []).map(function (l) { return [l[0], l[0] + ' · ' + l[1]]; }), g.line, '— pick the line —') + '</div>' +
+      '<div class="field"><label>Rung</label>' + sel('rung', p.rungs || [], g.rung, '—') + '</div><div class="field"><label>Lever</label>' + sel('lever', p.levers || [], g.lever, '—') + '</div></div>' +
+      '<div class="row"><div class="field f-2"><label>Metric</label>' + inp('metric', g.metric, 'Shopping ROAS') + '</div><div class="field f-2"><label>Source + caveat</label>' + inp('source', g.source, 'Financial Dashboard v2, first-touch basis') + '</div></div>' +
+      '<div class="row"><div class="field"><label>Baseline (or "size first")</label>' + inp('baseline', g.baseline, 'size first') + '</div><div class="field"><label>Target</label>' + inp('target', g.target, '1.08') + '</div><div class="field f-160"><label>By</label>' + inp('deadline', g.deadline, '', 'date') + '</div></div>' +
+      '<div class="field"><label>Guardrail — what must not get worse</label>' + inp('guardrail', g.guardrail, 'revenue at or above plan per business day') + '</div>' +
+      '<div class="field"><label>Done when (artifact + number + read-out)</label>' + ta('doneWhen', g.doneWhen) + '</div>' +
+      '<div class="row"><div class="field"><label>$ at stake (source, or "unknown")</label>' + inp('stake', g.stake, 'unknown, size first') + '</div><div class="field"><label>Shift</label>' + sel('shift', p.shifts || [], g.shift, '—') + '</div>' +
+      '<div class="field"><label>Dependency (from your handoffs)</label>' + sel('dependency', myHo.map(function (h) { return [h.id, h.to + ': ' + h.need + ' (' + h.status.toLowerCase() + ')']; }), g.dependency, 'none') + '</div></div>';
+  } else {
+    f += '<div class="row"><div class="field f-2"><label>What proves it (done when)</label>' + ta('doneWhen', g.doneWhen, 'cert passed; taught one huddle segment') + '</div><div class="field f-160"><label>By</label>' + inp('deadline', g.deadline, '', 'date') + '</div></div>' +
+      '<div class="field"><label>Team pay-off (optional)</label>' + inp('metric', g.metric, 'what the team gets') + '</div>' +
+      '<label class="fg-check"><span><input type="checkbox" data-fg-keep data-gf="priv"' + (g.priv ? ' checked' : '') + '> <b>Private</b> — only I see the body; the room sees that a card exists</span></label>';
+  }
+  f += '<div class="row row--mid mt-2"><button class="btn mini" data-fg-goalsave="' + esc(g.id) + '">Save</button><button class="btn mini subtle" data-fg-goaldrop="' + esc(g.id) + '">drop this goal</button><span class="fg-note js-gf-status"></span></div></div>';
+  return '<div class="fg-goal' + (g.type === 'Personal' ? ' personal' : '') + '">' + head + f + '</div>';
+}
+function forgeDoctorPlayerHtml_() {
+  var s = forgeS_(), me = forgeMe_(), r = s.session.round, p = forgePrompts_();
+  var subjects = s.session.participants.filter(function (n) { return ((s.doctorAssign || {})[n] || [])[r - 1] === me; });
+  var html = '<div class="fg-prompt"><div class="fg-pt">Goal doctor · round ' + r + '</div><div class="fg-px">' + (subjects.length ? 'You review <b>' + esc(subjects.join(', ')) + '</b>. Two minutes a card.' : 'No one assigned to you this round.') + '</div><div class="fg-ps">Answer yes or no, leave one concrete improvement, give a verdict.</div></div>';
+  subjects.forEach(function (n) {
+    forgeGoalsOf_(n).forEach(function (g) {
+      if (g.hidden) return;
+      var done = r >= 2 ? g.doctor2By === me : g.doctorBy === me;
+      var chk = (r >= 2 ? g.doctor2Checks : g.doctorChecks) || {};
+      var note = r >= 2 ? g.doctor2Note : g.doctorNote;
+      html += forgeGoalCardHtml_(g, { acts: '<div class="fg-form grow" data-fg-docform="' + esc(g.id) + '"><div class="fg-check">' + (p.doctor || []).map(function (q, qi) {
+        return '<label><input type="checkbox" data-dc="' + qi + '"' + (chk[qi] ? ' checked' : '') + '> ' + esc(q) + '</label>';
+      }).join('') + '</div><div class="field mt-2"><label>One concrete improvement, or "what would Stuart ask?"</label><textarea data-fg-keep data-dnote>' + esc(note || '') + '</textarea></div>' +
+        '<div class="row row--mid"><select data-dverdict><option value="">— verdict —</option>' + ['READY', 'REVISE', 'NEEDS EVIDENCE'].map(function (v) { return '<option value="' + v + '"' + (done && g.verdict === v ? ' selected' : '') + '>' + v.toLowerCase() + '</option>'; }).join('') + '</select>' +
+        '<button class="btn mini" data-fg-docsave="' + esc(g.id) + '">' + (done ? 'Update review' : 'Submit review') + '</button></div></div>' });
+    });
+  });
+  return html;
+}
+
+function forgeWirePlayer_(el) {
+  var sid = state.forge.sid, me = forgeMe_();
+  var q = function (sel, fn) { el.querySelectorAll(sel).forEach(fn); };
+  q('[data-fg-me]', function (b) { b.addEventListener('click', function () { forgeSetMe_(b.dataset.fgMe); forgePollNow_(); forgeRenderPlayer_(); }); });
+  q('[data-fg-changeme]', function (b) { b.addEventListener('click', function () { forgeSetMe_(''); forgeRenderPlayer_(); }); });
+  q('[data-fg-join]', function (b) {
+    b.addEventListener('click', function () { b.disabled = true; gs('l10_forgeJoin', sid, me).then(function (r) { forgeAfterWrite_(r, 'You\'re in'); }).catch(function (e) { b.disabled = false; errToast(e); }); });
+  });
+  var add = el.querySelector('.js-fg-add');
+  if (add) {
+    var text = el.querySelector('.js-fg-text');
+    var submit = function () {
+      var v = text.value.trim();
+      if (!v) return;
+      add.disabled = true;
+      gs('l10_forgeAddIdea', sid, me, v).then(function (r) {
+        add.disabled = false;
+        if (forgeAfterWrite_(r)) { text.value = ''; try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {} notify('Card added', 'ok', 1200); }
+      }).catch(function (e) { add.disabled = false; errToast(e); });
+    };
+    add.addEventListener('click', submit);
+    text.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); submit(); } });
+  }
+  q('[data-fg-edit]', function (b) {
+    b.addEventListener('click', function () {
+      var card = b.closest('.fg-card'), ct = card.querySelector('.fg-ct');
+      var cur = ct.textContent;
+      ct.innerHTML = '<textarea data-fg-keep class="js-fg-editta" style="width:100%">' + esc(cur) + '</textarea>';
+      b.textContent = 'save';
+      b.onclick = function () {
+        var v = card.querySelector('.js-fg-editta').value.trim();
+        gs('l10_forgeEditIdea', b.dataset.fgEdit, me, v).then(function (r) { forgeAfterWrite_(r, 'Updated'); }).catch(errToast);
+      };
+    });
+  });
+  q('[data-fg-drop]', function (b) {
+    b.addEventListener('click', function () {
+      if (!armedConfirm(b, { label: 'drop?', danger: true }, function () { gs('l10_forgeDropIdea', b.dataset.fgDrop, me).then(function (r) { forgeAfterWrite_(r, 'Dropped'); }).catch(errToast); })) return;
+    });
+  });
+  // Opener
+  q('[data-fg-oplab]', function (b) {
+    b.addEventListener('click', function () {
+      var parts = b.dataset.fgOplab.split('|');
+      state.forge.opDraft = state.forge.opDraft || {};
+      state.forge.opDraft[parts[0]] = parts[1];
+      b.parentElement.querySelectorAll('.pill--btn').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+    });
+  });
+  q('[data-fg-opsave]', function (b) {
+    b.addEventListener('click', function () {
+      var d = state.forge.opDraft || {};
+      if (!Object.keys(d).length) { notify('Label at least one statement.', 'warn'); return; }
+      b.disabled = true;
+      gs('l10_forgeOpener', sid, me, JSON.stringify(d)).then(function (r) { b.disabled = false; forgeAfterWrite_(r, 'Labels in'); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  // Relay
+  q('[data-fg-build-save]', function (b) {
+    b.addEventListener('click', function () {
+      var ta = el.querySelector('[data-fg-build="' + b.dataset.fgBuildSave + '"]');
+      b.disabled = true;
+      gs('l10_forgeBuild', b.dataset.fgBuildSave, me, ta ? ta.value : '').then(function (r) { b.disabled = false; forgeAfterWrite_(r, 'Added'); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  // Votes
+  q('[data-fg-vote]', function (b) {
+    b.addEventListener('click', function () {
+      var parts = b.dataset.fgVote.split('|');
+      var fn = parts[1] === 'UNSUPER' ? 'l10_forgeUnvote' : 'l10_forgeVote';
+      var kind = parts[1] === 'UNSUPER' ? 'SUPER' : parts[1];
+      b.disabled = true;
+      gs(fn, sid, me, parts[0], kind).then(function (r) { b.disabled = false; forgeAfterWrite_(r); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  q('[data-fg-unvote]', function (b) {
+    b.addEventListener('click', function () {
+      var parts = b.dataset.fgUnvote.split('|');
+      b.disabled = true;
+      gs('l10_forgeUnvote', sid, me, parts[0], parts[1]).then(function (r) { b.disabled = false; forgeAfterWrite_(r); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  // Claim
+  q('[data-fg-claim]', function (b) { b.addEventListener('click', function () { b.disabled = true; gs('l10_forgeClaim', b.dataset.fgClaim, me).then(function (r) { forgeAfterWrite_(r, 'Claimed'); }).catch(function (e) { b.disabled = false; errToast(e); }); }); });
+  q('[data-fg-unclaim]', function (b) { b.addEventListener('click', function () { b.disabled = true; gs('l10_forgeUnclaim', b.dataset.fgUnclaim, me).then(function (r) { forgeAfterWrite_(r, 'Released'); }).catch(function (e) { b.disabled = false; errToast(e); }); }); });
+  // Handoffs
+  var hoTo = el.querySelector('.js-ho-to');
+  if (hoTo) hoTo.addEventListener('change', function () { el.querySelector('.js-ho-other').style.display = hoTo.value === '__other' ? '' : 'none'; });
+  var hoAdd = el.querySelector('.js-ho-add');
+  if (hoAdd) hoAdd.addEventListener('click', function () {
+    var to = hoTo.value === '__other' ? el.querySelector('.js-ho-toname').value.trim() : hoTo.value;
+    hoAdd.disabled = true;
+    gs('l10_forgeHandoff', sid, me, to, el.querySelector('.js-ho-need').value, el.querySelector('.js-ho-provide').value, el.querySelector('.js-ho-due').value)
+      .then(function (r) { hoAdd.disabled = false; forgeAfterWrite_(r, 'Handoff added'); }).catch(function (e) { hoAdd.disabled = false; errToast(e); });
+  });
+  q('[data-fg-ho]', function (b) {
+    b.addEventListener('click', function () {
+      var parts = b.dataset.fgHo.split('|');
+      b.disabled = true;
+      gs('l10_forgeHandoffRespond', parts[0], me, parts[1], null).then(function (r) { b.disabled = false; forgeAfterWrite_(r, parts[1] === 'ACCEPTED' ? 'Accepted' : 'Done'); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  q('[data-fg-ho-neg]', function (b) {
+    b.addEventListener('click', function () {
+      var row = b.closest('.h');
+      var h = (forgeS_().handoffs || []).filter(function (x) { return x.id === b.dataset.fgHoNeg; })[0];
+      if (!h) return;
+      row.innerHTML = '<div class="grow fg-form"><div class="field"><label>Counter: what I can give</label><input data-fg-keep class="js-neg-need" value="' + esc(h.need) + '"></div><div class="field"><label>By</label><input type="date" data-fg-keep class="js-neg-due" value="' + esc(h.due) + '"></div><button class="btn mini js-neg-go">Send the counter</button></div>';
+      row.querySelector('.js-neg-go').addEventListener('click', function () {
+        gs('l10_forgeHandoffRespond', h.id, me, 'NEGOTIATED', { need: row.querySelector('.js-neg-need').value, due: row.querySelector('.js-neg-due').value })
+          .then(function (r) { forgeAfterWrite_(r, 'Counter sent'); }).catch(errToast);
+      });
+    });
+  });
+  // Goals
+  q('[data-fg-newgoal]', function (b) {
+    b.addEventListener('click', function () {
+      var parts = b.dataset.fgNewgoal.split('|');
+      b.disabled = true;
+      gs('l10_forgeSaveGoal', sid, me, { type: parts[0], ideaId: parts[1] || '', title: '' }).then(function (r) {
+        b.disabled = false;
+        if (forgeAfterWrite_(r, 'Card created')) state.forge.goalOpen[r.id] = true;
+      }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  q('[data-fg-goaltoggle]', function (b) {
+    b.addEventListener('click', function () { var id = b.dataset.fgGoaltoggle; state.forge.goalOpen[id] = state.forge.goalOpen[id] === false; forgeRenderPlayer_(); });
+  });
+  var saveGoal = function (id, quiet) {
+    var f = el.querySelector('[data-fg-goalform="' + id + '"]');
+    if (!f) return;
+    var g = {};
+    f.querySelectorAll('[data-gf]').forEach(function (i) { g[i.dataset.gf] = i.type === 'checkbox' ? i.checked : i.value; });
+    var st = f.querySelector('.js-gf-status');
+    if (st) st.textContent = 'saving…';
+    gs('l10_forgeSaveGoal', sid, me, Object.assign({ id: id }, g)).then(function (r) {
+      if (st) st.textContent = r && r.ok === false ? '⚠ ' + (r.error || 'not saved') : 'saved';
+      if (r && r.ok === false && !quiet) errToast(r);
+      if (r && r.ok !== false) forgePollNow_();
+    }).catch(function (e) { if (st) st.textContent = 'not saved'; if (!quiet) errToast(e); });
+  };
+  q('[data-fg-goalsave]', function (b) { b.addEventListener('click', function () { saveGoal(b.dataset.fgGoalsave, false); }); });
+  q('[data-fg-goalform] [data-gf]', function (i) {
+    var id = i.closest('[data-fg-goalform]').dataset.fgGoalform;
+    i.addEventListener('change', function () { clearTimeout(state.forge.saveT[id]); state.forge.saveT[id] = setTimeout(function () { saveGoal(id, true); }, 400); });
+  });
+  q('[data-fg-goaldrop]', function (b) {
+    b.addEventListener('click', function () {
+      if (!armedConfirm(b, { label: 'drop it?', danger: true }, function () { gs('l10_forgeDropGoal', b.dataset.fgGoaldrop, me).then(function (r) { forgeAfterWrite_(r, 'Dropped'); }).catch(errToast); })) return;
+    });
+  });
+  // Doctor
+  q('[data-fg-docsave]', function (b) {
+    b.addEventListener('click', function () {
+      var f = el.querySelector('[data-fg-docform="' + b.dataset.fgDocsave + '"]');
+      var checks = {};
+      f.querySelectorAll('[data-dc]').forEach(function (c) { checks[c.dataset.dc] = c.checked; });
+      var verdict = f.querySelector('[data-dverdict]').value;
+      if (!verdict) { notify('Pick a verdict.', 'warn'); return; }
+      b.disabled = true;
+      gs('l10_forgeDoctor', b.dataset.fgDocsave, me, forgeS_().session.round, checks, f.querySelector('[data-dnote]').value, verdict)
+        .then(function (r) { b.disabled = false; forgeAfterWrite_(r, 'Review in'); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  });
+  // Rating
+  var rate = el.querySelector('.js-fg-rate');
+  if (rate) {
+    rate.addEventListener('input', function () { el.querySelector('.js-fg-rateval').textContent = rate.value; });
+    el.querySelector('.js-fg-ratesave').addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      gs('l10_forgeRate', sid, me, Number(rate.value), el.querySelector('.js-fg-ratenote').value).then(function (r) { b.disabled = false; forgeAfterWrite_(r, 'Thanks'); }).catch(function (e) { b.disabled = false; errToast(e); });
+    });
+  }
+}
+
+// --- The wheel ----------------------------------------------------------------
+// Client-only: Math.random over the not-excluded names; the spin is presentation.
+// Exclusions are per session (kept in memory) so the same person is not picked
+// twice unless everyone is put back in.
+function wheelOpen_(names, ctx) {
+  names = (names || []).filter(String);
+  if (!names.length) { notify('Nobody on the roster to pick from.', 'warn'); return; }
+  var ov = $('wheel-overlay');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'wheel-overlay'; document.body.appendChild(ov); }
+  var ex = state.forge.wheelEx;
+  var render = function (winner) {
+    var n = names.length;
+    var seats = names.map(function (nm, i) {
+      var ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+      var rx = 50 + 36 * Math.cos(ang), ry = 50 + 36 * Math.sin(ang);
+      return '<div class="wheel-seat' + (ex[nm] ? ' out' : '') + '" style="left:' + rx.toFixed(1) + '%;top:' + ry.toFixed(1) + '%">' + avatar(nm) + '<span class="nm">' + esc(nm) + '</span></div>';
+    }).join('');
+    var wedges = names.map(function (nm, i) { return personColor(nm) + ' ' + (i / n * 360).toFixed(1) + 'deg ' + ((i + 1) / n * 360).toFixed(1) + 'deg'; }).join(', ');
+    var left = names.filter(function (nm) { return !ex[nm]; });
+    ov.innerHTML = '<div class="ids-backdrop" data-wh-close></div><div class="ids-card wheel-card" role="dialog" aria-modal="true" aria-label="Pick someone">' +
+      '<h3>🎡 Pick someone</h3><div class="wheel-stage"><div class="wheel-ptr"></div><div class="wheel-disc js-wh-disc" style="background:conic-gradient(from -90deg, ' + wedges + ')">' + seats + '</div></div>' +
+      '<div class="wheel-win" aria-live="assertive">' + (winner ? esc(winner) : '&nbsp;') + '</div><div class="wheel-sub">' + (winner ? winner + ' goes first.' : left.length + ' of ' + n + ' in the draw') + '</div>' +
+      '<div class="row" style="justify-content:center"><button class="btn big js-wh-spin"' + (left.length ? '' : ' disabled') + '>' + (winner ? 'Spin again' : 'Spin') + '</button>' +
+      (winner && !ex[winner] ? '<button class="btn subtle js-wh-out">Take ' + esc(winner) + ' out for the rest</button>' : '') +
+      (Object.keys(ex).some(function (k) { return ex[k]; }) ? '<button class="btn subtle js-wh-reset">Everyone back in</button>' : '') +
+      '<button class="btn subtle" data-wh-close>Close</button></div></div>';
+    ov.querySelectorAll('[data-wh-close]').forEach(function (b) { b.addEventListener('click', function () { ov.style.display = 'none'; dlgClosed_('wheel-overlay'); }); });
+    var out = ov.querySelector('.js-wh-out');
+    if (out) out.addEventListener('click', function () { ex[winner] = true; render(null); });
+    var rs = ov.querySelector('.js-wh-reset');
+    if (rs) rs.addEventListener('click', function () { state.forge.wheelEx = ex = {}; render(null); });
+    ov.querySelector('.js-wh-spin').addEventListener('click', function () {
+      if (state.forge.wheelSpinning) return;
+      var pool = names.filter(function (nm) { return !ex[nm]; });
+      if (!pool.length) return;
+      var pick = pool[Math.floor(Math.random() * pool.length)];
+      var idx = names.indexOf(pick);
+      var disc = ov.querySelector('.js-wh-disc');
+      var reduce = false;
+      try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+      // Seat i sits at angle i/n·360 from the top; rotate so it lands under the pointer.
+      var target = 360 * 4 - (idx / names.length) * 360 - (360 / names.length) / 2 + (360 / names.length) / 2;
+      state.forge.wheelSpinning = true;
+      var finish = function () { state.forge.wheelSpinning = false; render(pick); };
+      if (reduce) { finish(); return; }
+      disc.style.transform = 'rotate(' + target + 'deg)';
+      setTimeout(finish, 3300);
+    });
+  };
+  render(null);
+  ov.style.display = 'block';
+  dlgOpened_('wheel-overlay');
+}
+
+// --- boot for the player route ------------------------------------------------
+if (window.__L10_FORGE) forgePlayerBoot_(window.__L10_FORGE);
+</script>

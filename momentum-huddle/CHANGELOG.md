@@ -5,7 +5,66 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.16 (2026-09-15)** · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.17 (2026-09-17)** · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.17 (2026-09-17) — Forge: the timed idea-generation / goal-setting session, the wheel, Timed write, the passphrase gate
+
+The module for the team's FY27 goals day (Thu 2026-09-24), built from
+[`IDEA-FORGE.md`](./IDEA-FORGE.md) v2. Both copies; harness green in both (the suite
+now walks a session Lobby → Locked on the room screen and adds a card from the phone view).
+
+- **Forge page** (nav, after Strategy): sessions list, "New session" (you become the
+  facilitator), open-session resume/discard. Everything a session does lives outside
+  the weekly meeting; opening the page never starts a huddle.
+- **Two views of one server-authoritative state.** The **room** (projector; phase rail,
+  big clock, facilitator controls) and the **player** (phone-first; served on
+  `?forge=FS-###` with one boot call, no four-slice fetch). Both poll `l10_forgeState`
+  every `FORGE_POLL_SEC` seconds against a Version counter; the clock is computed from the
+  server's timestamps so every device shows the same seconds. A repaint never lands on a
+  box someone is typing in; after your own write it repaints and hands focus back.
+- **Phases** (`FORGE_PHASES`, keys fixed, labels/seconds/rounds editable): Opener ("goal,
+  project or chore?", private labels, revealed together) → Diverge ×3 (anonymous cards,
+  team count vs `FORGE_IDEA_TARGET`) → Relay ×2 (cards dealt to someone else; the author's
+  words stay, additions sit under them) → Cluster (theme editor on the room screen) →
+  Vote (blind; `TOKENS` on themes or `DOTS` on cards + one revenue super-vote; the
+  facilitator's ballot joins only when they add it) → Investment committee (tallies,
+  chosen themes, a stop/defer line each, "decided against the vote because…") → Claim
+  (one owner per card, from the phone) → Handoff contracts ("I need ___ from ___ by ___;
+  I will provide ___", accepted / negotiated / withdrawn; off-roster recipients stay
+  unconfirmed) → Forge the goal (the revenue-ladder form with a five-tile **SMART meter**,
+  autosave, private personal cards) → Goal doctor ×2 (rotating reviewers, checklist,
+  one improvement, a verdict) → Commit (leading indicator + Q1 milestone capped at
+  `FORGE_Q1_MILESTONE_BY` + Q2 milestone) → **Lock**.
+- **Timed write** ("for the next N minutes, everyone write…"): a facilitator sheet with
+  the thought-experiment deck or a typed prompt; takes over every player screen with the
+  same clock, pauses the phase clock underneath, and the cards it produces are ordinary
+  cards afterwards.
+- **The wheel** (`🎡 Pick someone`): a spinning wheel of the roster with the team photos,
+  in Forge and on the huddle's timer bar. Winner named in text; "take them out for the
+  rest" greys a seat with a word; reduced motion skips the spin. `WHEEL_ENABLED` hides it.
+- **Passphrase gate** (`FORGE_PASSWORD`, default `Welcome`, blank = no gate): a full-screen
+  loading curtain in front of the Forge page and the player link so the room cannot be
+  opened before the day. The word is checked on the server (`l10_forgeUnlock`) and a
+  random token is cached for six hours; the read endpoints and create require it. It is
+  a curtain, not a vault. The curtain has a "back to the huddle" door.
+- **Lock** previews everything first, then: writes each person's goals into their own
+  `<Name> — FY27 Goals` tab (`FORGE_GOAL_SHEET_SUFFIX`; the Goal N blocks are found by
+  scanning column B, never assumed), creates a priority from every dated Q1 milestone
+  (`Source = G-###`, the leading indicator as its metric) with the Q2 milestone under it,
+  parks unclaimed shortlist cards as IDEA-stage initiatives on the Strategy page, posts a
+  one-line recap to the team chat, and marks the session LOCKED. **It never creates a
+  to-do** (that would ping the chat and Jira).
+- **Data:** five new tabs — `L10_Forge_Sessions`, `L10_Forge_Ideas`, `L10_Forge_Votes`,
+  `L10_Forge_Handoffs`, `L10_Goals` — plus the `FORGE_*` / `WHEEL_ENABLED` config keys,
+  all seeded by Setup / repair tabs. Votes are rows (a taken-back vote is voided in
+  place); ideas keep `By` always and hide it until Claim.
+- Not built (deliberately, per the spec's cut order): Gemini theme suggestions; a session
+  replay page (the home list shows past sessions' counts and rating).
+- **Re-paste:** create three new files in the Apps Script editor — `L10Forge.gs`,
+  `L10ForgeCss.html`, `L10ForgeJs.html` — then re-paste `L10Setup.gs`, `L10Index.html`,
+  `L10Js.html`. Run **Momentum Huddle → Setup / repair tabs** once (adds the five tabs and
+  the config keys). **Redeploy the web app as a new version** so the `?forge=` route and
+  the player link work. Check `FORGE_PASSWORD` in `L10_Config`.
 
 ## v2.16 (2026-09-15) — To-dos page redesigned to the UX canvas
 

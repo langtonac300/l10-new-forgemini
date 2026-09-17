@@ -33,8 +33,9 @@ Each folder is self-contained and has its own `README.md` (slim index), plus dee
 docs: `CHANGELOG.md` (version history + current state), `EMAIL-AUTOMATION.md`,
 `JIRA-SYNC.md`, `BRIEF-INTAKE.md` (the `doPost` contract), `CALENDAR.md`,
 `DESIGN-ROADMAP.md`, `STRATEGY.md` (the Strategy tab), and `IDEA-FORGE.md` (the
-**Forge** idea-generation / goal-setting module — a build-ready spec as of 2026-09-17,
-not yet in the code; the meeting it serves is documented in the knowledge base at
+**Forge** idea-generation / goal-setting module, built as v2.17 on 2026-09-17 — code in
+`L10Forge.gs` / `L10ForgeCss.html` / `L10ForgeJs.html` plus hooks in Setup, Index and Js;
+the meeting it serves is documented in the knowledge base at
 `goals/fy27-goal-setting-offsite-2026-09-24.md`).
 
 ### The vocabulary mapping (user-facing only)

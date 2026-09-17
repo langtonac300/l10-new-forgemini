@@ -11,9 +11,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
   <?!= l10Include('L10Css'); ?>
+  <?!= l10Include('L10ForgeCss'); ?>
   <!-- The deployed web-app URL (blank in the embedded modal). Present uses it
        to pop the room view out into a full standalone tab. -->
   <script>window.__L10_WEBAPP_URL = '<?= (typeof webAppUrl !== "undefined" ? webAppUrl : "") ?>';</script>
+  <!-- Set only on the ?forge=FS-### route: the page boots as the Forge player
+       view (one call) instead of the full app. -->
+  <script>window.__L10_FORGE = '<?= (typeof forgePlayer !== "undefined" ? forgePlayer : "") ?>';</script>
 </head>
 <body>
 <!-- target=_self is load-bearing: <base target="_top"> would otherwise make
@@ -33,6 +37,7 @@
     <button data-page="scorecard">Scorecard</button>
     <button data-page="rocks">Rocks</button>
     <button data-page="strategy">Strategy</button>
+    <button data-page="forge">Forge</button>
     <button data-page="headlines">Headlines</button>
     <button data-page="todos">To-dos</button>
     <button data-page="issues">Issues</button>
@@ -50,6 +55,7 @@
   <div id="page-scorecard" class="page"></div>
   <div id="page-rocks" class="page"></div>
   <div id="page-strategy" class="page"></div>
+  <div id="page-forge" class="page"></div>
   <div id="page-headlines" class="page"></div>
   <div id="page-todos" class="page"></div>
   <div id="page-issues" class="page"></div>
@@ -87,6 +93,7 @@
     <div class="card">
       <h3>Where everything lives</h3>
       <p>This app reads and writes the <b>L10_*</b> tabs in this spreadsheet — they are the database and the audit trail. Edit definitions there (scorecard metrics, config, events); run the meeting here.</p>
+      <p>The <b>Forge</b> page is a different kind of meeting: a timed, phone-and-projector idea-generation session (private writing, relay, blind votes, a goal form, peer review, then Lock) used for goal-setting days and quarterly rock resets. It writes to the <span class="mono">L10_Forge_*</span> and <span class="mono">L10_Goals</span> tabs and, at Lock, into each person's own goals tab and the rocks list — never into to-dos.</p>
       <p>The <b>Strategy</b> page is deliberately <i>not</i> on the agenda: it holds the cross-account initiatives the strategist works between huddles (<span class="mono">L10_Initiatives</span> and its matrix / trail tabs). What it spawns — to-dos, hub tests, rocks — shows up here through the normal doors.</p>
       <p>Issue forms match what you type against your <b>analysis playbook</b> (<span class="mono">L10_Playbook</span>) and past decisions, so recurring problems start from the record instead of memory. The Conclude segment circles back on solved issues to ask whether the fix held — that verdict builds the <b>decision ledger</b> on the History page.</p>
     </div>
@@ -101,5 +108,6 @@
      every entry point. -->
 <script>window.__L10_BOOT = <?!= (typeof bootJson !== 'undefined' ? bootJson : 'null') ?>;</script>
 <?!= l10Include('L10Js'); ?>
+<?!= l10Include('L10ForgeJs'); ?>
 </body>
 </html>
