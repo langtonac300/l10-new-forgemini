@@ -36,6 +36,7 @@ so the vocabulary lands upward too.
 > email automation → [`EMAIL-AUTOMATION.md`](./EMAIL-AUTOMATION.md) ·
 > Jira sync → [`JIRA-SYNC.md`](./JIRA-SYNC.md) ·
 > Strategy tab (cross-account initiatives, outside the meeting) → [`STRATEGY.md`](./STRATEGY.md) ·
+> Forge (timed idea-generation + goal-setting module, roster wheel, Timed write — **spec, not yet built**) → [`IDEA-FORGE.md`](./IDEA-FORGE.md) ·
 > pre-huddle brief intake (doPost contract) → [`BRIEF-INTAKE.md`](./BRIEF-INTAKE.md) ·
 > calendar scheduling (Advanced Calendar Service) → [`CALENDAR.md`](./CALENDAR.md) ·
 > Gemini service layer → [`GEMINI.md`](./GEMINI.md).
