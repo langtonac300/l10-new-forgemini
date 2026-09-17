@@ -1,7 +1,11 @@
 # Forge — timed idea-generation module (spec, pre-build)
 
-> **Status: specified 2026-09-17, not built.** Target: pasted and smoke-tested before the
-> team's FY27 goal-setting day on **Thu 2026-09-24**. The meeting it serves is written up in
+> **Status: specified 2026-09-17 (v2, same day), not built.** Target: pasted and
+> smoke-tested before the team's FY27 goal-setting day on **Thu 2026-09-24**. v2 folds in
+> the design points from a second plan Alex brought ("Momentum Lab"): the opener, the
+> two-pass relay, tokens on themes + a committee view, handoff contracts with a state, two
+> Doctor rounds, guardrail + dependency fields, private personal cards, the facilitator's
+> ballot revealed last, and the rule that Lock never creates to-dos. The meeting it serves is written up in
 > the knowledge base: `general-brady-alex-knowledge-v2/goals/fy27-goal-setting-offsite-2026-09-24.md`.
 > Same sterility rule as the rest of the app: the pasted copy carries neutral technical
 > comments only.
@@ -45,19 +49,31 @@ device shows the same clock.
 | # | Phase | Default | Player can | Room shows | Ends with |
 |---|---|---:|---|---|---|
 | 0 | **Lobby** | — | pick name, see who is in | roster with ✓ as people join, QR | facilitator presses Start |
-| 1 | **Warm-up** | 180 s | type one personal-goal line | count only | auto → next when timer ends (facilitator can hold) |
+| 1 | **Opener** ("goal, project or chore?") | 300 s | label each of four statements privately: outcome · project · recurring task · incomplete goal | the four statements; after the timer, every label at once (the facilitator's last), then 5 min of talk | facilitator Next |
 | 2 | **Diverge** (× 4 rounds) | 300 s each | submit unlimited cards, edit own | cards arriving anonymous, team count vs target (`FORGE_IDEA_TARGET`), "quiet round" glyph | timer; facilitator Next |
-| 3 | **Build** (× 2 rounds) | 240 s each | see one card dealt to them (not their own), add a "yes-and" line | the dealt pairs as they fill | timer |
+| 3 | **Relay** (× 2 passes) | 240 s each | see cards dealt to them (never their own): pass 1 strengthens the customer or revenue link on the two most promising; pass 2 (a different reviewer) adds a test, a missing assumption or an extension | the dealt sets as they fill; the original text and each addition shown apart, author accepts or rewrites later | timer |
 | 4 | **Cluster** | 480 s | read-only | facilitator drags cards into themes; **Suggest themes** (Gemini, guarded) proposes 5–8 theme names + assignments as a starting point; every card also takes an Account / Shift / Lever tag | facilitator Next |
-| 5 | **Vote** (blind) | 300 s | 5 dots (max 2 on one card) + 1 revenue super-vote ($) | "n of 5 voted", no tallies | timer → **Reveal** animation: cards re-sort by (super-votes, dots) |
+| 5 | **Vote** (blind) | 300 s | `FORGE_VOTE_MODE = DOTS`: 5 dots (max 2 on one card) + 1 revenue super-vote ($). `TOKENS`: 10 investment tokens across **themes** (max 4 on one), + 1 super-vote. The facilitator's ballot is held back and revealed after everyone else's | "n of 5 voted", no tallies | timer → **Reveal** animation: cards (or themes) re-sort by (super-votes, votes) |
+| 5b | **Committee** | 600 s | read-only; a "stop / defer / simplify" line per selected theme typed by the facilitator as the room decides | the reveal with the largest disagreements first (widest spread of tokens per theme), the selected themes, the stop/defer list, a "decided against the vote because…" note when it happens | facilitator Next |
 | 6 | **Claim** | 300 s | tap Claim on a card in the top N (one owner per card; a second tap asks) | shortlist with owner chips; unclaimed top cards flagged | facilitator Next; unclaimed cards → parking lot |
+| 6b | **Handoffs** | 600 s | write "I need [input] from [person] by [date]; I will provide [output]"; the named person taps **Accept**, **Negotiate** (edits the line) or leaves it; a request to someone not in the room stays **Unconfirmed** | the dependency board: every line with its state as glyph + word | facilitator Next; the board stays visible through Commit |
 | 7 | **Forge** (per person) | 2100 s | fill the goal form (below) for each claimed card, up to `FORGE_GOALS_PER_PERSON` | one card per person with a **SMART meter**: five checks lighting up as fields fill (word + glyph, never color alone) | facilitator Next |
-| 8 | **Doctor** (pairs) | 900 s | see the partner's goal, answer the 6 yes/no checks, write one "what would Stuart ask?" line; author sees it and edits | pair chips, "n of 4 reviewed" | timer |
+| 8 | **Doctor** (× `FORGE_REVIEWS_PER_GOAL` rounds, default 2) | 480 s each | see another person's four cards (~2 min each), answer the yes/no checks incl. "could they hit this metric without helping the business?", leave one concrete improvement and a verdict (ready / revise / needs evidence); round 2 assigns a different reviewer; authors then revise | reviewer assignment, "n of 20 reviewed", verdict counts by word (never a per-person score) | timer |
 | 9 | **Commit** | 300 s | read-only | each person's goals read aloud; per goal the facilitator sets the scorecard **metric ID** and a **Q1/Q2 milestone** | facilitator presses **Lock** |
 | 10 | **Locked** | — | rate the day 1–10 (same widget as Wrap-up) | ratings avg, parking lot count, "written to N goal tabs" | session `Status = LOCKED` |
 
-Pairs for Doctor come from the roster in order with a rotation (Courtney↔CJ, Scott↔Allaina,
-then shift by one); the facilitator can override.
+Reviewer assignment for Doctor is a rotation over the roster (round 1: each person reads
+the next person's cards; round 2: the person after that), so every card gets two different
+reviewers and nobody reads their own; the facilitator can override.
+
+Personal goals are written in phase 7 too, on a card marked **Private**: it is never shown
+on the room screen, never in the recap, never in the Lock export, and it skips Doctor unless
+the author opts in. The author picks one of three at Commit: share the goal, share a title
+only, or "I have a plan". The wall shows only that a personal card exists.
+
+Cards written in Diverge follow the idea-card placeholders *"For [customer / account],
+change [thing] because [reason], so that [business result]. We would look for
+[evidence]."* Free text is accepted; the placeholders just make a rough card better.
 
 ### Ad-hoc phase: **Timed write** (any time, any phase)
 
@@ -106,12 +122,15 @@ Stricter than plain SMART on purpose. Field names double as the `L10_Goals` colu
 | Leading Indicator (Metric ID) | select from active `L10_Scorecard` rows | optional at Forge, required at Commit for Business |
 | Dollars At Stake | text with source, or "unknown" | required; the literal "unknown" is accepted |
 | Shift | 1–4 | required for Business |
-| Milestone Q1 / Q2 | text + date | required at Commit; becomes the rock |
+| Guardrail | text: what must not get worse | required for Business (an efficiency goal without a revenue/volume floor, or a volume goal without a quality/A/S ceiling, does not light **R**) |
+| Dependency | pick a line from the handoff board, or "none" | required; a dependency in state Unconfirmed shows as a risk badge on the card and blocks **A** until accepted or removed |
+| Private | YES / NO | Personal cards default YES |
+| Milestone Q1 / Q2 | text + date | required at Commit; becomes the rock. Q1 milestone date must be ≤ Oct 31 (fiscal Q1 ends five weeks after the workshop); the form says so |
 
 **A** (achievable) and **R** (relevant) light from the Doctor phase: the partner's checklist
 answers, not the author's own fields.
 
-## Data contract — four new `L10_*` tabs
+## Data contract — five new `L10_*` tabs
 
 Same rules as every other tab: header strings are internal identifiers, new columns only at
 the end, rows are never deleted (status columns instead), the tabs are the database.
@@ -131,6 +150,18 @@ Updated At`
 
 `By` is always stored (audit trail); `Anon = YES` hides it on every screen until Claim.
 Dots and super votes are tallies maintained from the votes tab, never edited by hand.
+`Build By` / `Build` hold relay pass 1; pass 2 is appended at the end of the row as
+`Relay 2 By · Relay 2` (same append rule as every late column). Cards from the opener
+carry `Round = "O"` and the label in `Idea`.
+
+### `L10_Forge_Handoffs` (`FH-###`)
+
+`ID · Session ID · From · To · Need · Provide · Due · Status (PROPOSED / ACCEPTED /
+NEGOTIATED / UNCONFIRMED) · Goal ID · Created · Updated At`
+
+One row per "I need ___ from ___ by ___; I will provide ___". `To` may be a roster name or a
+free-text name (someone not in the room), in which case the row can never leave
+UNCONFIRMED from inside Forge. Lock copies the accepted rows onto the goal cards.
 
 ### `L10_Forge_Votes` (`FV-###`)
 
@@ -145,7 +176,13 @@ player screen enforces 5 dots, max 2 per idea, 1 super; the server re-checks.
 Metric · Metric Source · Baseline · Target · Deadline · Done When · Leading Indicator ·
 Dollars At Stake · Shift · Milestone Q1 · Milestone Q1 Due · Milestone Q2 · Milestone Q2 Due
 · Doctor By · Doctor Checks (JSON) · Doctor Note · Status (DRAFT / LOCKED / SUPERSEDED) ·
-Idea ID · Rock ID · Written To Sheet At · Created · Updated At`
+Idea ID · Rock ID · Written To Sheet At · Created · Updated At · Guardrail · Dependency
+(FH-###) · Private (YES/NO) · Doctor 2 By · Doctor 2 Checks (JSON) · Doctor 2 Note ·
+Verdict (READY / REVISE / NEEDS EVIDENCE)`
+
+Rows marked `Private = YES` are excluded from every read that feeds the room screen, the
+recap, the digests and the Lock export; only the author's own player view and Alex's 1:1
+page (title only, if shared) read them.
 
 `L10_Goals` is the app's own record. The HR-facing view is the existing per-person
 **`<Name> — FY27 Goals`** tab in the same workbook (Goal 1–5 blocks: label in column B,
@@ -168,6 +205,11 @@ spec shows the labels but the exact row offsets must be read from the tab, not a
 | `FORGE_DOTS` | 5 | Dots per person in Vote. |
 | `FORGE_DOT_MAX_PER_IDEA` | 2 | |
 | `FORGE_SUPER_VOTES` | 1 | Revenue super-votes per person. |
+| `FORGE_VOTE_MODE` | TOKENS | `DOTS` (votes on cards) or `TOKENS` (investment tokens on themes, after Cluster). |
+| `FORGE_TOKENS` | 10 | Tokens per person in TOKENS mode. |
+| `FORGE_TOKEN_MAX_PER_THEME` | 4 | |
+| `FORGE_REVIEWS_PER_GOAL` | 2 | Doctor rounds; each round assigns a different reviewer. |
+| `FORGE_Q1_MILESTONE_BY` | 2026-10-31 | Latest allowed date for the Q1 milestone (fiscal Q1 end). |
 | `FORGE_SHORTLIST` | 12 | Cards eligible to claim after reveal. |
 | `FORGE_GOALS_PER_PERSON` | 5 | Hard cap; the Personal one counts. |
 | `FORGE_LINES` | JSON, label → FY27 number string | Seeded from the knowledge-base guide §1 (numbers as text, so the app never computes with them). |
@@ -193,7 +235,9 @@ key = session id + version) so five clients polling every 3 s cost cache hits, n
 | `l10_forgeBuild(ideaId, text)` | the dealt builder | writes Build By / Build, Status = BUILT |
 | `l10_forgeCluster(sessionId, assignments)` | facilitator | Theme + Account/Shift/Lever tags in bulk |
 | `l10_forgeSuggestThemes(sessionId)` | facilitator | Gemini: card texts in, 5–8 theme names + assignments out; passes `l10GeminiGuardNumbers_` (no figures may appear that were not in the cards); result is a proposal the facilitator applies or discards |
-| `l10_forgeVote(sessionId, ideaId, kind)` / `l10_forgeUnvote` | player | enforces the per-person budget; tallies recomputed |
+| `l10_forgeVote(sessionId, targetId, kind)` / `l10_forgeUnvote` | player | `targetId` is a card (DOTS) or a theme (TOKENS); enforces the per-person budget and the per-target cap; tallies recomputed; the facilitator's ballot is stored but excluded from the reveal until they tap "show mine" |
+| `l10_forgeCommittee(sessionId, themes)` | facilitator | selected themes + a stop/defer line each + the optional "decided against the vote because…" note → `Themes (JSON)` |
+| `l10_forgeHandoff(sessionId, to, need, provide, due)` / `l10_forgeHandoffRespond(id, status, edits)` | player / the named recipient | appends or updates `FH-###`; a recipient not on the roster leaves it UNCONFIRMED |
 | `l10_forgeReveal(sessionId)` | facilitator | freezes tallies, marks top `FORGE_SHORTLIST` as SHORTLIST |
 | `l10_forgeClaim(ideaId)` / `l10_forgeUnclaim` | player | CLAIMED / Claimed By; a second claimant gets `{ok:false, heldBy}` |
 | `l10_forgeSaveGoal(goal)` | player (own) | upsert `G-###` DRAFT |
@@ -246,8 +290,16 @@ key = session id + version) so five clients polling every 3 s cost cache hits, n
   room, in a timebox.
 - **The SMART meter lights as you type.** A goal that is a to-do in disguise stays dark on
   M and T; the author sees that before Alex has to say it.
-- **The Doctor is a peer, not the manager.** The checklist is answered by a colleague; the
-  "what would Stuart ask?" line is the only free text.
+- **The Doctor is a peer, not the manager.** The checklist is answered by two colleagues;
+  the "what would Stuart ask?" line and one concrete improvement are the only free text.
+- **The manager answers last.** In the opener and every vote, the facilitator's ballot is
+  revealed after the room's, so the wall never orbits Alex's answer.
+- **Relay keeps the author's words.** Additions sit under the original card; the author
+  accepts or rewrites. Nobody's idea is silently edited.
+- **Handoffs have a state.** A request is Proposed until the named person taps Accept. A
+  dependency nobody accepted is shown as a risk on the goal card, not as a plan.
+- **Personal goals are private by default.** The team sees that a card exists, nothing
+  more, unless the author shares.
 - **Ratings at the end**, same widget as the huddle, so the day gets a number too.
 - Team-level counts only. No per-person leaderboard: the huddle's to-do target is a team
   number for the same reason.
@@ -273,8 +325,16 @@ No Gemini call may invent a target, a baseline or a dollar figure. "size first" 
 | Locked goal | `<Name> — FY27 Goals` tab | Lock writer (above) |
 | Unclaimed shortlist card | Strategy tab (`L10_Initiatives`, IDEA stage, `Origin = FS-###`) | `l10_forgeLock` |
 | Card tagged "test" | Experiment Hub ideas backlog | existing hub door (same as Solve's "Make it a test") |
+| Accepted handoff | the goal card's `Dependency`; the 1:1 page of both people | copied at Lock; still a Forge row, not a to-do |
 | Anything else | `Status = PARKED`, visible on the session replay | nothing lost |
-| Session recap | team chat webhook | one message: n ideas · n goals locked · parking lot n · rating |
+| Session recap | team chat webhook | one message: n ideas · n goals locked · parking lot n · rating; never the goals' text, never anything Private |
+
+**Lock never creates to-dos.** Adding a to-do posts to the team chat webhook and, when Jira
+sync is on, creates a BNADM issue; a brainstorm must not fire either. First actions from the
+Close ("my first action is ___ by ___") are read back from the recap and added by hand in
+the To-dos page after the day, deliberately. Lock also **previews** everything it is about
+to create (rocks, initiatives, hub ideas, sheet writes) as a checklist the facilitator
+confirms, so a wrong tap does not become a priority.
 
 ## Both copies
 
@@ -284,8 +344,9 @@ other; Solve/IDS wording follows each copy. Tab and column names are identical i
 
 ## Build plan (estimate, one session)
 
-1. `L10Setup.gs`: four tabs + headers + config keys + seeds (prompt deck, lines). Repair-tabs
-   must add them to an existing workbook without touching data.
+1. `L10Setup.gs`: five tabs + headers + config keys + seeds (prompt deck incl. the opener
+   statements and the thought experiments, lines). Repair-tabs must add them to an existing
+   workbook without touching data.
 2. `L10Forge.gs`: endpoints above, cache-backed state, tally function, deal function, Lock
    writer (verify the FY27 Goals block layout on the live sheet first), rock creation via
    the existing `l10_addRock` path, parking via the existing initiative/hub paths.
@@ -300,14 +361,19 @@ other; Solve/IDS wording follows each copy. Tab and column names are identical i
 6. Paste both copies, repair tabs, redeploy, dry-run with one colleague on a phone.
 
 Rough size: comparable to the Strategy tab (v2.14: three tabs, one page, ~15 endpoints).
-Forge is four tabs, two views, ~20 endpoints, plus the poll loop. Budget a full session and
+Forge is five tabs, two views, ~24 endpoints, plus the poll loop. Budget a full session and
 a harness pass; the Lock writer is the only part that touches a sheet the app did not create.
+If time runs short before Sep 24, the order to cut is: Committee view (do it on the wall) →
+TOKENS mode (use DOTS) → Handoffs tab (do it on paper, type accepted ones into the goal
+form) → Gemini suggestions. Never cut: the shared clock, private entry + reveal, the goal
+form with the SMART meter, Doctor, Lock preview, the wheel, Timed write.
 
 ## Open decisions for Alex (pick before building)
 
 | Decision | Recommendation | Alternative |
 |---|---|---|
-| Name | **Forge** (nav), "Idea Forge" in copy | "Sprint", "Ideas" |
+| Name | **Forge** (nav and module); "Momentum Lab" is fine as the *session title* on the invite | "Momentum Lab" everywhere (then the nav entry is "Lab") |
+| Vote mode for Sep 24 | TOKENS on themes (forces the committee conversation) | DOTS on cards (simpler, no Cluster dependency) |
 | Player identity | roster pick + device token (no login) | require the deploying-domain Google login (only if the web app is already deployed "anyone in domain") |
 | Diverge anonymity | on by default, names at Claim | names always visible |
 | Goals per person | 4 Business + 1 Personal, enforced at Lock | 3–5 with 1 Personal (the goal tabs' wording) |
