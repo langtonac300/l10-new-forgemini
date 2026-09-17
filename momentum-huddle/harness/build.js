@@ -12,6 +12,8 @@ const read = (f) => fs.readFileSync(f, 'utf8');
 let page = read(path.join(APPS, 'L10Index.html'));
 const css = read(path.join(APPS, 'L10Css.html'));
 const js = read(path.join(APPS, 'L10Js.html'));
+const forgeCss = read(path.join(APPS, 'L10ForgeCss.html'));
+const forgeJs = read(path.join(APPS, 'L10ForgeJs.html'));
 const stub = read(path.join(HERE, 'stub.js'));
 const fixtures = read(path.join(HERE, 'fixtures.js'));
 
@@ -19,6 +21,9 @@ const fixtures = read(path.join(HERE, 'fixtures.js'));
 // Function replacements: string replacements interpret $-patterns ($&, $', …)
 // and the app's JS is full of them.
 page = page.replace(`<?!= l10Include('L10Css'); ?>`, () => css);
+page = page.replace(`<?!= l10Include('L10ForgeCss'); ?>`, () => forgeCss);
+// The Forge client rides after the app (it relies on L10Js's helpers).
+page = page.replace(`<?!= l10Include('L10ForgeJs'); ?>`, () => forgeJs);
 // The stub must exist before L10Js executes (it calls boot() at load).
 // __EMBED_SLOT__ lets the embed variant inject a fixture-built core payload
 // between the stub and the app (the real page gets it inline from doGet).
@@ -30,6 +35,10 @@ page = page.replace(
 // pre-upgrade deployment serves). The embed variant overrides via the slot
 // below — the value must be built AFTER fixtures.js has run.
 page = page.replace(`<?!= (typeof bootJson !== 'undefined' ? bootJson : 'null') ?>`, 'null');
+// The ?forge= player route: '' in the app variants; the player variant below
+// resolves it to the fixture session FS-001 so the phone view is smoke-tested too.
+const FORGE_SLOT = '__FORGE_PLAYER_SLOT__';
+page = page.replace(`<?= (typeof forgePlayer !== "undefined" ? forgePlayer : "") ?>`, FORGE_SLOT);
 // The webAppUrl template scriptlet — blank, matching the embedded-modal case.
 page = page.replace(/<\?=[\s\S]*?\?>/g, '');
 // No network in the harness: drop the Google Fonts links (CSP-irrelevant here,
@@ -43,7 +52,9 @@ if (page.includes('<?')) {
   const at = page.indexOf('<?');
   throw new Error('Unresolved scriptlet remains at char ' + at + ': ' + page.slice(at, at + 80));
 }
-fs.writeFileSync(path.join(HERE, 'preview.html'), page.replace('__EMBED_SLOT__', () => ''));
+fs.writeFileSync(path.join(HERE, 'preview.html'), page.replace('__EMBED_SLOT__', () => '').replace(FORGE_SLOT, ''));
+// The Forge player variant: boots as the phone view for fixture session FS-001.
+fs.writeFileSync(path.join(HERE, 'preview-player.html'), page.replace('__EMBED_SLOT__', () => '').replace(FORGE_SLOT, 'FS-001'));
 // The embed variant: window.__L10_BOOT built from the same fixtures' core
 // slice (deep-copied — the embed path must not share references with later
 // stubbed slice calls), so the production-primary boot path is exercised by
@@ -55,5 +66,5 @@ const embedScript = `<script>\nwindow.__L10_BOOT = (function () {\n` +
   `  core.sid = 'fixture-ss'; // activates the per-workbook snapshot, like doGet's sid\n` +
   `  return core;\n` +
   `})();\n</script>\n`;
-fs.writeFileSync(path.join(HERE, 'preview-embed.html'), page.replace('__EMBED_SLOT__', () => embedScript));
-console.log('preview.html + preview-embed.html written (' + page.length + ' bytes base)');
+fs.writeFileSync(path.join(HERE, 'preview-embed.html'), page.replace('__EMBED_SLOT__', () => embedScript).replace(FORGE_SLOT, ''));
+console.log('preview.html + preview-embed.html + preview-player.html written (' + page.length + ' bytes base)');

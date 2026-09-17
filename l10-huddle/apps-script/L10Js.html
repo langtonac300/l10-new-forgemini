@@ -59,7 +59,8 @@ var L10_READS_ = { l10_bootCore: 1, l10_bootWork: 1, l10_bootPlan: 1, l10_bootSc
   l10_bootstrap: 1, l10_getSettings: 1, l10_getGuideHtml: 1, l10_webAppUrl: 1,
   l10_calContext: 1, l10_calDay: 1, l10_testRangeRef: 1, l10_ga4Test: 1,
   l10_metricPacks: 1, l10_getNotifyPrefs: 1, l10_getDigests: 1,
-  l10_hubCounts: 1, l10_settingsData: 1, l10_dataHealth: 1, l10_teamStats: 1 };
+  l10_hubCounts: 1, l10_settingsData: 1, l10_dataHealth: 1, l10_teamStats: 1,
+  l10_forgeHome: 1, l10_forgeState: 1, l10_forgePlayerBoot: 1, l10_forgeLockPreview: 1, l10_forgeUnlock: 1 };
 function busy(delta, isRead) {
   state.busyN = Math.max(0, state.busyN + delta);
   state.busyW = Math.max(0, (state.busyW || 0) + (isRead ? 0 : delta));
@@ -788,6 +789,8 @@ function showPage(name) {
   // Same lazy pattern: the stats payload is the whole to-do tab, read only
   // when someone actually opens the page.
   if (name === 'teamstats') fetchTeamStats_();
+  // Forge (v2.17) lives in L10ForgeJs — loaded after this file, so guard the call.
+  if (name === 'forge' && typeof renderForge === 'function') renderForge(true);
 }
 
 // --- Dialog semantics shared by every fixed overlay -------------------------
@@ -802,7 +805,7 @@ function dlgClosed_(id) {
 // One Tab trap for all overlays: while one is open, Tab wraps inside its card.
 // sched sits last — it stacks ABOVE the IDS card (z 170 vs 150), so when both
 // are open the trap must serve the scheduler.
-var L10_DLG_IDS_ = ['ids-overlay', 'ctx-overlay', 'rkctx-overlay', 'mb-overlay', 'guide-overlay', 'sched-overlay'];
+var L10_DLG_IDS_ = ['ids-overlay', 'ctx-overlay', 'rkctx-overlay', 'mb-overlay', 'guide-overlay', 'wheel-overlay', 'forge-tw-overlay', 'forge-lock-overlay', 'sched-overlay'];
 document.addEventListener('keydown', function (ev) {
   if (ev.key !== 'Tab') return;
   var open = null;
@@ -1059,6 +1062,7 @@ function boot(keepSeg) {
     renderOneOnOne();
     renderHistory();
     renderTeamStats();
+    if (typeof renderForge === 'function') renderForge();
     if (state.inMeeting && hyd('work') && hyd('plan') && hyd('scorecard')) renderSegment();
   }
   var core;
@@ -1132,7 +1136,7 @@ function ageLabel_() {
   return m < 1 ? 'just now' : m + 'm ago';
 }
 function overlayOpen_() {
-  return ['ids-overlay', 'ctx-overlay', 'rkctx-overlay', 'sched-overlay', 'mb-overlay', 'guide-overlay'].some(function (id) {
+  return ['ids-overlay', 'ctx-overlay', 'rkctx-overlay', 'sched-overlay', 'mb-overlay', 'guide-overlay', 'wheel-overlay', 'forge-tw-overlay', 'forge-lock-overlay'].some(function (id) {
     var el = $(id);
     return el && el.style.display === 'block';
   });
@@ -1142,6 +1146,7 @@ function ageTick_(allowRefetch) {
   if (ac) ac.textContent = '↻ ' + ageLabel_();
   if (allowRefetch === false) return;
   if (!state.loadedAt || state.inMeeting || state.editing || state.voting || state.busyN) return;
+  if (state.forge && state.forge.sid) return; // a live Forge session drives its own polling
   if (document.visibilityState !== 'visible' || overlayOpen_()) return;
   if (Date.now() - state.loadedAt > 3 * 60000) refresh();
 }
@@ -1450,7 +1455,9 @@ function renderMeeting() {
       (isLast ? '' :
         '<button class="btn ghost" id="btn-next">Next →</button>' +
         '<button class="btn subtle" id="btn-jump-conclude" title="Jump to the Conclude segment">⏭ Conclude</button>') +
-      '<button class="btn subtle" id="btn-present" title="Full-screen room mode for the shared screen">⛶ Present</button>' + '</div>';
+      '<button class="btn subtle" id="btn-present" title="Full-screen room mode for the shared screen">⛶ Present</button>' +
+      (String((b.config || {}).WHEEL_ENABLED || 'YES').toUpperCase() !== 'NO' ?
+        '<button class="btn subtle" id="btn-wheel" title="Spin the roster wheel to pick who goes first">🎡 Pick someone</button>' : '') + '</div>';
   html += '<div id="seg-body"></div>';
   $('page-huddle').innerHTML = html;
   document.querySelectorAll('.segrail button').forEach(function (btn) {
@@ -1462,6 +1469,8 @@ function renderMeeting() {
   if (jump) jump.addEventListener('click', function () { startSegment(segs.length - 1); });
   var pres = $('btn-present');
   if (pres) pres.addEventListener('click', togglePresent);
+  var whl = $('btn-wheel');
+  if (whl) whl.addEventListener('click', function () { if (typeof wheelOpen_ === 'function') wheelOpen_(attendees_(), 'huddle'); });
   var pause = $('btn-pause');
   if (pause) pause.addEventListener('click', togglePause_);
   var treset = $('btn-timer-reset');
@@ -8643,5 +8652,7 @@ function renderSettings() {
   var ns = $('notify-stack');
   if (ns) { ns.setAttribute('role', 'status'); ns.setAttribute('aria-live', 'polite'); ns.setAttribute('aria-atomic', 'false'); }
 })();
-boot();
+// The ?forge=FS-### route is the phone player: L10ForgeJs (loaded next) boots
+// it with one call instead of the four-slice app boot.
+if (!window.__L10_FORGE) boot();
 </script>

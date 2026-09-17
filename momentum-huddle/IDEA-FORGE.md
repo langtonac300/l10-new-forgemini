@@ -1,6 +1,15 @@
-# Forge — timed idea-generation module (spec, pre-build)
+# Forge — timed idea-generation module
 
-> **Status: specified 2026-09-17 (v2, same day), not built.** Target: pasted and
+> **Status: BUILT as v2.17 (2026-09-17), both copies, harness green** — see the v2.17
+> entry in [`CHANGELOG.md`](./CHANGELOG.md) for what shipped and the re-paste / repair-tabs /
+> redeploy steps. Built as specified below with these differences: a **passphrase gate**
+> (`FORGE_PASSWORD`, default Welcome) was added at Alex's request; the Opener replaced the
+> warm-up phase; Vote defaults to `TOKENS` on themes; Gemini theme suggestions and a replay
+> page were not built (first on the spec's own cut list); the Experiment Hub door is not
+> wired at Lock (unclaimed cards park as IDEA initiatives only). The spec below is kept as
+> the design record.
+>
+> Original target: pasted and
 > smoke-tested before the team's FY27 goal-setting day on **Thu 2026-09-24**. v2 folds in
 > the design points from a second plan Alex brought ("Momentum Lab"): the opener, the
 > two-pass relay, tokens on themes + a committee view, handoff contracts with a state, two
