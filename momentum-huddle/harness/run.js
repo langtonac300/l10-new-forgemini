@@ -184,6 +184,29 @@ async function clickNav(page, target) {
   if (hlth && !/Leads lifecycle/.test(hlthTxt)) errors.push('health strip does not surface the stale leads source');
   const srcWarns = await page.$$('#page-scorecard .sc-src-warn');
   if (!srcWarns.length) errors.push('no metric carries the source-stale warning line (HEALTH_MAP flag path dead)');
+  // Capture: the "could not be read" notes must survive the re-render that
+  // follows a capture, be replaced by the next capture, clear on a clean one,
+  // and go away on dismiss. (v2.17.1 — they used to be written into the old
+  // DOM and lost with it, leaving a toast that pointed at nothing.)
+  const capNotesCount = () => page.$$eval('#page-scorecard .js-cap-notes .cap-note', (els) => els.length);
+  await page.click('#page-scorecard .js-capture');
+  await page.waitForTimeout(400);
+  if ((await capNotesCount()) !== 2) errors.push('capture notes not shown under the capture button after a capture with 2 notes (' + (await capNotesCount()) + ')');
+  const capTxt = await page.$eval('#page-scorecard .js-cap-notes', (el) => el.textContent);
+  if (!/H8 is blank/.test(capTxt) || !/#REF!/.test(capTxt)) errors.push('capture notes miss the per-metric reasons');
+  if (!/2 values could not be read/.test(capTxt)) errors.push('capture notes lack the count headline');
+  const capBtn = await page.$eval('#page-scorecard .js-capture', (el) => el.disabled + '|' + el.textContent.trim());
+  if (capBtn !== 'false|⟳ Capture') errors.push('capture button not restored after a capture: ' + capBtn);
+  await page.click('#page-scorecard .js-capture'); // fixture: 1 note now → replaced, not appended
+  await page.waitForTimeout(400);
+  if ((await capNotesCount()) !== 1) errors.push('second capture did not replace the notes (' + (await capNotesCount()) + ' shown, want 1)');
+  await page.click('#page-scorecard .js-cap-notes-dismiss');
+  await page.waitForTimeout(200);
+  if ((await capNotesCount()) !== 0) errors.push('dismiss did not clear the capture notes');
+  await page.click('#page-scorecard .js-capture'); // fixture: clean capture → nothing to show
+  await page.waitForTimeout(400);
+  if ((await capNotesCount()) !== 0) errors.push('capture notes shown after a clean capture');
+  if (!/97\.5/.test(await page.$eval('#page-scorecard', (el) => el.textContent))) errors.push('captured value (SC-002 = 97.5) not spliced into the Metrics page');
 
   // --- Team stats: lazy fetch, exact numbers against the fixture, controls ---
   await clickNav(page, 'teamstats');

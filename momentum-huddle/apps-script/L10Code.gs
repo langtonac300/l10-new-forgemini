@@ -55,11 +55,18 @@ function l10ReadTab_(tabName) {
   if (!sheet || sheet.getLastRow() < 1) return { headers: [], rows: [] };
   var values = sheet.getDataRange().getValues();
   var headers = values[0].map(String);
+  // A header that appears twice (a bookkeeping column appended by one code path,
+  // then written again by a header repair) maps to its FIRST column — the same
+  // column l10WriteRowCells_ resolves by indexOf — so a value one call writes
+  // is what the next call reads. Reading the LAST copy while writing the first
+  // made a freshly written cell invisible to every later read of the row.
+  var keep = [];
+  for (var h = 0; h < headers.length; h++) keep.push(headers.indexOf(headers[h]) === h);
   var rows = [];
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][0]) === '') continue;
     var obj = {};
-    for (var j = 0; j < headers.length; j++) obj[headers[j]] = values[i][j];
+    for (var j = 0; j < headers.length; j++) if (keep[j]) obj[headers[j]] = values[i][j];
     obj._row = i + 1;
     rows.push(obj);
   }
@@ -262,22 +269,40 @@ function l10ParseDisplay_(s) {
 // Resolve "Sheet Name!H7" ourselves. Beware: Sheets STRIPS a leading
 // apostrophe from stored cell text, so a seeded "'Sheet Name'!H7" comes back
 // as "Sheet Name'!H7" — strip all apostrophes, then split on the last '!'.
+// Returns {value, how} or {value: null, why}. The why names the actual
+// failure — missing tab, unreadable address, blank cell, error or text in the
+// cell — so a failed capture points at the cell to fix, instead of a generic
+// "re-point it" that sent people checking a reference that was already right.
 function l10PullRange_(ref) {
+  var s = String(ref).replace(/'/g, '').trim();
+  var bang = s.lastIndexOf('!');
+  var range;
   try {
-    var s = String(ref).replace(/'/g, '').trim();
-    var bang = s.lastIndexOf('!');
-    var range;
     if (bang > 0) {
-      var sheet = l10Ss_().getSheetByName(s.slice(0, bang).trim());
-      if (!sheet) return null;
+      var name = s.slice(0, bang).trim();
+      var sheet = l10Ss_().getSheetByName(name);
+      if (!sheet) return { value: null, why: 'there is no tab named "' + name + '" in this workbook (renamed or deleted?)' };
       range = sheet.getRange(s.slice(bang + 1).trim());
     } else {
       range = l10Ss_().getRange(s);
     }
-    return l10ParseDisplay_(range.getDisplayValue());
   } catch (e) {
-    return null;
+    return { value: null, why: '"' + s + '" is not a cell address this workbook understands (use SheetName!A1)' };
   }
+  var display = '';
+  try {
+    display = String(range.getDisplayValue());
+  } catch (e2) {
+    return { value: null, why: 'the source cell ' + s + ' could not be read (' + String(e2).slice(0, 80) + ')' };
+  }
+  var shown = display.trim();
+  if (shown === '') return { value: null, why: 'the source cell ' + s + ' is blank — nothing to capture until it holds a value' };
+  var v = l10ParseDisplay_(shown);
+  if (v === null) {
+    return { value: null, why: 'the source cell ' + s + ' shows "' + shown.slice(0, 40) + '", which is not a number' +
+        (/^#/.test(shown) ? ' (a formula error in the source — fix it there)' : '') };
+  }
+  return { value: v, how: s };
 }
 
 // Resolve a Source Ref cell ({text, formula, display}) to a number. Accepts:
@@ -288,18 +313,20 @@ function l10PullRange_(ref) {
 function l10ResolveRef_(cell) {
   if (cell.formula) {
     var v = l10ParseDisplay_(cell.display);
-    return v === null
-        ? { value: null, why: 'the formula result "' + cell.display + '" is not a number' }
-        : { value: v, how: cell.formula };
+    if (v !== null) return { value: v, how: cell.formula };
+    var shown = String(cell.display === undefined || cell.display === null ? '' : cell.display).trim();
+    if (shown === '') return { value: null, why: 'the Source Ref formula ' + cell.formula.slice(0, 60) + ' shows a blank result' };
+    return { value: null, why: 'the Source Ref formula shows "' + shown.slice(0, 40) + '", which is not a number' +
+        (/^#/.test(shown) ? ' (a formula error — for IMPORTRANGE, open the tab and allow access once)' : '') };
   }
-  if (!cell.text) return { value: null, why: 'the cell is empty' };
+  if (!cell.text) return { value: null, why: 'the Source Ref cell is empty' };
   if (l10ParseDisplay_(cell.text) !== null) {
     return { value: null, why: '"' + cell.text + '" is a plain number, not a cell reference or formula' };
   }
-  var v2 = l10PullRange_(cell.text);
-  return v2 === null
-      ? { value: null, why: '"' + cell.text + '" did not resolve — re-point it at a cell like SheetName!A1' }
-      : { value: v2, how: cell.text };
+  var pulled = l10PullRange_(cell.text);
+  return pulled.value === null
+      ? { value: null, why: pulled.why }
+      : { value: pulled.value, how: cell.text };
 }
 
 // Experiment Hub pulls (read-only). Cached 5 minutes — openByUrl on another

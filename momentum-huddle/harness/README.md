@@ -25,6 +25,7 @@ npm init -y && npm i playwright-core   # once; browsers are NOT downloaded
 node build.js                          # → preview.html
 node run.js                            # smoke suite (exit 1 on any failure)
 node run.js --shots                    # + full-page screenshots into shots/
+node server-checks.js                  # node-only: the .gs logic behind capture + the Jira sync
 ```
 
 `run.js` launches the system Chromium (`/opt/pw-browsers/chromium` in the
@@ -48,6 +49,22 @@ any Chrome). It fails on any console error, page error, or broken flow.
   a meeting starts.
 - `#firstrun` (empty-workspace fixtures): the setup checklist renders with its
   three doors.
+- Metrics capture: the "could not be read" notes appear under the capture button,
+  survive the re-render a capture triggers, get replaced by the next capture,
+  dismiss, and clear on a clean one.
+
+## Server checks (no browser)
+
+`server-checks.js` loads `L10Setup.gs` + `L10Code.gs` + `L10Jira.gs` into a node
+`vm` with small stubs for the Apps Script services (Sheets, Properties, Lock,
+UrlFetch, ScriptApp) and a tiny in-memory Jira, then runs the scenarios the
+browser cannot reach: the tab reader's first-column rule for a duplicated
+header, the range resolver's failure reasons, and the Jira sync's promise that
+one to-do never becomes two issues — duplicate header, fresh create with the
+`huddle-td-###` label, label rejected, a write-back that does not stick (one
+create, halt, trigger off, nothing created on the next run), duplicate ids, a
+failed duplicate check, and the duplicate report. Run it alongside `run.js`
+before pasting `L10Code.gs` or `L10Jira.gs` into the workbook.
 
 ## Editing fixtures
 
