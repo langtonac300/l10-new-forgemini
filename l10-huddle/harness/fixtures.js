@@ -219,44 +219,58 @@
   let idSeq = 500;
   const ok = { ok: true };
 
-  // --- Forge (v2.17): a small stateful session so the smoke can walk Lobby →
-  // Locked on the room screen and add cards from the player view. Shapes mirror
-  // l10ForgePersonalize_ in L10Forge.gs.
-  const FORGE_PHASES = [['OPENER', 'Goal, project or chore?', 300], ['DIVERGE', 'Diverge', 300, 3], ['RELAY', 'Relay', 240, 2],
-    ['CLUSTER', 'Cluster', 480], ['VOTE', 'Vote', 300], ['COMMITTEE', 'Investment committee', 600], ['CLAIM', 'Claim', 300],
-    ['HANDOFFS', 'Handoff contracts', 600], ['FORGE', 'Forge the goal', 2100], ['DOCTOR', 'Goal doctor', 480, 2], ['COMMIT', 'Commit', 300]]
+  // --- Forge (v2.18): a small stateful session so the smoke can walk Lobby →
+  // Locked on the room screen and drive the player view. Shapes mirror
+  // l10ForgePersonalize_ in L10Forge.gs. The default day: one ideas round on a
+  // seeded wall → claim → write the goal → one peer review → commit.
+  const FORGE_PHASES = [['DIVERGE', 'New ideas', 600, 1], ['CLAIM', 'Claim', 600], ['FORGE', 'Write the goal', 2400], ['DOCTOR', 'Peer review', 600, 1], ['COMMIT', 'Commit', 600]]
     .map((p) => ({ key: p[0], label: p[1], seconds: p[2], rounds: p[3] || 1 }));
   const FORGE_PROMPTS = {
     opener: [{ text: 'Launch a podcast sponsorship.', answer: 'project' }, { text: 'Run four experiments.', answer: 'task' },
       { text: 'Grow PDC sales-accepted pipeline within an agreed cost and quality limit.', answer: 'outcome' }, { text: 'Save five hours a week preparing reports.', answer: 'incomplete' }],
     openerLabels: [['outcome', 'Outcome'], ['project', 'Project'], ['task', 'Recurring task'], ['incomplete', 'Incomplete goal']],
-    rounds: [{ title: 'Your line', prompt: 'Look at your FY27 number. Write ideas that move THAT line.' }, { title: 'Wildcard', prompt: 'Draw a wildcard and answer it.' }, { title: "Stuart's list, made concrete", prompt: 'Make one item concrete for your accounts.' }],
+    rounds: [{ title: 'New ideas', prompt: 'The FY27 goals and the team backlog are on the wall. What is missing for YOUR accounts? One idea per card.' }],
     wildcards: ['+$250K lands tomorrow. Where?', 'Cut 10% and hold revenue. How?'],
     card: 'For [account], change [thing] because [reason], so that [result].',
     relay: ['Strengthen the revenue link.', 'Add a test or a missing assumption.'],
     thought: [{ title: 'July 31, 2027', minutes: 10, prompt: 'Write the TLDR Stuart sends Nicole.' }],
-    doctor: ['Specific enough?', 'Has a number, source, date?', 'Could they hit it without helping the business?'],
+    doctor: ['Specific enough?', 'Has a number, source, date?', 'Names the FY27 goal it serves?', 'Could they hit it without helping the business?'],
     stuart: ['What is the why?'], rungs: ['Revenue / pacing', 'Leading indicator', 'Volume', 'Automation'],
     levers: ['Spend allocation', 'Efficiency', 'Conversion (LP / feed / creative)'], shifts: ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4']
   };
-  const FORGE_CFG = { voteMode: 'TOKENS', tokens: 10, tokenMax: 4, dots: 5, dotMax: 2, superVotes: 1, ideaTarget: 40, reviews: 2, shortlist: 12,
-    goalsPerPerson: 5, lines: [['Brady US paid search', '$8.54M spend · $23.67M revenue · ROAS 2.77'], ['Seton US paid search', '$4.00M · $4.31M · ROAS 1.08']],
+  const FORGE_LINES = [['Direct revenue', '+8% YoY shipped direct revenue to $121.8M at $8.22 direct ROAS'],
+    ['New customers', 'Paid search new-customer acquisition +5% on BradyID, +3% on Seton US'],
+    ['Awareness: create demand', 'Always-on brand campaign; a scalable ad-asset process']];
+  // The seeded wall, as FORGE_SEED_CARDS rows: [text, area, source].
+  const FORGE_SEEDS = [['Drive +8% YoY shipped direct revenue at $8.22 direct ROAS.', 'Direct revenue', 'Stuart'],
+    ['Grow paid search new-customer acquisition +5% on BradyID.', 'New customers', 'Stuart'],
+    ['Scope at least one host-read podcast opportunity by end of Q1.', 'Awareness: create demand', 'Team'],
+    ['Use AI to build out barren landing pages and test them against the originals.', 'New customers', 'Team']];
+  const FORGE_CFG = { voteMode: 'TOKENS', tokens: 10, tokenMax: 4, dots: 5, dotMax: 2, superVotes: 1, ideaTarget: 15, reviews: 1, shortlist: 12,
+    goalsPerPerson: 5, lines: FORGE_LINES, hasVote: false, hasHandoffs: false, timedWrite: false, seeds: FORGE_SEEDS.length,
     q1By: '2026-10-31', pollSec: 3, timedWriteMin: 10, wheel: true, fy: 'FY27', accounts: ['Brady US', 'Seton US'], team: TEAM };
   const FORGE = { seq: 1, sessions: {} };
   function forgeSeed(id, title, facilitator, phase, round) {
     const ses = { id: id, title: title, status: 'OPEN', date: TODAY, facilitator: facilitator, phase: phase, round: round,
       phaseStartedAt: Date.now(), phaseSeconds: 300, pausedAt: 0, participants: TEAM.slice(), themes: [], flags: {}, timedWrite: null,
       ratings: {}, lockedAt: '', version: 1, ideas: [], votes: [], handoffs: [], goals: [], opener: {}, ideaSeq: 0, goalSeq: 0, hoSeq: 0 };
+    // The seeded wall first (round S, never anonymous, area as theme), then the
+    // three cards the room writes in the ideas round.
+    FORGE_SEEDS.forEach((sd) => {
+      ses.ideaSeq++;
+      ses.ideas.push({ id: 'FI-' + String(ses.ideaSeq).padStart(3, '0'), round: 'S', prompt: 'seed', idea: sd[0], by: sd[2], anon: false,
+        buildBy: '', build: '', relay2By: '', relay2: '', theme: sd[1], account: '', shift: '', lever: '', status: 'RAW', claimedBy: '', goalId: '', parkedTo: '', created: TODAY });
+    });
     [['Courtney', 'For Brady US, run a Demand Gen test because search is capped, so that NB leads grow.'],
      ['CJ', 'For Seton US, tier the Shopping feed because half the spend is at break-even, so that ROAS reaches 1.08.'],
      ['Scott', 'For EMEDCO, move feeds in-house because Feedonomics costs $15K, so that we control freshness.']].forEach((x) => {
       ses.ideaSeq++;
-      ses.ideas.push({ id: 'FI-' + String(ses.ideaSeq).padStart(3, '0'), round: '1', prompt: 'Your line', idea: x[1], by: x[0], anon: true,
+      ses.ideas.push({ id: 'FI-' + String(ses.ideaSeq).padStart(3, '0'), round: '1', prompt: 'New ideas', idea: x[1], by: x[0], anon: true,
         buildBy: '', build: '', relay2By: '', relay2: '', theme: '', account: '', shift: '', lever: '', status: 'RAW', claimedBy: '', goalId: '', parkedTo: '', created: TODAY });
     });
     ses.goalSeq++;
     ses.goals.push({ id: 'G-' + String(ses.goalSeq).padStart(3, '0'), person: 'CJ', goalNo: 1, type: 'Business', title: 'Deliver Brady US to guardrail',
-      line: 'Brady US paid search', rung: 'Revenue / pacing', lever: 'Spend allocation', metric: 'Utilization %', source: 'Financial Dashboard v2', baseline: '88.1%', target: '95–105%',
+      line: 'Direct revenue', rung: 'Revenue / pacing', lever: 'Spend allocation', metric: 'Utilization %', source: 'Financial Dashboard v2', baseline: '88.1%', target: '95–105%',
       deadline: '2027-01-31', doneWhen: 'Three months inside the band', indicator: '', stake: 'unknown', shift: 'Shift 1', ms1: '', ms1Due: '', ms2: '', ms2Due: '',
       doctorBy: '', doctorChecks: null, doctorNote: '', doctor2By: '', doctor2Checks: null, doctor2Note: '', verdict: '', status: 'DRAFT', ideaId: '', rockId: '',
       writtenAt: '', guardrail: 'revenue at plan per BD', dependency: '', priv: false });
@@ -519,20 +533,20 @@
     l10_calCreate: { ok: true, link: 'https://calendar.google.com/event-fixture' },
     l10_getGuideHtml: '<h2>Guide fixture</h2>',
 
-    // Forge (v2.17). The gate: 'welcome' (any case) unlocks; the three reads
-    // and create answer {locked:true} without the token, like the server.
-    l10_forgeUnlock: function (pw) { return String(pw || '').trim().toLowerCase() === 'welcome' ? { ok: true, token: 'fx-token' } : { ok: false, locked: true, error: 'That is not the passphrase.' }; },
-    l10_forgeHome: function (token) {
-      if (token !== 'fx-token') return { ok: false, locked: true, error: 'Enter the passphrase first.' };
+    // Forge (v2.18). No passphrase by default (FORGE_PASSWORD blank): the reads
+    // answer straight away and unlock hands back the "open" token, like the server.
+    l10_forgeUnlock: function () { return { ok: true, token: 'open' }; },
+    l10_forgeHome: function () {
       const list = Object.values(FORGE.sessions).filter((x) => x.status !== 'DISCARDED').map((x) => ({ id: x.id, date: x.date, title: x.title, status: x.status, phase: x.phase,
         facilitator: x.facilitator, participants: x.participants.slice(), lockedAt: x.lockedAt, ratings: x.ratings, ideas: x.ideas.length, goals: x.goals.length, rating: null }));
       const open = list.filter((x) => x.status === 'OPEN');
-      return { ok: true, ready: true, enabled: true, wheel: true, sessions: list.reverse(), open: open.length ? open[open.length - 1].id : '', team: TEAM, webAppUrl: 'https://script.google.com/macros/s/fixture/exec' };
+      return { ok: true, ready: true, enabled: true, wheel: true, sessions: list.reverse(), open: open.length ? open[open.length - 1].id : '', team: TEAM, webAppUrl: 'https://script.google.com/macros/s/fixture/exec',
+        phases: FORGE_PHASES.map((p) => p.label + (p.rounds > 1 ? ' ×' + p.rounds : '')), seeds: FORGE_SEEDS.length, timedWrite: false };
     },
-    l10_forgeCreate: function (title, fac, token) { if (token !== 'fx-token') return { ok: false, locked: true, error: 'Enter the passphrase first.' }; FORGE.seq++; const id = 'FS-' + String(FORGE.seq).padStart(3, '0'); forgeSeed(id, title || 'Forge', fac, 'LOBBY', 0); return { ok: true, id: id }; },
+    l10_forgeCreate: function (title, fac) { FORGE.seq++; const id = 'FS-' + String(FORGE.seq).padStart(3, '0'); forgeSeed(id, title || 'Forge', fac, 'LOBBY', 0); return { ok: true, id: id, seeded: FORGE_SEEDS.length }; },
     l10_forgeDiscard: function (id) { const ses = forgeSes(id); if (ses) ses.status = 'DISCARDED'; return { ok: true }; },
-    l10_forgePlayerBoot: function (id, who, token) { if (token !== 'fx-token') return { ok: false, locked: true, error: 'Enter the passphrase first.' }; const st = forgeState(forgeSes(id), who); return { ok: !!st.ok, error: st.error, team: TEAM, photos: { CJ: TINY_PNG }, meetingName: 'Fixture', state: st }; },
-    l10_forgeState: function (id, since, who, token) { if (token !== 'fx-token') return { ok: false, locked: true, error: 'Enter the passphrase first.' }; const ses = forgeSes(id); if (!ses) return { ok: false, error: 'Session not found.' }; if (since && Number(since) === ses.version) return { ok: true, unchanged: true, version: ses.version, serverNow: Date.now() }; return forgeState(ses, who); },
+    l10_forgePlayerBoot: function (id, who) { const st = forgeState(forgeSes(id), who); return { ok: !!st.ok, error: st.error, team: TEAM, photos: { CJ: TINY_PNG }, meetingName: 'Fixture', state: st }; },
+    l10_forgeState: function (id, since, who) { const ses = forgeSes(id); if (!ses) return { ok: false, error: 'Session not found.' }; if (since && Number(since) === ses.version) return { ok: true, unchanged: true, version: ses.version, serverNow: Date.now() }; return forgeState(ses, who); },
     l10_forgeJoin: function (id, name) { const ses = forgeSes(id); if (ses.participants.indexOf(name) === -1) { ses.participants.push(name); forgeBump(ses); } return { ok: true, participants: ses.participants }; },
     l10_forgePhase: function (id, action, arg) {
       const ses = forgeSes(id); if (!ses) return { ok: false, error: 'not found' };
@@ -581,12 +595,13 @@
       return forgeBump(ses);
     },
     l10_forgeClaim: function (ideaId, who) { let out = { ok: true }; Object.values(FORGE.sessions).forEach((ses) => ses.ideas.forEach((c) => { if (c.id === ideaId) { if (c.claimedBy && c.claimedBy !== who) out = { ok: false, error: c.claimedBy + ' already claimed this card.' }; else { c.claimedBy = who; c.status = 'CLAIMED'; forgeBump(ses); } } })); return out; },
-    l10_forgeUnclaim: function (ideaId) { Object.values(FORGE.sessions).forEach((ses) => ses.ideas.forEach((c) => { if (c.id === ideaId) { c.claimedBy = ''; c.status = 'SHORTLIST'; forgeBump(ses); } })); return { ok: true }; },
+    l10_forgeUnclaim: function (ideaId) { Object.values(FORGE.sessions).forEach((ses) => ses.ideas.forEach((c) => { if (c.id === ideaId) { c.claimedBy = ''; c.status = c.round === 'S' ? 'RAW' : 'SHORTLIST'; forgeBump(ses); } })); return { ok: true }; },
     l10_forgeHandoff: function (id, from, to, need, provide, due) { const ses = forgeSes(id); ses.hoSeq++; const row = { id: 'FH-' + String(ses.hoSeq).padStart(3, '0'), from: from, to: to, need: need, provide: provide, due: due || '', status: TEAM.indexOf(to) !== -1 ? 'PROPOSED' : 'UNCONFIRMED', goalId: '' }; ses.handoffs.push(row); forgeBump(ses); return { ok: true, id: row.id, row: row }; },
     l10_forgeHandoffRespond: function (hid, who, status, edits) { Object.values(FORGE.sessions).forEach((ses) => ses.handoffs.forEach((h) => { if (h.id === hid) { h.status = status; if (edits) { if (edits.need !== undefined) h.need = edits.need; if (edits.due !== undefined) h.due = edits.due; } forgeBump(ses); } })); return { ok: true }; },
     l10_forgeSaveGoal: function (id, who, g) {
       const ses = forgeSes(id);
       let row = g.id ? ses.goals.filter((x) => x.id === g.id)[0] : null;
+      const created = !row;
       if (!row) {
         ses.goalSeq++;
         row = { id: 'G-' + String(ses.goalSeq).padStart(3, '0'), person: who, goalNo: ses.goals.filter((x) => x.person === who).length + 1, type: g.type === 'Personal' ? 'Personal' : 'Business', title: '', line: '', rung: '', lever: '', metric: '', source: '', baseline: '', target: '', deadline: '', doneWhen: '', indicator: '', stake: '', shift: '', ms1: '', ms1Due: '', ms2: '', ms2Due: '', doctorBy: '', doctorChecks: null, doctorNote: '', doctor2By: '', doctor2Checks: null, doctor2Note: '', verdict: '', status: 'DRAFT', ideaId: g.ideaId || '', rockId: '', writtenAt: '', guardrail: '', dependency: '', priv: g.type === 'Personal' };
@@ -594,6 +609,12 @@
         if (row.ideaId) ses.ideas.forEach((c) => { if (c.id === row.ideaId) { c.status = 'GOAL'; c.goalId = row.id; } });
       }
       Object.keys(g).forEach((k) => { if (k !== 'id' && k in row) row[k] = k === 'priv' ? !!g[k] : g[k]; });
+      // Like the server: a goal made from a card starts as that card.
+      const card = created && row.ideaId ? ses.ideas.find((c) => c.id === row.ideaId) : null;
+      if (card) {
+        if (!row.title) row.title = card.idea.slice(0, 120);
+        if (!row.line && card.theme && FORGE_LINES.some((l) => l[0] === card.theme)) row.line = card.theme;
+      }
       forgeBump(ses); return { ok: true, id: row.id };
     },
     l10_forgeDropGoal: function (goalId) { Object.values(FORGE.sessions).forEach((ses) => ses.goals.forEach((g) => { if (g.id === goalId) { g.status = 'SUPERSEDED'; forgeBump(ses); } })); return { ok: true }; },
@@ -603,7 +624,7 @@
       const ses = forgeSes(id);
       const people = {}; ses.goals.forEach((g) => { (people[g.person] = people[g.person] || []).push(g); });
       return { ok: true, goals: ses.goals.length, sheets: ses.goals.length, rocks: ses.goals.filter((g) => g.type === 'Business' && g.ms1 && g.ms1Due).length, parks: [], strategyReady: true,
-        warnings: Object.keys(people).map((p) => p + ': ' + people[p].filter((g) => g.type === 'Business').length + ' business goal(s), expected 4.'),
+        warnings: Object.keys(people).map((p) => { const n = people[p].filter((g) => g.type === 'Business').length; return n < 2 ? p + ': only ' + n + ' business goal(s) — the brief is 3–5 goals including one personal.' : ''; }).filter(Boolean),
         people: Object.keys(people).map((p) => ({ person: p, business: people[p].filter((g) => g.type === 'Business').length, personal: people[p].filter((g) => g.type === 'Personal').length, sheet: p + ' — FY27 Goals', blocks: 5,
           items: people[p].map((g, i) => ({ goal: g.id, title: g.title, type: g.type, block: i + 1, row: 37 + 6 * i, rock: g.type === 'Business' && !!(g.ms1 && g.ms1Due) })) })) };
     },

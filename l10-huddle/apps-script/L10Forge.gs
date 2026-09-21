@@ -10,6 +10,11 @@
 // brainstorm must never do either. Lock writes goals to each person's own
 // "<Name> — FY27 Goals" tab, creates rocks from the Q1 milestones, and
 // parks unclaimed shortlist cards as IDEA-stage initiatives.
+//
+// v2.18: a new session starts with a seeded wall (FORGE_SEED_CARDS, round "S")
+// and the default day is DIVERGE (one round) → CLAIM → FORGE → DOCTOR → COMMIT;
+// with no VOTE or COMMITTEE phase configured every live card is claimable.
+// The other phases still run when FORGE_PHASES lists them.
 
 var L10_FORGE_PHASE_KEYS_ = ['OPENER', 'DIVERGE', 'RELAY', 'CLUSTER', 'VOTE', 'COMMITTEE',
   'CLAIM', 'HANDOFFS', 'FORGE', 'DOCTOR', 'COMMIT'];
@@ -20,33 +25,55 @@ var L10_FORGE_CACHE_MAX_ = 90000; // CacheService caps a value at 100 KB
 // Config
 // ---------------------------------------------------------------------------
 
+// A JSON config value. A cell that is blank, or that still holds exactly the
+// default an earlier version shipped (never edited), reads as the CURRENT
+// default — Setup / repair tabs rewrites such cells too (L10_CONFIG_UPGRADES),
+// but the runtime does not depend on that having run. Unparseable → default.
+function l10ForgeCfgJson_(value, oldDefault, currentDefault) {
+  var raw = String(value === undefined || value === null ? '' : value).trim();
+  if (raw === '' || (oldDefault && raw === oldDefault)) raw = currentDefault;
+  try { return JSON.parse(raw); } catch (e) {
+    try { return JSON.parse(currentDefault); } catch (e2) { return null; }
+  }
+}
 function l10ForgeCfg_(config) {
   var c = config || l10Config_();
-  var phases;
-  try { phases = JSON.parse(c.FORGE_PHASES); } catch (e) { phases = null; }
-  if (!phases || !phases.length) {
-    try { phases = JSON.parse(L10_FORGE_PHASES_DEFAULT); } catch (e2) { phases = []; }
-  }
+  var phasesV217 = typeof L10_FORGE_PHASES_V217_ !== 'undefined' ? L10_FORGE_PHASES_V217_ : '';
+  var promptsV217 = typeof L10_FORGE_PROMPTS_V217_ !== 'undefined' ? L10_FORGE_PROMPTS_V217_ : '';
+  var linesV217 = typeof L10_FORGE_LINES_V217_ !== 'undefined' ? L10_FORGE_LINES_V217_ : '';
+  var seedDefault = typeof L10_FORGE_SEED_DEFAULT !== 'undefined' ? L10_FORGE_SEED_DEFAULT : '[]';
+  var phases = l10ForgeCfgJson_(c.FORGE_PHASES, phasesV217, L10_FORGE_PHASES_DEFAULT);
+  if (!Array.isArray(phases) || !phases.length) { try { phases = JSON.parse(L10_FORGE_PHASES_DEFAULT); } catch (e) { phases = []; } }
   phases = phases.map(function (p) {
     return { key: String(p[0] || '').toUpperCase(), label: String(p[1] || p[0] || ''),
       seconds: Math.max(30, Number(p[2]) || 300), rounds: Math.max(1, Number(p[3]) || 1) };
   }).filter(function (p) { return L10_FORGE_PHASE_KEYS_.indexOf(p.key) !== -1; });
-  var prompts;
-  try { prompts = JSON.parse(c.FORGE_PROMPTS); } catch (e3) { prompts = null; }
-  if (!prompts) { try { prompts = JSON.parse(L10_FORGE_PROMPTS_DEFAULT); } catch (e4) { prompts = {}; } }
-  var lines;
-  try { lines = JSON.parse(c.FORGE_LINES); } catch (e5) { lines = null; }
-  if (!lines) { try { lines = JSON.parse(L10_FORGE_LINES_DEFAULT); } catch (e6) { lines = []; } }
+  var prompts = l10ForgeCfgJson_(c.FORGE_PROMPTS, promptsV217, L10_FORGE_PROMPTS_DEFAULT) || {};
+  var lines = l10ForgeCfgJson_(c.FORGE_LINES, linesV217, L10_FORGE_LINES_DEFAULT);
+  if (!Array.isArray(lines)) lines = [];
+  // The seeded wall: [text, area, source] rows. "[]" in the cell = no seeds.
+  var seeds = l10ForgeCfgJson_(c.FORGE_SEED_CARDS, '', seedDefault);
+  seeds = (Array.isArray(seeds) ? seeds : []).map(function (sd) {
+    return { text: l10ForgeStr_(sd[0], 600), area: l10ForgeStr_(sd[1], 120), by: l10ForgeStr_(sd[2], 60) || 'Seed' };
+  }).filter(function (sd) { return !!sd.text; });
   var num = function (k, d) { var n = Number(c[k]); return isFinite(n) && n > 0 ? n : d; };
+  var has = function (key) { return phases.some(function (p) { return p.key === key; }); };
+  var doctor = phases.filter(function (p) { return p.key === 'DOCTOR'; })[0];
   return {
     enabled: String(c.FORGE_ENABLED || 'YES').toUpperCase() !== 'NO',
     wheel: String(c.WHEEL_ENABLED || 'YES').toUpperCase() !== 'NO',
-    phases: phases, prompts: prompts, lines: lines,
+    phases: phases, prompts: prompts, lines: lines, seeds: seeds,
+    // Claim needs a vote or a committee to narrow the wall; without either,
+    // every live card is claimable — the seeded wall IS the shortlist.
+    hasVote: has('VOTE') || has('COMMITTEE'),
+    hasHandoffs: has('HANDOFFS'),
+    timedWrite: String(c.FORGE_TIMED_WRITE || 'NO').toUpperCase() === 'YES',
     voteMode: String(c.FORGE_VOTE_MODE || 'TOKENS').toUpperCase() === 'DOTS' ? 'DOTS' : 'TOKENS',
     tokens: num('FORGE_TOKENS', 10), tokenMax: num('FORGE_TOKEN_MAX_PER_THEME', 4),
     dots: num('FORGE_DOTS', 5), dotMax: num('FORGE_DOT_MAX_PER_IDEA', 2),
-    superVotes: num('FORGE_SUPER_VOTES', 1), ideaTarget: num('FORGE_IDEA_TARGET', 40),
-    reviews: num('FORGE_REVIEWS_PER_GOAL', 2), shortlist: num('FORGE_SHORTLIST', 12),
+    superVotes: num('FORGE_SUPER_VOTES', 1), ideaTarget: num('FORGE_IDEA_TARGET', 15),
+    // The DOCTOR phase's own round count says how many reviewers a goal gets.
+    reviews: doctor ? doctor.rounds : num('FORGE_REVIEWS_PER_GOAL', 1), shortlist: num('FORGE_SHORTLIST', 12),
     goalsPerPerson: num('FORGE_GOALS_PER_PERSON', 5), pollSec: num('FORGE_POLL_SEC', 3),
     timedWriteMin: num('FORGE_TIMED_WRITE_MIN', 10),
     q1By: l10DueOk_(c.FORGE_Q1_MILESTONE_BY) ? String(c.FORGE_Q1_MILESTONE_BY) : '',
@@ -197,7 +224,10 @@ function l10_forgeHome(token) {
   });
   var open = sessions.filter(function (s) { return s.status === 'OPEN'; });
   return { ok: true, ready: true, enabled: cfg.enabled, wheel: cfg.wheel, sessions: sessions.reverse(),
-    open: open.length ? open[open.length - 1].id : '', team: l10ForgeTeam_(config), webAppUrl: l10WebAppUrl_() };
+    open: open.length ? open[open.length - 1].id : '', team: l10ForgeTeam_(config), webAppUrl: l10WebAppUrl_(),
+    // So the home page can say how the configured day actually runs.
+    phases: cfg.phases.map(function (p) { return p.label + (p.rounds > 1 ? ' ×' + p.rounds : ''); }),
+    seeds: cfg.seeds.length, timedWrite: cfg.timedWrite };
 }
 
 function l10_forgeCreate(title, facilitator, token) {
@@ -216,7 +246,30 @@ function l10_forgeCreate(title, facilitator, token) {
     'Participants': JSON.stringify([facilitator]), 'Created': l10Now_(), 'Locked At': '', 'Notes': '',
     'Timed Write (JSON)': '', 'Flags (JSON)': '{}', 'Version': 1
   });
-  return { ok: true, id: id };
+  var seeded = l10ForgeSeedCards_(id, cfg);
+  return { ok: true, id: id, seeded: seeded };
+}
+
+// The pre-seeded wall: one card per FORGE_SEED_CARDS entry, written in ONE
+// setValues so a 40-card deck costs one round trip, not forty. Round "S" marks
+// them; they are never anonymous and carry their goal area as the theme, which
+// a goal made from the card inherits as the FY27 goal it serves.
+function l10ForgeSeedCards_(sessionId, cfg) {
+  if (!cfg.seeds.length) return 0;
+  var sheet = l10Ss_().getSheetByName(L10.TABS.FORGE_IDEAS);
+  if (!sheet) return 0;
+  var headers = l10ReadTab_(L10.TABS.FORGE_IDEAS).headers;
+  if (!headers.length) headers = L10.HEADERS[L10.TABS.FORGE_IDEAS];
+  var now = l10Now_();
+  var rows = cfg.seeds.map(function (sd) {
+    var vals = { 'ID': l10NextId_(L10.TABS.FORGE_IDEAS, 'FI'), 'Session ID': sessionId, 'Round': 'S', 'Prompt': 'seed',
+      'Idea': sd.text, 'By': sd.by, 'Anon': 'NO', 'Created': now, 'Theme': sd.area, 'Status': 'RAW',
+      'Dots': 0, 'Super Votes': 0, 'Updated At': now };
+    return headers.map(function (h) { return vals[h] === undefined ? '' : vals[h]; });
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+  l10TabDirty_(L10.TABS.FORGE_IDEAS);
+  return rows.length;
 }
 
 function l10_forgeDiscard(sessionId) {
@@ -313,7 +366,8 @@ function l10ForgeBuildRaw_(s) {
     cfg: { voteMode: cfg.voteMode, tokens: cfg.tokens, tokenMax: cfg.tokenMax, dots: cfg.dots, dotMax: cfg.dotMax,
       superVotes: cfg.superVotes, ideaTarget: cfg.ideaTarget, reviews: cfg.reviews, shortlist: cfg.shortlist,
       goalsPerPerson: cfg.goalsPerPerson, lines: cfg.lines, q1By: cfg.q1By, pollSec: cfg.pollSec,
-      timedWriteMin: cfg.timedWriteMin, wheel: cfg.wheel, fy: cfg.fy,
+      timedWriteMin: cfg.timedWriteMin, timedWrite: cfg.timedWrite, hasVote: cfg.hasVote, hasHandoffs: cfg.hasHandoffs,
+      seeds: cfg.seeds.length, wheel: cfg.wheel, fy: cfg.fy,
       accounts: String(config.ACCOUNT_TAGS || '').split(',').map(function (t) { return t.trim(); }).filter(String),
       team: l10ForgeTeam_(config) },
     ideas: ideas, votes: votes, handoffs: handoffs, goals: goals, scorecard: scorecard
@@ -774,7 +828,10 @@ function l10_forgeUnclaim(ideaId, who) {
   who = l10ForgeStr_(who, 60);
   if (String(r['Claimed By']) !== who && (!s || String(s['Facilitator']) !== who)) return { ok: false, error: 'Only the owner or the facilitator can release it.' };
   if (String(r['Goal ID'] || '')) return { ok: false, error: 'A goal was already written from this card.' };
-  l10SetCells_(L10.TABS.FORGE_IDEAS, ideaId, { 'Status': 'SHORTLIST', 'Claimed By': '', 'Updated At': l10Now_() });
+  // A released seed card goes back to RAW (it is the brief, not a leftover to
+  // park at Lock); a released team card stays on the shortlist.
+  var back = String(r['Round']) === 'S' ? 'RAW' : 'SHORTLIST';
+  l10SetCells_(L10.TABS.FORGE_IDEAS, ideaId, { 'Status': back, 'Claimed By': '', 'Updated At': l10Now_() });
   l10ForgeTouch_(String(r['Session ID']));
   return { ok: true };
 }
@@ -871,11 +928,16 @@ function l10_forgeSaveGoal(sessionId, who, g) {
       'Type': u['Type'] || 'Business', 'Status': 'DRAFT', 'Created': l10Now_(), 'Private': u['Private'] || (u['Type'] === 'Personal' ? 'YES' : 'NO'),
       'Idea ID': l10ForgeStr_(g.ideaId, 12) };
     Object.keys(u).forEach(function (h) { vals[h] = u[h]; });
-    l10ForgeAppend_(L10.TABS.GOALS, vals);
-    if (vals['Idea ID']) {
-      var idea = l10ForgeIdea_(vals['Idea ID']);
-      if (idea) l10SetCells_(L10.TABS.FORGE_IDEAS, vals['Idea ID'], { 'Status': 'GOAL', 'Goal ID': id, 'Updated At': l10Now_() });
+    var idea = vals['Idea ID'] ? l10ForgeIdea_(vals['Idea ID']) : null;
+    if (idea) {
+      // A goal made from a card starts as that card: its text as the title,
+      // its area as the FY27 goal it serves. Both stay editable.
+      if (!vals['Title']) vals['Title'] = l10ForgeStr_(idea['Idea'], 120);
+      var area = String(idea['Theme'] || '').trim();
+      if (!vals['Revenue Line'] && area && cfg.lines.some(function (l) { return String(l[0]) === area; })) vals['Revenue Line'] = area;
     }
+    l10ForgeAppend_(L10.TABS.GOALS, vals);
+    if (idea) l10SetCells_(L10.TABS.FORGE_IDEAS, vals['Idea ID'], { 'Status': 'GOAL', 'Goal ID': id, 'Updated At': l10Now_() });
   }
   l10ForgeTouch_(sessionId);
   return { ok: true, id: id };
@@ -1022,7 +1084,8 @@ function l10ForgeLockPlan_(sessionId) {
     var entry = { person: person, business: biz.length, personal: pers.length, sheet: sheet ? sheet.getName() : '', blocks: blocks.length, items: [] };
     if (!sheet) plan.warnings.push(person + ': no "' + person + cfg.goalSuffix + '" tab — goals stay in L10_Goals only.');
     else if (!blocks.length) plan.warnings.push(person + ': the tab has no "Goal N" blocks in column B — nothing will be written there.');
-    if (biz.length < cfg.goalsPerPerson - 1) plan.warnings.push(person + ': ' + biz.length + ' business goal(s), expected ' + (cfg.goalsPerPerson - 1) + '.');
+    // The brief is 3–5 goals including one personal, so fewer than two business goals is the flag.
+    if (biz.length < 2) plan.warnings.push(person + ': only ' + biz.length + ' business goal(s) — the brief is 3–5 goals including one personal.');
     if (!pers.length) plan.warnings.push(person + ': no personal goal.');
     biz.forEach(function (g) {
       if (!g.ms1 || !g.ms1Due) plan.warnings.push(person + ' · "' + g.title + '": no dated Q1 milestone, so no rock will be created.');

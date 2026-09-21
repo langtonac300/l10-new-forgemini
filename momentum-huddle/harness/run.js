@@ -654,93 +654,70 @@ async function clickNav(page, target) {
   if (!(await pageI.$('#mh-intro'))) errors.push('brand intro overlay missing on reload');
   await pageI.close();
 
-  // --- Forge (v2.17): room screen walks Lobby → Locked; then the player view ---
+  // --- Forge (v2.18): no gate by default; the room screen walks Lobby → Locked on
+  // the goals-day flow (one ideas round on a seeded wall → claim → write → one
+  // review → commit); then the player view, on a laptop, claims a seed card and
+  // writes it up with the trimmed form. ---
   const pageF = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   pageF.on('console', (m) => { if (m.type() === 'error') errors.push('forge console.error: ' + m.text()); });
   pageF.on('pageerror', (e) => errors.push('forge pageerror: ' + e.message));
   await pageF.emulateMedia({ reducedMotion: 'reduce' });
   await pageF.goto('file://' + path.join(HERE, 'preview.html'));
   await pageF.waitForFunction(() => { const el = document.querySelector('#page-huddle'); return el && !el.querySelector('.spinner'); }, { timeout: 10000 });
-  if (await pageF.$('#forge-gate')) errors.push('the passphrase gate rose at app boot (must wait for the Forge page to be opened)');
   await clickNav(pageF, 'forge');
-  // The passphrase gate: shows on first open, has a way back, denies a wrong word, opens on the right one.
-  await pageF.waitForSelector('#forge-gate .fgate-back', { timeout: 5000 }).catch(() => errors.push('forge gate has no way back to the huddle'));
-  await pageF.click('#forge-gate .fgate-back'); await pageF.waitForTimeout(150);
-  if (!(await pageF.$eval('#page-huddle', (el) => el.classList.contains('visible')))) errors.push('gate back button did not return to the huddle');
-  await clickNav(pageF, 'forge');
-  await pageF.waitForSelector('#forge-gate .fgate-pass', { timeout: 5000 }).catch(() => errors.push('forge gate did not ask for the passphrase'));
-  await pageF.fill('#forge-gate .fgate-pass', 'wrong');
-  await pageF.click('#forge-gate .fgate-go'); await pageF.waitForTimeout(300);
-  const denied = await pageF.$eval('#forge-gate .fgate-msg', (el) => el.textContent).catch(() => '');
-  if (!/denied|not the passphrase/i.test(denied)) errors.push('gate did not deny a wrong passphrase: "' + denied + '"');
-  await pageF.fill('#forge-gate .fgate-pass', 'Welcome');
-  await pageF.click('#forge-gate .fgate-go');
-  await pageF.waitForFunction(() => { const g = document.querySelector('#forge-gate'); return !g || g.style.display === 'none'; }, { timeout: 5000 }).catch(() => errors.push('gate did not open on the right passphrase'));
   await pageF.waitForSelector('[data-fg-me="Alex"]', { timeout: 5000 }).catch(() => errors.push('forge home did not offer the roster pick'));
+  if (await pageF.$('#forge-gate')) errors.push('the passphrase curtain rose although no FORGE_PASSWORD is set');
   await pageF.click('[data-fg-me="Alex"]');
   await pageF.waitForSelector('.js-fg-create', { timeout: 5000 }).catch(() => errors.push('forge home did not render the create form'));
-  const openCard = await pageF.$('.resume-card [data-fg-open="FS-001"]');
-  if (!openCard) errors.push('forge home did not list the open fixture session FS-001');
+  const howTxt = await pageF.$eval('#page-forge', (el) => el.textContent);
+  if (!/Lobby → New ideas → Claim → Write the goal → Peer review → Commit → Lock/.test(howTxt)) errors.push('forge home "How it runs" does not follow the configured phases');
+  if (!/4 cards already on the wall/.test(howTxt)) errors.push('forge home does not mention the seeded wall');
+  if (!(await pageF.$('.resume-card [data-fg-open="FS-001"]'))) errors.push('forge home did not list the open fixture session FS-001');
   await pageF.fill('.js-fg-title', 'Harness goals day');
   await pageF.click('.js-fg-create');
   await pageF.waitForSelector('[data-fg-act="start"]', { timeout: 5000 }).catch(() => errors.push('creating a session did not open the Lobby'));
   const lobbyRoster = await pageF.$$('.fg-roster .who');
   if (lobbyRoster.length !== 4) errors.push('forge lobby roster should list 4 names, got ' + lobbyRoster.length);
+  const startTxt = await pageF.$eval('[data-fg-act="start"]', (el) => el.textContent).catch(() => '');
+  if (!/Start: New ideas/.test(startTxt)) errors.push('Lobby start button should name the first configured phase: "' + startTxt + '"');
+  if (!/The wall is seeded/.test(await pageF.$eval('#page-forge', (el) => el.textContent))) errors.push('Lobby does not show the seeded-wall tile');
+  const rail = await pageF.$$eval('.fg-rail .fg-ph .n', (els) => els.map((e) => e.textContent));
+  if (rail.join('|') !== 'New ideas|Claim|Write the goal|Peer review|Commit|Locked') errors.push('phase rail does not match the configured day: ' + rail.join('|'));
+  if (await pageF.$('[data-fg-tw]')) errors.push('Timed write button shown although FORGE_TIMED_WRITE is NO');
   const fgAct = async (action) => { await pageF.click(`[data-fg-act="${action}"]`); await pageF.waitForTimeout(260); };
   const fgPhase = async () => pageF.evaluate(() => state.forge.s.session.phase + '/' + state.forge.s.session.round);
   await fgAct('start');
-  if ((await fgPhase()) !== 'OPENER/1') errors.push('forge start did not enter OPENER: ' + (await fgPhase()));
-  if (!(await pageF.$('.fg-op'))) errors.push('opener view missing');
-  await fgAct('reveal');
-  const opCells = await pageF.$$eval('.fg-op td.lab', (els) => els.length);
-  if (opCells < 4) errors.push('opener reveal did not show the label grid: ' + opCells + ' cells');
-  await fgAct('next');
-  if ((await fgPhase()) !== 'DIVERGE/1') errors.push('expected DIVERGE/1, got ' + (await fgPhase()));
+  if ((await fgPhase()) !== 'DIVERGE/1') errors.push('forge start did not enter DIVERGE: ' + (await fgPhase()));
   const wall = await pageF.$$('.fg-wall .fg-card');
-  if (wall.length < 3) errors.push('diverge wall should show the 3 seeded cards, got ' + wall.length);
+  if (wall.length !== 3) errors.push('ideas-round wall should show only the 3 new cards, not the seeds (' + wall.length + ')');
+  if (!/4 seeded cards/.test(await pageF.$eval('#fg-body', (el) => el.textContent))) errors.push('ideas round does not mention the seeded cards');
   const leaked = await pageF.$$eval('.fg-wall .fg-card .fg-cm', (els) => els.filter((e) => /Courtney|CJ|Scott/.test(e.textContent)).length);
-  if (leaked) errors.push('diverge cards leaked author names before Claim');
+  if (leaked) errors.push('ideas-round cards leaked author names before Claim');
   const clock = await pageF.$eval('.fg-clock [data-fg-clock]', (el) => el.textContent);
   if (!/^\+?\d+:\d\d$/.test(clock)) errors.push('phase clock not showing a time: ' + clock);
   await fgAct('pause');
   if (!(await pageF.$('[data-fg-act="resume"]'))) errors.push('pause did not flip the control to Resume');
   await fgAct('resume');
-  await fgAct('next'); await fgAct('next');
   await fgAct('next');
-  if ((await fgPhase()) !== 'RELAY/1') errors.push('expected RELAY/1, got ' + (await fgPhase()));
-  await fgAct('next'); await fgAct('next');
-  if ((await fgPhase()) !== 'CLUSTER/1') errors.push('expected CLUSTER/1, got ' + (await fgPhase()));
-  if (!(await pageF.$('[data-fg-cluster-save]'))) errors.push('cluster editor missing');
-  // Each placement re-renders the editor, so re-locate the selects every time.
-  const nPlace = (await pageF.$$('[data-fg-place]')).length;
-  if (nPlace < 3) errors.push('cluster editor lists ' + nPlace + ' cards, expected the 3 seeded ones');
-  for (let i = 0; i < nPlace; i++) { await pageF.locator('[data-fg-place]').nth(i).selectOption('T1'); await pageF.waitForTimeout(120); }
-  const placedTxt = await pageF.$eval('.js-fg-placed', (el) => el.textContent).catch(() => '');
-  if (!/^3 of 3 cards placed/.test(placedTxt.trim()) && nPlace === 3) errors.push('cluster counter did not read 3 of 3: "' + placedTxt + '"');
-  await pageF.click('[data-fg-cluster-save]'); await pageF.waitForTimeout(350);
-  if (!(await pageF.evaluate(() => window.__GS_CALLS.some((c) => c.fn === 'l10_forgeCluster')))) errors.push('cluster save did not call l10_forgeCluster');
-  await fgAct('next');
-  if ((await fgPhase()) !== 'VOTE/1') errors.push('expected VOTE/1, got ' + (await fgPhase()));
-  const tallyLeak = await pageF.$('.fg-theme .fg-tt');
-  if (tallyLeak) errors.push('vote phase showed tallies on the room screen (must stay blind)');
-  await fgAct('next');
-  if (!(await pageF.$('.fg-theme .fg-tt'))) errors.push('committee tallies missing');
-  await pageF.check('[data-fg-sel="T1"]');
-  await pageF.fill('[data-fg-stop="T1"]', 'Stop the weekly slide deck');
-  await pageF.click('[data-fg-committee-save]'); await pageF.waitForTimeout(350);
-  await fgAct('next');
-  if ((await fgPhase()) !== 'CLAIM/1') errors.push('expected CLAIM/1, got ' + (await fgPhase()));
-  if (!(await pageF.$$('.fg-wall .fg-card')).length) errors.push('claim shortlist empty after the committee chose T1');
+  if ((await fgPhase()) !== 'CLAIM/1') errors.push('one ideas round should lead straight to CLAIM, got ' + (await fgPhase()));
+  const groups = await pageF.$$eval('.fg-group h3', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+  if (groups.length < 3 || !/^New this session/.test(groups[0])) errors.push('claim wall should group new cards first, then the FY27 goals: ' + groups.join(' | '));
+  if (!/^Direct revenue/.test(groups[1] || '')) errors.push('claim wall groups should follow FORGE_LINES order: ' + groups.join(' | '));
+  const claimCards = await pageF.$$('.fg-wall .fg-card');
+  if (claimCards.length !== 7) errors.push('claim wall should show all 7 live cards with no vote configured, got ' + claimCards.length);
   const namesNow = await pageF.$$eval('.fg-wall .fg-card .fg-cm', (els) => els.filter((e) => /Courtney|CJ|Scott/.test(e.textContent)).length);
   if (!namesNow) errors.push('author names should show from Claim on');
+  const seedTags = await pageF.$$eval('.fg-card .tag', (els) => els.filter((e) => /FY27 goals|team backlog/.test(e.textContent)).length);
+  if (seedTags !== 4) errors.push('seed cards should carry their source tag (got ' + seedTags + ' of 4)');
   await fgAct('next');
-  if (!(await pageF.$('.fg-ho'))) errors.push('handoff board missing');
+  if ((await fgPhase()) !== 'FORGE/1') errors.push('expected FORGE/1, got ' + (await fgPhase()));
+  if (!(await pageF.$('.fg-people'))) errors.push('write-the-goal progress tiles missing');
   await fgAct('next');
-  if (!(await pageF.$('.fg-people'))) errors.push('forge-the-goal progress tiles missing');
-  await fgAct('next'); await fgAct('next');
-  if ((await fgPhase()) !== 'DOCTOR/2') errors.push('expected DOCTOR/2, got ' + (await fgPhase()));
+  if ((await fgPhase()) !== 'DOCTOR/1') errors.push('expected DOCTOR/1, got ' + (await fgPhase()));
+  const docTxt = await pageF.$eval('#fg-body', (el) => el.textContent);
+  if (!/Peer review/.test(docTxt) || /round 1/.test(docTxt)) errors.push('a single peer-review round should not be numbered: ' + docTxt.slice(0, 80));
   await fgAct('next');
-  if ((await fgPhase()) !== 'COMMIT/1') errors.push('expected COMMIT/1, got ' + (await fgPhase()));
+  if ((await fgPhase()) !== 'COMMIT/1') errors.push('one review round should lead straight to COMMIT, got ' + (await fgPhase()));
   const cf = await pageF.$('[data-fg-commitform]');
   if (!cf) errors.push('commit form missing for the seeded goal');
   else {
@@ -751,13 +728,6 @@ async function clickNav(page, target) {
     if (!commitCall || commitCall.args[2].ms1 !== 'Tiers live on Seton US') errors.push('commit did not send the Q1 milestone');
     if (!(await pageF.$('.fg-goal .tag.shift'))) errors.push('committed goal not marked on its card');
   }
-  // Timed write from the room: banner appears, endWrite clears it.
-  await pageF.click('[data-fg-tw]'); await pageF.waitForTimeout(150);
-  await pageF.fill('#forge-tw-overlay .js-tw-prompt', 'Harness thought experiment');
-  await pageF.click('#forge-tw-overlay .js-tw-go'); await pageF.waitForTimeout(400);
-  if (!(await pageF.$('.fg-tw'))) errors.push('timed write banner did not appear on the room screen');
-  await fgAct('endWrite');
-  if (await pageF.$('.fg-tw')) errors.push('timed write banner did not clear after endWrite');
   // The wheel: opens, spins (reduced motion = instant), lands on a roster name.
   await pageF.click('[data-fg-wheel]'); await pageF.waitForTimeout(150);
   await pageF.click('#wheel-overlay .js-wh-spin'); await pageF.waitForTimeout(250);
@@ -782,16 +752,15 @@ async function clickNav(page, target) {
   await shot(pageF, 'forge-locked');
   await pageF.close();
 
-  // Player view (?forge=FS-001): phone width, name pick, add a card, see it come back as mine.
-  const pageP = await browser.newPage({ viewport: { width: 390, height: 780 } });
+  // Player view (?forge=FS-001) on a laptop: no gate, name pick, a card in the ideas
+  // round, then claim a seed card and write it up with the trimmed goal form.
+  const pageP = await browser.newPage({ viewport: { width: 1180, height: 820 } });
   pageP.on('console', (m) => { if (m.type() === 'error') errors.push('player console.error: ' + m.text()); });
   pageP.on('pageerror', (e) => errors.push('player pageerror: ' + e.message));
   await pageP.emulateMedia({ reducedMotion: 'reduce' });
   await pageP.goto('file://' + path.join(HERE, 'preview-player.html'));
-  await pageP.waitForSelector('#forge-gate .fgate-pass', { timeout: 6000 }).catch(() => errors.push('player gate did not ask for the passphrase'));
-  await pageP.fill('#forge-gate .fgate-pass', 'welcome');
-  await pageP.press('#forge-gate .fgate-pass', 'Enter');
-  await pageP.waitForSelector('[data-fg-me="CJ"]', { timeout: 6000 }).catch(() => errors.push('player view did not offer the roster pick after the gate'));
+  await pageP.waitForSelector('[data-fg-me="CJ"]', { timeout: 6000 }).catch(() => errors.push('player view did not offer the roster pick'));
+  if (await pageP.$('#forge-gate')) errors.push('player: the passphrase curtain rose although no FORGE_PASSWORD is set');
   if (!(await pageP.evaluate(() => document.body.classList.contains('forge-player')))) errors.push('player route did not set body.forge-player');
   const hdrShown = await pageP.$eval('header', (el) => getComputedStyle(el).display);
   if (hdrShown !== 'none') errors.push('player view still shows the app header');
@@ -803,10 +772,49 @@ async function clickNav(page, target) {
   await pageP.waitForTimeout(500);
   const plAddCall = await pageP.evaluate(() => window.__GS_CALLS.filter((c) => c.fn === 'l10_forgeAddIdea').pop());
   if (!plAddCall || plAddCall.args[1] !== 'CJ') errors.push('player Enter did not add the card as CJ');
-  const mineCards = await pageP.$$('.fg-card.mine');
-  if (!mineCards.length) errors.push('player did not show the new card as "yours" after the poll');
-  const cleared = await pageP.$eval('.js-fg-text', (el) => el.value);
-  if (cleared !== '') errors.push('player input not cleared after adding');
+  if (!(await pageP.$$('.fg-card.mine')).length) errors.push('player did not show the new card as "yours" after the poll');
+  if ((await pageP.$eval('.js-fg-text', (el) => el.value)) !== '') errors.push('player input not cleared after adding');
+  // The facilitator moves the fixture session on; the player polls it in.
+  const plGoto = async (key) => { await pageP.evaluate((k) => { window.__FIXTURES.l10_forgePhase('FS-001', 'goto', k); forgePollNow_(true); }, key); await pageP.waitForTimeout(450); };
+  await plGoto('CLAIM');
+  const plGroups = await pageP.$$('.fg-group');
+  if (plGroups.length < 3) errors.push('player claim wall should be grouped (' + plGroups.length + ' groups)');
+  const seedClaim = plGroups.length > 1 ? await plGroups[1].$('[data-fg-claim]') : null;
+  if (!seedClaim) errors.push('player: no Claim button on a seed card');
+  else {
+    await seedClaim.click(); await pageP.waitForTimeout(450);
+    const claimCall = await pageP.evaluate(() => window.__GS_CALLS.filter((c) => c.fn === 'l10_forgeClaim').pop());
+    if (!claimCall || claimCall.args[1] !== 'CJ') errors.push('player claim did not call l10_forgeClaim as CJ');
+    if (!(await pageP.$('[data-fg-unclaim]'))) errors.push('claimed seed card does not offer Release');
+  }
+  if (!(await pageP.$('.js-fg-text'))) errors.push('player claim view should still allow adding a card');
+  await plGoto('FORGE');
+  const mk = await pageP.$('[data-fg-newgoal^="Business|FI-"]');
+  if (!mk) errors.push('player write-the-goal view has no "Make it a goal" for the claimed seed card');
+  else {
+    await mk.click(); await pageP.waitForTimeout(500);
+    // The new goal's form is the last one (CJ's fixture goal G-001 comes first,
+    // and it already carries ladder fields, so it opens with More expanded).
+    const forms = await pageP.$$('[data-fg-goalform]');
+    const form = forms.length ? forms[forms.length - 1] : null;
+    const formId = form ? await form.evaluate((el) => el.dataset.fgGoalform) : '';
+    if (!form || formId === 'G-001') errors.push('goal form for the card-made goal did not open after Make it a goal');
+    else {
+      const sel = (s) => `[data-fg-goalform="${formId}"] ${s}`;
+      const title = await form.$eval('[data-gf="title"]', (el) => el.value);
+      if (!/direct revenue|new-customer/i.test(title)) errors.push('goal title should prefill from the claimed card: "' + title + '"');
+      if (!(await form.$eval('[data-gf="line"]', (el) => el.value))) errors.push('the FY27 goal select should prefill from the card area');
+      const labels = await pageP.$$eval(sel('label'), (els) => els.map((e) => e.textContent.trim()));
+      if (!labels.some((l) => /Which FY27 goal/.test(l))) errors.push('goal form lacks the "Which FY27 goal" field');
+      if (labels.some((l) => l === 'Rung')) errors.push('ladder fields should be hidden until More is opened');
+      await pageP.click(sel('[data-fg-goalmore]')); await pageP.waitForTimeout(300);
+      const labels2 = await pageP.$$eval(sel('label'), (els) => els.map((e) => e.textContent.trim()));
+      if (!labels2.some((l) => l === 'Rung')) errors.push('More did not reveal the ladder fields');
+      // The meter sits in the goal card's header, a sibling of the form.
+      const lit = await pageP.evaluate((id) => Array.from(document.querySelector('[data-fg-goalform="' + id + '"]').closest('.fg-goal').querySelectorAll('.fg-meter .t.on')).map((e) => e.textContent.trim()), formId);
+      if (!lit.some((t) => /R/.test(t))) errors.push('SMART meter should light R (Relevant) once the FY27 goal is named, lit: ' + lit.join(','));
+    }
+  }
   await shot(pageP, 'forge-player');
   await pageP.close();
 

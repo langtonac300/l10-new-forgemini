@@ -1,7 +1,10 @@
 <script>
 // ── Forge (v2.17) — timed idea-generation / goal-setting session ────────────
 // Two views of one server-authoritative state: the ROOM (projector, run by the
-// facilitator) and the PLAYER (each person's phone, served on ?forge=FS-###).
+// facilitator) and the PLAYER (each person's own laptop or phone, served on
+// ?forge=FS-###). v2.18: the default day is one ideas round on a seeded wall →
+// claim → write the goal → one peer review → commit → lock; the other phases
+// render only when FORGE_PHASES lists them.
 // Both poll l10_forgeState every few seconds and compute the clock from the
 // server's timestamps, so every screen shows the same seconds. Writes go
 // straight through; the next poll paints the result. Relies on L10Js.html's
@@ -11,7 +14,7 @@ state.forge = {
   sid: null, s: null, version: 0, offset: 0, pollH: null, tickH: null, inflight: false,
   home: null, homeInflight: false, view: 'room', me: '', dirty: false, overSaid: false,
   cluster: null, plan: null, wheelEx: {}, wheelSpinning: false, newTitle: '', goalOpen: {},
-  saveT: {}, tok: '', gate: null
+  saveT: {}, tok: '', gate: null, goalMore: {}
 };
 
 // --- the passphrase gate --------------------------------------------------------
@@ -171,7 +174,8 @@ function renderForge(opened) {
   // Background hydration passes (hydRender_) only repaint what is already
   // loaded; the fetch — and the passphrase curtain — wait for a real open.
   if (!opened && !state.forge.home) { el.innerHTML = '<div class="spinner">Open Forge to load the sessions.</div>'; return; }
-  if (opened && !forgeTok_() && !state.forge.home && !state.forge.gate) forgeGateShow_(null);
+  // The passphrase curtain rises only when the server answers "locked"
+  // (forgeGated_); with no FORGE_PASSWORD the page simply loads.
   if (opened || !state.forge.home) forgeFetchHome_();
   forgeRenderHome_();
 }
@@ -190,7 +194,7 @@ function forgeRenderHome_() {
   var el = $('page-forge');
   var h = state.forge.home;
   var me = forgeMe_();
-  var html = '<div class="fg-head"><h2 class="page-title">Forge</h2><span class="muted txt-sub">timed idea-generation and goal-setting, phones + one screen</span></div>';
+  var html = '<div class="fg-head"><h2 class="page-title">Forge</h2><span class="muted txt-sub">the goals-day session: one big screen, everyone on their own laptop</span></div>';
   if (!h) { el.innerHTML = html + '<div class="spinner">Loading sessions…</div>'; return; }
   if (h.enabled === false) { el.innerHTML = html + '<div class="banner info">Forge is switched off (FORGE_ENABLED = NO in L10_Config).</div>'; return; }
   if (!h.ready) {
@@ -212,7 +216,8 @@ function forgeRenderHome_() {
   html += '<div class="card"><h3>New session</h3><div class="row row--end">' +
     '<div class="field f-2"><label>Title</label><input class="js-fg-title" placeholder="FY27 goals day" value="' + esc(state.forge.newTitle) + '"></div>' +
     '<div class="field f-fix"><button class="btn js-fg-create">Create and open the room</button></div></div>' +
-    '<div class="help">You become the facilitator. The room opens in the Lobby; everyone else joins from their phone with the link the Lobby shows.</div></div>';
+    '<div class="help">You become the facilitator. The room opens in the Lobby' + (h.seeds ? ' with ' + h.seeds + ' cards already on the wall (the FY27 goals and the team backlog)' : '') +
+    '; everyone else joins from their laptop with the link the Lobby shows.</div></div>';
   var past = (h.sessions || []).filter(function (x) { return x.status !== 'OPEN'; });
   if (past.length) {
     html += '<div class="card"><h3>Past sessions</h3>' + past.map(function (x) {
@@ -221,7 +226,10 @@ function forgeRenderHome_() {
         '<button class="btn mini subtle" data-fg-open="' + esc(x.id) + '">view</button></div>';
     }).join('') + '</div>';
   }
-  html += '<div class="card"><h3>How it runs</h3><p class="fg-note">Opener → Diverge (private cards) → Relay (build on a dealt card) → Cluster → blind Vote → Committee (what we stop) → Claim → Handoffs → Forge the goal → Doctor (two peer reviews) → Commit → Lock. The facilitator can fire a <b>Timed write</b> ("next 10 minutes, everyone write…") at any point and spin the <b>wheel</b> whenever someone has to go first. Lock writes goals to each person\'s FY27 Goals tab and creates rocks from the Q1 milestones. It never creates to-dos.</p></div>';
+  // The day as configured (FORGE_PHASES), not a fixed script.
+  var flow = ['Lobby'].concat(h.phases && h.phases.length ? h.phases : ['New ideas', 'Claim', 'Write the goal', 'Peer review', 'Commit']).concat(['Lock']);
+  html += '<div class="card"><h3>How it runs</h3><p class="fg-note">' + flow.map(esc).join(' → ') + '. The wall starts seeded with the FY27 goals and the team backlog; the ideas round adds what is missing; everyone claims the cards they will own, writes each one up as a SMART goal, gets one peer review, and commits a Q1 milestone. ' +
+    (h.timedWrite ? 'The facilitator can fire a <b>Timed write</b> at any point and ' : 'The facilitator can ') + 'spin the <b>wheel</b> whenever someone has to go first. Lock writes goals to each person\'s FY27 Goals tab and creates rocks from the Q1 milestones. It never creates to-dos.</p></div>';
   el.innerHTML = html;
   forgeWireHome_(el);
 }
@@ -441,9 +449,18 @@ function forgeThemeOf_(card) {
   var t = forgeThemes_().filter(function (x) { return x.name === card.theme; });
   return t.length ? t[0] : null;
 }
+// Does this session narrow the wall with a vote or a committee? Without one
+// the wall itself is the shortlist and every live card can be claimed.
+function forgeHasVote_() {
+  var s = forgeS_();
+  if (!s) return false;
+  if (s.cfg && s.cfg.hasVote !== undefined) return !!s.cfg.hasVote;
+  return (s.phases || []).some(function (p) { return p.key === 'VOTE' || p.key === 'COMMITTEE'; });
+}
 function forgeShortlist_() {
   var s = forgeS_();
   var cards = forgeCards_().filter(function (c) { return c.round !== 'O'; });
+  if (!forgeHasVote_()) return cards;
   if (s.cfg.voteMode === 'TOKENS') {
     var sel = {};
     forgeThemes_().forEach(function (t) { if (t.selected) sel[t.name] = true; });
@@ -474,7 +491,7 @@ function forgeMeter_(g) {
     S: !!(g.title && g.doneWhen),
     M: !!(g.metric && g.source && g.target && g.baseline),
     A: personal ? !!g.title : (depOk && (ready || !!g.baseline)),
-    R: personal ? !!g.title : !!(g.line && g.rung && g.guardrail),
+    R: personal ? !!g.title : !!g.line, // Relevant = names the FY27 goal it serves
     T: !!g.deadline
   };
 }
@@ -497,7 +514,8 @@ function forgeCardHtml_(c, opts) {
   if (c.relay2) html += '<div class="fg-add"><b>Pass 2' + (c.relay2By && forgePast_('CLAIM') ? ' · ' + esc(c.relay2By) : '') + '</b><br>' + esc(c.relay2) + '</div>';
   html += '<div class="fg-cm">' + by +
     (c.theme ? '<span class="tag cat">' + esc(c.theme) + '</span>' : '') +
-    (c.round === 'T' ? '<span class="tag">timed write</span>' : c.round === 'P' ? '<span class="tag">pre-work</span>' : '') +
+    (c.round === 'T' ? '<span class="tag">timed write</span>' : c.round === 'P' ? '<span class="tag">pre-work</span>' :
+      c.round === 'S' ? '<span class="tag">' + (c.by === 'Team' ? 'team backlog' : 'FY27 goals') + '</span>' : '') +
     (c.claimedBy ? '<span class="tag shift">claimed · ' + esc(c.claimedBy) + '</span>' : '') +
     (c.status === 'GOAL' ? '<span class="tag shift">→ goal</span>' : '') +
     (c.status === 'PARKED' ? '<span class="tag">parked' + (c.parkedTo ? ' → ' + esc(c.parkedTo) : '') + '</span>' : '') +
@@ -506,6 +524,30 @@ function forgeCardHtml_(c, opts) {
   if (opts.acts) html += '<div class="fg-acts">' + opts.acts + '</div>';
   html += '</div>';
   return html;
+}
+// The claim wall, grouped: what the room wrote this session first, then the
+// seeded cards under the FY27 goal each one serves (FORGE_LINES order), then
+// any other theme. Each card gets the actions actsFn(card) returns.
+function forgeClaimWallHtml_(cards, actsFn) {
+  var s = forgeS_();
+  var lines = s.cfg.lines || [];
+  var order = lines.map(function (l) { return String(l[0]); });
+  var groups = {}, keys = [];
+  cards.forEach(function (c) {
+    var k = c.theme || (c.round === 'S' ? 'Other' : 'New this session');
+    if (!groups[k]) { groups[k] = []; keys.push(k); }
+    groups[k].push(c);
+  });
+  var rank = function (k) { return k === 'New this session' ? -1 : (order.indexOf(k) === -1 ? order.length : order.indexOf(k)); };
+  keys.sort(function (a, b) { return rank(a) - rank(b) || a.localeCompare(b); });
+  if (!keys.length) return '<div class="card"><div class="help">No cards on the wall yet.</div></div>';
+  return keys.map(function (k) {
+    var list = groups[k];
+    var line = lines.filter(function (l) { return String(l[0]) === k; })[0];
+    return '<div class="fg-group"><h3>' + esc(k) + ' <span class="muted">' + list.length + (list.length === 1 ? ' card' : ' cards') + '</span></h3>' +
+      (line ? '<div class="fg-note mb-2">' + esc(line[1]) + '</div>' : '') +
+      '<div class="fg-wall">' + list.map(function (c) { return forgeCardHtml_(c, { acts: actsFn ? actsFn(c) : '' }); }).join('') + '</div></div>';
+  }).join('');
 }
 
 // --- ROOM -------------------------------------------------------------------
@@ -540,7 +582,7 @@ function forgeRenderRoom_() {
   // Facilitator controls
   if (fac && ses.status === 'OPEN') {
     html += '<div class="fg-ctl">';
-    if (key === 'LOBBY') html += '<button class="btn big" data-fg-act="start">▶ Start with the opener</button>';
+    if (key === 'LOBBY') html += '<button class="btn big" data-fg-act="start">▶ Start: ' + esc(s.phases.length ? s.phases[0].label : 'first phase') + '</button>';
     else {
       html += '<button class="btn subtle" data-fg-act="back" title="Previous round or phase">←</button>' +
         (key === 'COMMIT' ? '<button class="btn big" data-fg-lock>🔒 Lock the goals…</button>' :
@@ -550,7 +592,7 @@ function forgeRenderRoom_() {
         '<button class="btn subtle" data-fg-act="end">End the clock</button>';
       if (key === 'OPENER' && !(ses.flags && ses.flags.openerRevealed)) html += '<button class="btn ghost" data-fg-act="reveal">Reveal everyone\'s labels</button>';
     }
-    html += '<button class="btn ghost" data-fg-tw>✎ Timed write…</button>';
+    if (s.cfg.timedWrite) html += '<button class="btn ghost" data-fg-tw>✎ Timed write…</button>';
     html += '<span class="fg-note">' + esc(ses.participants.length) + ' in the room' + (link ? ' · <button class="btn mini subtle" data-fg-copylink>copy player link</button>' : '') + '</span>';
     html += '</div>';
   }
@@ -579,8 +621,10 @@ function forgeRoomBody_(key) {
           '<div class="help">Deploy the project as a web app to get a player link (Settings shows it). Until then everyone can use this page on their own laptop and pick their name.</div>') +
         '</div>';
       var pre = cards.filter(function (c) { return c.round === 'P'; });
+      var seeded = cards.filter(function (c) { return c.round === 'S'; }).length;
+      if (seeded) html += '<div class="card"><h3>The wall is seeded</h3><div class="fg-count"><span class="v">' + seeded + '</span><span class="l">cards from the FY27 goals and the team backlog — claimable after the ideas round</span></div></div>';
       html += '<div class="card"><h3>Pre-work cards</h3><div class="fg-count"><span class="v">' + pre.length + '</span><span class="l">loaded before the day</span></div>' +
-        (pre.length ? '<div class="fg-wall">' + pre.map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>' : '<div class="help">Nothing yet. Players can add cards from their phone while the room is in the Lobby.</div>') + '</div>';
+        (pre.length ? '<div class="fg-wall">' + pre.map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>' : '<div class="help">Nothing yet. Players can add cards from their own screen while the room is in the Lobby.</div>') + '</div>';
       break;
     }
     case 'OPENER': {
@@ -606,12 +650,16 @@ function forgeRoomBody_(key) {
     }
     case 'DIVERGE': {
       var rp = forgeRoundPrompt_();
-      var live = cards.filter(function (c) { return c.round !== 'O' && c.round !== 'P'; });
+      // Seeded cards (round S) are the brief, not this round's output — they
+      // show at Claim, so the wall here is only what the room wrote.
+      var seedsN = cards.filter(function (c) { return c.round === 'S'; }).length;
+      var live = cards.filter(function (c) { return c.round !== 'O' && c.round !== 'P' && c.round !== 'S'; });
       var hit = live.length >= s.cfg.ideaTarget;
       html += '<div class="fg-prompt"><div class="fg-pt">Round ' + ses.round + ' · ' + esc(rp.title) + ' · <span class="fg-quiet">🤫 quiet round — write, don\'t talk</span></div><div class="fg-px">' + esc(rp.prompt) + '</div>' +
         (rp.title.toLowerCase().indexOf('wildcard') !== -1 ? '<div class="fg-ps">Wildcards: ' + (p.wildcards || []).map(esc).join(' · ') + '</div>' : '') +
         '<div class="fg-ps">Card format: ' + esc(p.card || '') + '</div></div>';
-      html += '<div class="fg-count' + (hit ? ' hit' : '') + '"><span class="v">' + live.length + '</span><span class="l">cards from the room · target ' + s.cfg.ideaTarget + (hit ? ' · hit ✓' : '') + '</span></div>';
+      html += '<div class="fg-count' + (hit ? ' hit' : '') + '"><span class="v">' + live.length + '</span><span class="l">new cards from the room · target ' + s.cfg.ideaTarget + (hit ? ' · hit ✓' : '') + '</span></div>';
+      if (seedsN) html += '<div class="fg-note mb-2">' + seedsN + ' seeded cards (the FY27 goals and the team backlog) are already on the wall — they appear at Claim alongside these.</div>';
       html += '<div class="fg-wall">' + live.slice().reverse().map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>';
       break;
     }
@@ -645,8 +693,12 @@ function forgeRoomBody_(key) {
     case 'COMMITTEE': html += forgeCommitteeHtml_(); break;
     case 'CLAIM': {
       var sl = forgeShortlist_();
-      html += '<div class="fg-prompt"><div class="fg-pt">Claim</div><div class="fg-px">One owner per card, claimed from your phone. Leftovers go to the parking lot at Lock.</div></div>';
-      html += '<div class="fg-wall">' + sl.map(function (c) { return forgeCardHtml_(c); }).join('') + '</div>';
+      var claimedN = sl.filter(function (c) { return c.claimedBy; }).length;
+      html += '<div class="fg-prompt"><div class="fg-pt">Claim</div><div class="fg-px">One owner per card, claimed from your own screen. Claim what you will turn into a goal; the rest stays on the wall.</div>' +
+        '<div class="fg-ps">' + claimedN + ' of ' + sl.length + ' cards claimed · ' + forgePeople_().map(function (n) {
+          return esc(n) + ' <b>' + sl.filter(function (c) { return c.claimedBy === n; }).length + '</b>';
+        }).join(' · ') + '</div></div>';
+      html += forgeClaimWallHtml_(sl, null);
       break;
     }
     case 'HANDOFFS': html += forgeHandoffsHtml_(true); break;
@@ -754,7 +806,7 @@ function forgeGoalCardHtml_(g, opts) {
 }
 function forgeProgressHtml_() {
   var s = forgeS_(), ses = s.session;
-  var html = '<div class="fg-prompt"><div class="fg-pt">Forge the goal</div><div class="fg-px">Four business goals each, in the ladder form on your phone. Allaina: two on the 90-day frame, two on FY27.</div><div class="fg-ps">A draft with "baseline needed + who + when" is valid. An invented number is not. The meter lights as the fields fill.</div></div>';
+  var html = '<div class="fg-prompt"><div class="fg-pt">Write the goal</div><div class="fg-px">3 to 5 goals each, one of them personal, on your own screen. Start from your claimed cards.</div><div class="fg-ps">A draft with "baseline needed + who + when" is valid. An invented number is not. The meter lights as the fields fill.</div></div>';
   html += '<div class="fg-people">' + forgePeople_().map(function (n) {
     var gs_ = forgeGoalsOf_(n);
     var lit = gs_.reduce(function (a, g) { if (g.hidden) return a; var m = forgeMeter_(g); return a + ['S', 'M', 'A', 'R', 'T'].filter(function (k) { return m[k]; }).length; }, 0);
@@ -768,7 +820,8 @@ function forgeDoctorRoomHtml_() {
   var s = forgeS_(), ses = s.session, r = ses.round;
   var goals = (s.goals || []).filter(function (g) { return !g.hidden; });
   var reviewed = goals.filter(function (g) { return r >= 2 ? !!g.doctor2By : !!g.doctorBy; }).length;
-  var html = '<div class="fg-prompt"><div class="fg-pt">Goal doctor · round ' + r + '</div><div class="fg-px">Read another person\'s cards, two minutes each. Answer the checklist, leave one concrete improvement, give a verdict.</div><div class="fg-ps">The killer question: could the owner hit this metric without helping the business? No public ranking of people.</div></div>';
+  var docDef = forgePhaseDef_('DOCTOR');
+  var html = '<div class="fg-prompt"><div class="fg-pt">Peer review' + (docDef && docDef.rounds > 1 ? ' · round ' + r : '') + '</div><div class="fg-px">Read another person\'s goals, two minutes each. Answer the checklist, leave one concrete improvement, give a verdict.</div><div class="fg-ps">The killer question: could the owner hit this metric without helping the business? No public ranking of people.</div></div>';
   html += '<div class="fg-count"><span class="v">' + reviewed + '</span><span class="l">of ' + goals.length + ' goals reviewed this round</span></div>';
   html += '<div class="fg-people">' + ses.participants.map(function (n) {
     var rv = (s.doctorAssign[n] || [])[r - 1] || '—';
@@ -805,7 +858,7 @@ function forgeLockedHtml_() {
     '<div class="tile"><div class="v">' + (s.goals || []).filter(function (g) { return g.rockId; }).length + '</div><div class="l">rocks created</div></div>' +
     '<div class="tile"><div class="v">' + cards.filter(function (c) { return c.status === 'PARKED'; }).length + '</div><div class="l">parked</div></div>' +
     '<div class="tile"><div class="v">' + (avg === null ? '—' : avg) + '</div><div class="l">rating · ' + ks.length + ' of ' + ses.participants.length + '</div></div></div>' +
-    '<div class="help">Rate the day from your phone (1–10). Goals are in each person\'s FY27 Goals tab and on the Rocks page; parked cards are IDEA-stage initiatives on the Strategy page.</div></div>';
+    '<div class="help">Rate the day from your own screen (1–10). Goals are in each person\'s FY27 Goals tab and on the Rocks page; parked cards are IDEA-stage initiatives on the Strategy page.</div></div>';
   html += '<div class="fg-goals">' + forgePeople_().map(function (n) { return forgeGoalsOf_(n).map(function (g) { return forgeGoalCardHtml_(g); }).join(''); }).join('') + '</div>';
   return html;
 }
@@ -981,7 +1034,6 @@ function forgePlayerBoot_(sid) {
   var pg = $('page-forge');
   if (pg) pg.innerHTML = '<div class="spinner">Joining…</div>';
   state.hydrated = { core: true, work: false, plan: false, scorecard: false };
-  if (!forgeTok_() && !state.forge.gate) forgeGateShow_(null);
   gs('l10_forgePlayerBoot', sid, forgeMe_(), forgeTok_()).then(function (r) {
     if (forgeGated_(r, function () { forgePlayerBoot_(sid); })) return;
     if (!r || r.ok === false) { if (pg) pg.innerHTML = '<div class="banner bad">' + esc((r && r.error) || 'Could not open this session.') + '</div>'; return; }
@@ -1017,7 +1069,7 @@ function forgeRenderPlayer_() {
   var p = forgePrompts_();
   switch (key) {
     case 'LOBBY':
-      html += '<div class="card"><h3>You\'re in. ' + esc(ses.participants.length) + ' in the room.</h3><div class="help">While we wait: load your pre-work cards (one win, one problem, three rough opportunities, one thing to stop).</div></div>' +
+      html += '<div class="card"><h3>You\'re in. ' + esc(ses.participants.length) + ' in the room.</h3><div class="help">The FY27 goals and the team backlog are already on the wall (see the big screen). While we wait, add any pre-work card of your own.</div></div>' +
         forgeInputHtml_('One card at a time', 'Add card') + forgeMyCardsHtml_(function (c) { return c.round === 'P'; });
       break;
     case 'OPENER': {
@@ -1061,12 +1113,12 @@ function forgeRenderPlayer_() {
     case 'CLAIM': {
       var sl = forgeShortlist_();
       var myN = sl.filter(function (c) { return c.claimedBy === me; }).length;
-      html += '<div class="fg-prompt"><div class="fg-pt">Claim</div><div class="fg-px">Tap Claim on the cards you will turn into goals. One owner each.</div><div class="fg-ps">You hold ' + myN + '. Four business goals is the target; claim the ones you can own.</div></div>';
-      html += sl.map(function (c) {
-        var acts = c.claimedBy === me ? '<button class="btn mini subtle" data-fg-unclaim="' + esc(c.id) + '">Release</button>' :
+      html += '<div class="fg-prompt"><div class="fg-pt">Claim</div><div class="fg-px">Claim the cards you will turn into goals. One owner each.</div><div class="fg-ps">You hold ' + myN + '. The brief is 3 to 5 goals including one personal; a card can also become part of a goal, and you can still add one below.</div></div>';
+      html += forgeClaimWallHtml_(sl, function (c) {
+        return c.claimedBy === me ? '<button class="btn mini subtle" data-fg-unclaim="' + esc(c.id) + '">Release</button>' :
           (c.claimedBy ? '' : '<button class="btn mini" data-fg-claim="' + esc(c.id) + '">Claim</button>');
-        return forgeCardHtml_(c, { acts: acts });
-      }).join('');
+      });
+      html += forgeInputHtml_('Something missing? Add it as a card', 'Add card');
       break;
     }
     case 'HANDOFFS': {
@@ -1147,7 +1199,7 @@ function forgeGoalsPlayerHtml_() {
   var mine = forgeGoalsOf_(me);
   var biz = mine.filter(function (g) { return g.type === 'Business'; }).length, per = mine.filter(function (g) { return g.type === 'Personal'; }).length;
   var claimed = forgeCards_().filter(function (c) { return c.claimedBy === me && c.status === 'CLAIMED'; });
-  var html = '<div class="fg-prompt"><div class="fg-pt">Forge the goal</div><div class="fg-px">' + biz + ' of ' + (s.cfg.goalsPerPerson - 1) + ' business · ' + per + ' of 1 personal</div><div class="fg-ps">Fill what you can. "Size first" is a valid baseline. The meter lights as you go.</div></div>';
+  var html = '<div class="fg-prompt"><div class="fg-pt">Write the goal</div><div class="fg-px">' + biz + ' business · ' + per + ' personal — the brief is 3 to 5 in total, one of them personal</div><div class="fg-ps">Fill what you can. "Size first" is a valid baseline. The meter lights as you go.</div></div>';
   if (claimed.length) html += '<div class="card"><h3>Your claimed cards → goals</h3>' + claimed.map(function (c) {
     return '<div class="itemline"><div class="grow"><div class="t">' + esc(c.idea) + '</div></div><button class="btn mini" data-fg-newgoal="Business|' + esc(c.id) + '">Make it a goal</button></div>';
   }).join('') + '</div>';
@@ -1171,16 +1223,25 @@ function forgeGoalFormHtml_(g) {
     '<button class="btn mini subtle" data-fg-goaltoggle="' + esc(g.id) + '">' + (open ? 'collapse' : 'edit') + '</button></div>';
   if (!open) return '<div class="fg-goal' + (g.type === 'Personal' ? ' personal' : '') + '">' + head + '</div>';
   var f = '<div class="fg-form" data-fg-goalform="' + esc(g.id) + '">' +
-    '<div class="field"><label>Title (verb + object)</label>' + inp('title', g.title, 'Restructure Seton Shopping into performance tiers') + '</div>';
+    '<div class="field"><label>Title (verb + object)</label>' + inp('title', g.title, 'Grow BradyID new customers from paid search 5% by Jul 2027') + '</div>';
   if (g.type === 'Business') {
-    f += '<div class="row"><div class="field f-2"><label>Revenue line</label>' + sel('line', (s.cfg.lines || []).map(function (l) { return [l[0], l[0] + ' · ' + l[1]]; }), g.line, '— pick the line —') + '</div>' +
-      '<div class="field"><label>Rung</label>' + sel('rung', p.rungs || [], g.rung, '—') + '</div><div class="field"><label>Lever</label>' + sel('lever', p.levers || [], g.lever, '—') + '</div></div>' +
-      '<div class="row"><div class="field f-2"><label>Metric</label>' + inp('metric', g.metric, 'Shopping ROAS') + '</div><div class="field f-2"><label>Source + caveat</label>' + inp('source', g.source, 'Financial Dashboard v2, first-touch basis') + '</div></div>' +
-      '<div class="row"><div class="field"><label>Baseline (or "size first")</label>' + inp('baseline', g.baseline, 'size first') + '</div><div class="field"><label>Target</label>' + inp('target', g.target, '1.08') + '</div><div class="field f-160"><label>By</label>' + inp('deadline', g.deadline, '', 'date') + '</div></div>' +
-      '<div class="field"><label>Guardrail — what must not get worse</label>' + inp('guardrail', g.guardrail, 'revenue at or above plan per business day') + '</div>' +
-      '<div class="field"><label>Done when (artifact + number + read-out)</label>' + ta('doneWhen', g.doneWhen) + '</div>' +
-      '<div class="row"><div class="field"><label>$ at stake (source, or "unknown")</label>' + inp('stake', g.stake, 'unknown, size first') + '</div><div class="field"><label>Shift</label>' + sel('shift', p.shifts || [], g.shift, '—') + '</div>' +
-      '<div class="field"><label>Dependency (from your handoffs)</label>' + sel('dependency', myHo.map(function (h) { return [h.id, h.to + ': ' + h.need + ' (' + h.status.toLowerCase() + ')']; }), g.dependency, 'none') + '</div></div>';
+    // The SMART core first; the ladder fields (rung, lever, guardrail, $ at
+    // stake, shift, dependency) wait behind "More" so the form fits one screen.
+    var lineTxt = (s.cfg.lines || []).filter(function (l) { return String(l[0]) === g.line; })[0];
+    var more = state.forge.goalMore[g.id] !== undefined ? state.forge.goalMore[g.id] : !!(g.rung || g.lever || g.guardrail || g.stake || g.shift || g.dependency);
+    var showDep = !!(s.cfg.hasHandoffs || myHo.length);
+    f += '<div class="field"><label>Which FY27 goal does this serve?</label>' + sel('line', (s.cfg.lines || []).map(function (l) { return [l[0], l[0]]; }), g.line, '— pick the goal it serves —') +
+      (lineTxt ? '<div class="help">' + esc(lineTxt[1]) + '</div>' : '') + '</div>' +
+      '<div class="row"><div class="field f-2"><label>Metric</label>' + inp('metric', g.metric, 'new-customer orders from paid search, BradyID') + '</div><div class="field f-2"><label>Where it is read (source + caveat)</label>' + inp('source', g.source, 'PowerBI OneBrady FY dashboard, New Customers tab') + '</div></div>' +
+      '<div class="row"><div class="field"><label>Baseline (or "size first")</label>' + inp('baseline', g.baseline, 'size first') + '</div><div class="field"><label>Target</label>' + inp('target', g.target, '+5%') + '</div><div class="field f-160"><label>By</label>' + inp('deadline', g.deadline, '', 'date') + '</div></div>' +
+      '<div class="field"><label>Done when (the artifact, the number, who reads it out)</label>' + ta('doneWhen', g.doneWhen) + '</div>' +
+      '<div class="row"><button type="button" class="btn mini subtle" data-fg-goalmore="' + esc(g.id) + '">' + (more ? 'Fewer fields' : 'More fields: rung · lever · guardrail · $ at stake · shift' + (showDep ? ' · dependency' : '')) + '</button></div>';
+    if (more) {
+      f += '<div class="row"><div class="field"><label>Rung</label>' + sel('rung', p.rungs || [], g.rung, '—') + '</div><div class="field"><label>Lever</label>' + sel('lever', p.levers || [], g.lever, '—') + '</div><div class="field"><label>Shift</label>' + sel('shift', p.shifts || [], g.shift, '—') + '</div></div>' +
+        '<div class="field"><label>Guardrail — what must not get worse</label>' + inp('guardrail', g.guardrail, 'revenue at or above plan per business day') + '</div>' +
+        '<div class="row"><div class="field"><label>$ at stake (source, or "unknown")</label>' + inp('stake', g.stake, 'unknown, size first') + '</div>' +
+        (showDep ? '<div class="field"><label>Dependency (from your handoffs)</label>' + sel('dependency', myHo.map(function (h) { return [h.id, h.to + ': ' + h.need + ' (' + h.status.toLowerCase() + ')']; }), g.dependency, 'none') + '</div>' : '') + '</div>';
+    }
   } else {
     f += '<div class="row"><div class="field f-2"><label>What proves it (done when)</label>' + ta('doneWhen', g.doneWhen, 'cert passed; taught one huddle segment') + '</div><div class="field f-160"><label>By</label>' + inp('deadline', g.deadline, '', 'date') + '</div></div>' +
       '<div class="field"><label>Team pay-off (optional)</label>' + inp('metric', g.metric, 'what the team gets') + '</div>' +
@@ -1192,7 +1253,8 @@ function forgeGoalFormHtml_(g) {
 function forgeDoctorPlayerHtml_() {
   var s = forgeS_(), me = forgeMe_(), r = s.session.round, p = forgePrompts_();
   var subjects = s.session.participants.filter(function (n) { return ((s.doctorAssign || {})[n] || [])[r - 1] === me; });
-  var html = '<div class="fg-prompt"><div class="fg-pt">Goal doctor · round ' + r + '</div><div class="fg-px">' + (subjects.length ? 'You review <b>' + esc(subjects.join(', ')) + '</b>. Two minutes a card.' : 'No one assigned to you this round.') + '</div><div class="fg-ps">Answer yes or no, leave one concrete improvement, give a verdict.</div></div>';
+  var docDef = forgePhaseDef_('DOCTOR');
+  var html = '<div class="fg-prompt"><div class="fg-pt">Peer review' + (docDef && docDef.rounds > 1 ? ' · round ' + r : '') + '</div><div class="fg-px">' + (subjects.length ? 'You review <b>' + esc(subjects.join(', ')) + '</b>. Two minutes a goal.' : 'No one assigned to you this round.') + '</div><div class="fg-ps">Answer yes or no, leave one concrete improvement, give a verdict.</div></div>';
   subjects.forEach(function (n) {
     forgeGoalsOf_(n).forEach(function (g) {
       if (g.hidden) return;
@@ -1337,6 +1399,15 @@ function forgeWirePlayer_(el) {
   });
   q('[data-fg-goaltoggle]', function (b) {
     b.addEventListener('click', function () { var id = b.dataset.fgGoaltoggle; state.forge.goalOpen[id] = state.forge.goalOpen[id] === false; forgeRenderPlayer_(); });
+  });
+  q('[data-fg-goalmore]', function (b) {
+    b.addEventListener('click', function () {
+      var id = b.dataset.fgGoalmore;
+      var g = (forgeS_().goals || []).filter(function (x) { return x.id === id; })[0] || {};
+      var cur = state.forge.goalMore[id] !== undefined ? state.forge.goalMore[id] : !!(g.rung || g.lever || g.guardrail || g.stake || g.shift || g.dependency);
+      state.forge.goalMore[id] = !cur;
+      forgeRenderPlayer_();
+    });
   });
   var saveGoal = function (id, quiet) {
     var f = el.querySelector('[data-fg-goalform="' + id + '"]');

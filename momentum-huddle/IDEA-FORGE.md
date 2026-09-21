@@ -1,5 +1,14 @@
 # Forge — timed idea-generation module
 
+> **Status (v2.18, 2026-09-21): cut to the goals day.** After the first real open Alex found the
+> eleven-phase session too much for Thursday, and Stuart's FY27 goals plus the team backlog were
+> already written — so the default day is now one round of new ideas on a **seeded wall**
+> (`FORGE_SEED_CARDS`, from the two docs) → Claim (every card claimable, grouped by the FY27 goal
+> it serves — `FORGE_LINES` now holds those goals) → Write the goal (SMART core first, ladder
+> fields behind More) → one Peer review → Commit → Lock. Gate and Timed write are off by default.
+> The phases below still run when `FORGE_PHASES` lists them. See the v2.18 CHANGELOG entry and
+> [`FORGE-RUN-SHEET.md`](./FORGE-RUN-SHEET.md).
+>
 > **Status: BUILT as v2.17 (2026-09-17), both copies, harness green** — see the v2.17
 > entry in [`CHANGELOG.md`](./CHANGELOG.md) for what shipped and the re-paste / repair-tabs /
 > redeploy steps. Built as specified below with these differences: a **passphrase gate**

@@ -5,7 +5,79 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.17.2 (2026-09-21)** · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.18 (2026-09-21)** · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.18 (2026-09-21) — Forge, cut to the goals day: a seeded wall, one ideas round, claim, write, one review, commit
+
+Alex's read after the first real open: eleven timed phases were too much, "jumbled", and
+not what Thursday needs. The only real session (FS-001, 2026-09-17) died in Diverge round
+1 and was discarded; nothing was ever in the Forge tabs. Meanwhile Stuart's FY27 goals are
+written and the team's backlog is brainstormed, so the ideation half was solving a problem
+the day no longer has. Both copies; harness green in both (the room walks the new day
+Lobby → Locked; a laptop player claims a seed card and writes it up), server checks green.
+
+- **The default day** (`FORGE_PHASES`): **New ideas** (one round, 10 min) → **Claim** (10)
+  → **Write the goal** (40) → **Peer review** (one round, 10) → **Commit** (10) → Lock. The
+  other phase keys (OPENER RELAY CLUSTER VOTE COMMITTEE HANDOFFS) still run when listed in
+  `FORGE_PHASES`; they are simply not part of the day. The phase rail, the Start button
+  ("▶ Start: New ideas") and the home page's "How it runs" all follow the configured list.
+- **The wall starts seeded.** A new session writes one card per `FORGE_SEED_CARDS` entry —
+  by default 39 cards: 16 from Stuart's F27 Digital Marketing goals draft ("Stuart") and 23
+  from the team's F27 Digital Prios backlog ("Team"), each tagged with the FY27 goal area
+  it serves. Seeded cards are never anonymous, never parked at Lock, and are claimable
+  like any other. `[]` in the cell = no seeds. One `setValues`, not forty appends.
+- **Claim without a vote.** With no VOTE or COMMITTEE phase configured every live card is
+  claimable — the seeded wall *is* the shortlist. The claim wall is grouped: what the room
+  wrote this session first, then the seeded cards under the FY27 goal they serve (in
+  `FORGE_LINES` order, each with the goal's text under the heading). The player can still
+  add a card during Claim. Releasing a seed card returns it to RAW, not the shortlist.
+- **`FORGE_LINES` now holds the FY27 goals** a team goal can serve ("Which FY27 goal does
+  this serve?"), as `[label, goal-as-text]` — twelve areas from Stuart's draft (Direct
+  revenue, New customers, Key markets, Cross-sell, Paid search: build for the future, Paid
+  search: cross-sell platform, Awareness: create demand, Email + A360, One Brady migration,
+  NPS, Content engine, AI in operations). The SMART meter's **R** (Relevant) lights when
+  the goal names one; rung and guardrail no longer gate it.
+- **A goal made from a card starts as that card**: title = the card's text, FY27 goal =
+  the card's area (both editable). "Make it a goal" is no longer a blank form.
+- **The goal form fits one screen.** Title · which FY27 goal · metric · where it is read ·
+  baseline · target · by · done when. Rung, lever, shift, guardrail, $ at stake and (when
+  handoffs exist) dependency sit behind **More fields**, which opens by itself when any of
+  them is filled. Placeholders speak the day's language (new-customer orders from paid
+  search, PowerBI OneBrady FY dashboard).
+- **One peer review**, unnumbered. The DOCTOR phase's own round count decides how many
+  reviewers a goal gets (`FORGE_REVIEWS_PER_GOAL` only applies with no DOCTOR phase); the
+  checklist is four lines and asks whether Stuart would agree the goal serves what it names.
+- **Gate and Timed write off by default.** `FORGE_PASSWORD` defaults to blank; the curtain
+  now rises only when the server answers "locked", never as a loading animation. The Timed
+  write button shows only with `FORGE_TIMED_WRITE = YES`. The wheel stays.
+- **Config upgrade that respects edits.** Setup / repair tabs (`l10UpgradeConfigDefaults_`)
+  rewrites a `L10_Config` value only when it still equals the default an earlier version
+  shipped — `FORGE_PHASES`, `FORGE_PROMPTS`, `FORGE_LINES` (the v2.17 strings are kept
+  verbatim as `L10_FORGE_*_V217_`), `FORGE_PASSWORD` Welcome → blank, `FORGE_REVIEWS_PER_GOAL`
+  2 → 1, `FORGE_IDEA_TARGET` 40 → 15 — and adds `FORGE_SEED_CARDS` and `FORGE_TIMED_WRITE`.
+  Anything a person changed is left alone. The runtime also treats an unedited v2.17 value
+  as the current default, so the flow is right even before repair tabs has run.
+- **Lock's warning** is now "only N business goal(s) — the brief is 3–5 goals including one
+  personal" (was "expected 4").
+- **Wording:** computers, not phones ("your own screen"); "Write the goal" / "Peer review"
+  instead of "Forge the goal" / "Goal doctor".
+- **Harness:** fixtures carry the new default day, a seeded wall and no gate; the smoke walks
+  Lobby → Locked on the room (rail, seeded tile, ideas wall without seeds, grouped claim
+  wall with source tags, straight to Claim after one round, unnumbered review, straight to
+  Commit, commit, wheel, lock) and, on a laptop player, adds a card, claims a seed card,
+  makes it a goal and finds the title and FY27 goal prefilled, the ladder fields hidden
+  until More and R lit. `server-checks.js` covers the config fallback (v2.17 value → new
+  default; a custom list kept; `[]` = no seeds), the config upgrade (only exact old
+  defaults rewritten, idempotent), seeding at create (row shape, unique ids), claim
+  without a vote, goal prefill from a card and release-to-RAW.
+- **Run sheet:** [`FORGE-RUN-SHEET.md`](../momentum-huddle/FORGE-RUN-SHEET.md) — the facilitator's one page
+  for Thursday 2026-09-24.
+- **Re-paste:** `L10Setup.gs`, `L10Forge.gs`, `L10ForgeJs.html`, `L10ForgeCss.html`. Then
+  run **L10 Huddle → Setup / repair tabs** once (this is what upgrades the `FORGE_*` values
+  and adds the two new keys; the `L10_Todos` header row is canonical in the current
+  workbook, so the repair is safe). **Redeploy the web app as a new version.** Then open
+  Forge, discard any old open session, and create the session for the day fresh so the
+  wall seeds. `L10Js.html`, `L10Index.html`, `L10Code.gs` and `L10Jira.gs` are unchanged.
 
 ## v2.17.2 (2026-09-21) — the five utilization rows: stale `#REF!` formulas, read through
 

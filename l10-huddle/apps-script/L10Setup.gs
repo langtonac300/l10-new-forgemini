@@ -232,13 +232,26 @@ var L10 = {
 // Forge defaults (v2.17). Editable in L10_Config once seeded; these are the
 // fallbacks when a key is blank or unparseable. Phase = [key, label, seconds,
 // rounds]; keys are fixed (the renderer switches on them), the rest is free.
-var L10_FORGE_PHASES_DEFAULT = JSON.stringify([
+// The v2.17 phase list, kept verbatim: a workbook whose FORGE_PHASES still
+// holds exactly this string was never edited, so Setup / repair tabs upgrades
+// it and the runtime reads it as "use the current default". Never edit it.
+var L10_FORGE_PHASES_V217_ = JSON.stringify([
   ['OPENER', 'Goal, project or chore?', 300], ['DIVERGE', 'Diverge', 300, 3], ['RELAY', 'Relay', 240, 2],
   ['CLUSTER', 'Cluster', 480], ['VOTE', 'Vote', 300], ['COMMITTEE', 'Investment committee', 600],
   ['CLAIM', 'Claim', 300], ['HANDOFFS', 'Handoff contracts', 600], ['FORGE', 'Forge the goal', 2100],
   ['DOCTOR', 'Goal doctor', 480, 2], ['COMMIT', 'Commit', 300]
 ]);
-var L10_FORGE_PROMPTS_DEFAULT = JSON.stringify({
+// v2.18: the goals-day flow. The wall starts full (FORGE_SEED_CARDS — the
+// manager's FY27 goals and the team's backlog), so the session is one round of
+// NEW ideas on top of them, then claim → write the goal → one peer review →
+// commit → lock. The other phase keys (OPENER RELAY CLUSTER VOTE COMMITTEE
+// HANDOFFS) still run when listed here; they are simply not part of the day.
+var L10_FORGE_PHASES_DEFAULT = JSON.stringify([
+  ['DIVERGE', 'New ideas', 600, 1], ['CLAIM', 'Claim', 600], ['FORGE', 'Write the goal', 2400],
+  ['DOCTOR', 'Peer review', 600, 1], ['COMMIT', 'Commit', 600]
+]);
+// The v2.17 prompt deck, verbatim (same upgrade rule as the phase list above).
+var L10_FORGE_PROMPTS_V217_ = JSON.stringify({
   opener: [
     { text: 'Launch a podcast sponsorship.', answer: 'project' },
     { text: 'Run four experiments.', answer: 'task' },
@@ -297,9 +310,23 @@ var L10_FORGE_PROMPTS_DEFAULT = JSON.stringify({
   levers: ['Spend allocation', 'Efficiency', 'Conversion (LP / feed / creative)', 'New channel or audience', 'Measurement', 'Automation'],
   shifts: ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4']
 });
-// Revenue lines as label → the FY27 number AS TEXT (the app never computes with
-// them; they are what a goal names). Edit FORGE_LINES in L10_Config to change.
-var L10_FORGE_LINES_DEFAULT = JSON.stringify([
+// v2.18: the same deck with one Diverge round (the wall is pre-seeded) and a
+// four-line doctor checklist. Everything else (opener statements, wildcards,
+// thought experiments, relay lines) stays available to any phase that uses it.
+var L10_FORGE_PROMPTS_DEFAULT = (function () {
+  var p = JSON.parse(L10_FORGE_PROMPTS_V217_);
+  p.rounds = [{ title: 'New ideas',
+    prompt: "Stuart's FY27 goals and the team backlog are already on the wall. What is missing for YOUR accounts? Add an idea, make one of his concrete, or name something to stop. One idea per card." }];
+  p.doctor = [
+    'Specific enough that a stranger could start Monday?',
+    'Has a number, a source and a date?',
+    'Names the FY27 goal it serves — and would Stuart agree it does?',
+    'Could the owner hit this metric WITHOUT helping the business?'
+  ];
+  return JSON.stringify(p);
+})();
+// The v2.17 revenue lines, verbatim (same upgrade rule as the phase list).
+var L10_FORGE_LINES_V217_ = JSON.stringify([
   ['Brady US paid search', '$8.54M spend · $23.67M revenue · ROAS 2.77'],
   ['Brady CA paid search', '$0.43M spend · $1.92M revenue · ROAS 4.45'],
   ['Seton US paid search', '$4.00M spend · $4.31M revenue · ROAS 1.08'],
@@ -309,6 +336,71 @@ var L10_FORGE_LINES_DEFAULT = JSON.stringify([
   ['Amazon', '$819,786 · ACOS under 15%'],
   ['PDC Healthcare', '$300K · lead-gen push, no target yet'],
   ['Cross-account / capacity', 'enabling work — name the constraint it removes']
+]);
+// v2.18: what a goal names is the manager's FY27 goal it serves, as
+// [label, the goal AS TEXT]. The app never computes with these; they are the
+// "Relevant" in SMART and the theme the seeded cards carry. From the F27
+// Digital Marketing goals draft, 2026-09. Edit FORGE_LINES in L10_Config.
+var L10_FORGE_LINES_DEFAULT = JSON.stringify([
+  ['Direct revenue', '+8% YoY shipped direct revenue to $121.8M at $8.22 direct ROAS · Brady sites +9% order demand, Seton/Emedco flat'],
+  ['New customers', 'Paid search new-customer acquisition +5% (or eLTV +5%) on BradyID for printers & consumables, product/wire ID, LOTO, floor marking, pipe & valve · +3% on Seton US for LOTO, floor marking, pipe & valve'],
+  ['Key markets', 'Cross-functional digital support for Data Centers, Construction, Electronics, Aerospace/Defense · 3+ cross-functional campaigns for in-market accounts by end of Q3'],
+  ['Cross-sell', '3+ digital efforts (2+ cross-functional) that grow wallet share through logical cross-selling by end of Q3'],
+  ['Paid search: build for the future', 'In-house feed management (plan with rollback) by Dec 2026 · A360 audiences in Google/Bing · multi-gclid to Adobe/Eloqua stitching test'],
+  ['Paid search: cross-sell platform', 'Target account lists from 1P data in BigQuery · targeted campaigns tested with Awareness'],
+  ['Awareness: create demand', 'Always-on key product & brand campaign · scalable ad-asset process · A360 segments in Meta/LinkedIn/GDN · BI-approved form templates'],
+  ['Email + A360', 'A360 segments within 30 days of integration · 3+ automation/AI candidates by 10/31, 2+ implemented by end of Q3'],
+  ['One Brady migration', 'IDS/IPS site integration with minimal impact on revenue and rankings'],
+  ['NPS', 'Brady 50+ NPS, Seton back to 0+ · at least one on-site pain-point messaging test without hurting conversion'],
+  ['Content engine', 'Scalable thought leadership: syndication process, video hosting on BradyID, stretch: video upload automation by end of Q2'],
+  ['AI in operations', 'Pilot and integrate 2+ AI tools or processes by end of Q4, cutting redundant tasks']
+]);
+// v2.18: the cards every new session starts with, as [text, goal area, source].
+// The area matches a FORGE_LINES label (so a goal made from the card knows
+// which FY27 goal it serves); the source is who wrote it — "Stuart" (the F27
+// Digital Marketing goals draft) or "Team" (the F27 Digital Prios backlog).
+// Seeded cards are claimable, never anonymous, and never parked at Lock.
+// Edit FORGE_SEED_CARDS in L10_Config to change the deck for the next session.
+var L10_FORGE_SEED_DEFAULT = JSON.stringify([
+  ['Drive +8% YoY shipped direct revenue ($121.8M) at $8.22 direct ROAS: Brady sites +9% order demand, Seton/Emedco flat.', 'Direct revenue', 'Stuart'],
+  ['Grow paid search new-customer acquisition +5% (or eLTV +5%) on BradyID for printers & consumables, product/wire ID, LOTO, floor marking, pipe & valve.', 'New customers', 'Stuart'],
+  ['Grow paid search new-customer acquisition +3% (or eLTV +3%) on Seton US for LOTO, floor marking, pipe & valve.', 'New customers', 'Stuart'],
+  ['Launch 3+ cross-functional campaigns by end of Q3 so sales can capitalize on in-market accounts (Data Centers, Construction, Electronics, Aerospace/Defense).', 'Key markets', 'Stuart'],
+  ['Launch 3+ digital efforts (2+ cross-functional) that grow wallet share through logical cross-selling by end of Q3.', 'Cross-sell', 'Stuart'],
+  ['Plan (with rollback options) and execute an in-house feed-management solution for control and cost savings by end of December 2026.', 'Paid search: build for the future', 'Stuart'],
+  ['Connect A360 into Google Ads / Bing Ads (and other platforms) to build automated audience segmentation.', 'Paid search: build for the future', 'Stuart'],
+  ['Test stitching multi-gclids to Adobe Analytics and/or Eloqua ID to improve IP revenue conversion match.', 'Paid search: build for the future', 'Stuart'],
+  ['Build target account lists from 1P data in BigQuery to raise visibility for those accounts/contacts; test targeted campaigns with Awareness.', 'Paid search: cross-sell platform', 'Stuart'],
+  ['Create and deploy an always-on, evergreen key-product and brand-building campaign.', 'Awareness: create demand', 'Stuart'],
+  ['Build a scalable process for creating ads and media assets so campaigns deploy faster as business needs change.', 'Awareness: create demand', 'Stuart'],
+  ['Define and build A360-based audience segments in Meta, LinkedIn, GDN for faster deployment to core segments.', 'Awareness: create demand', 'Stuart'],
+  ['Build BI-approved form templates to reduce reliance on Marketing Operations for forms.', 'Awareness: create demand', 'Stuart'],
+  ['Pilot and integrate 2+ AI-powered tools or processes into digital marketing operations by end of Q4, cutting redundant tasks.', 'AI in operations', 'Stuart'],
+  ['Identify 3+ processes to assist with automation/AI by 10/31 (reporting, brief builds, email builds); implement 2+ by end of Q3.', 'Email + A360', 'Stuart'],
+  ['Run at least one on-site messaging test around a customer pain point (e.g. Promised Delivery Date) without hurting conversion rate.', 'NPS', 'Stuart'],
+  ['Demandbase integration / data connection: see how users move down the funnel and enhance bottom-of-funnel bidding.', 'Paid search: cross-sell platform', 'Team'],
+  ['Demandbase-informed audiences and landing pages for paid search.', 'Paid search: cross-sell platform', 'Team'],
+  ['Use AI to build out barren landing pages and test them against the originals.', 'Paid search: build for the future', 'Team'],
+  ['Experimentation with more granularity and multi-stage experiments.', 'Paid search: build for the future', 'Team'],
+  ['AI Max adoption and understanding; continue Brady automation.', 'Paid search: build for the future', 'Team'],
+  ['Bing opportunities.', 'Direct revenue', 'Team'],
+  ['Use Google Studio to create ad assets.', 'Awareness: create demand', 'Team'],
+  ['Headline effectiveness and testing.', 'Direct revenue', 'Team'],
+  ['Work with Awareness on higher-funnel campaigns (Demand Gen etc.).', 'Key markets', 'Team'],
+  ['Effective use of the new strategist role.', 'Direct revenue', 'Team'],
+  ['A support-ticket process for paid search requests.', 'AI in operations', 'Team'],
+  ['Scope and propose at least one host-read podcast advertising opportunity by end of Q1, with a measurement structure for podcast efficacy.', 'Awareness: create demand', 'Team'],
+  ['LinkedIn test: target current/previous customers who changed jobs (they were a customer at Amazon, now work at Nvidia).', 'Awareness: create demand', 'Team'],
+  ['Implement an automation layer for building and deploying ads.', 'Awareness: create demand', 'Team'],
+  ['Demandbase integration to understand how awareness marketing moves customers down the funnel.', 'Key markets', 'Team'],
+  ['Turn PEC report contacts into advertising audiences, with marketing ops.', 'Awareness: create demand', 'Team'],
+  ['Better support the sales team’s initiatives with integrated campaigns and strategies.', 'Key markets', 'Team'],
+  ['Post-purchase cross-sell: pipe/valve LOTO for pipe & valve buyers; electrical LOTO for printer buyers who look like electrical contractors.', 'Cross-sell', 'Team'],
+  ['Cross-sell triggers from A360 / BigQuery: printer inactivity, heavy users, low cartridge (mind channel conflict and stock on hand).', 'Cross-sell', 'Team'],
+  ['Improve printer registration % through email and ELM/BWS: what is in it for the customer, and does every printer need it?', 'Email + A360', 'Team'],
+  ['Data Centers as a focus market across email, A360, awareness, SEO/GEO/content and paid search.', 'Key markets', 'Team'],
+  ['Construction as a focus market across email, awareness, SEO/GEO/content and paid search.', 'Key markets', 'Team'],
+  ['Content syndication, AI/GEO, Shopping, and the IDS/IPS corp migration.', 'Content engine', 'Team']
 ]);
 
 var L10_CONFIG_DEFAULTS = [
@@ -367,19 +459,21 @@ var L10_CONFIG_DEFAULTS = [
   ['CALENDAR_DEFAULT_DURATION', 30, 'Default meeting length in minutes when the scheduler opens.'],
   // Forge (v2.17)
   ['FORGE_ENABLED', 'YES', 'Show the Forge page (timed idea-generation / goal-setting sessions). NO = hide the nav entry.'],
-  ['FORGE_PASSWORD', 'Welcome', 'Passphrase the Forge page and the player link ask for before anything shows (case-insensitive). Keeps the room from being opened before the day. Blank = no gate.'],
+  ['FORGE_PASSWORD', '', 'Optional passphrase the Forge page and the player link ask for before anything shows (case-insensitive). Blank = no gate (the default). Set a word only if the room must stay shut before the day.'],
   ['WHEEL_ENABLED', 'YES', 'Show the "Pick someone" wheel (random person from the roster, with team photos) in Forge and in the huddle.'],
-  ['FORGE_PHASES', L10_FORGE_PHASES_DEFAULT, 'Forge phases as JSON [[key, label, seconds, rounds], …]. Keys are fixed (OPENER DIVERGE RELAY CLUSTER VOTE COMMITTEE CLAIM HANDOFFS FORGE DOCTOR COMMIT); labels, seconds and round counts are yours to edit. Order matters.'],
-  ['FORGE_PROMPTS', L10_FORGE_PROMPTS_DEFAULT, 'The prompt deck as JSON: opener statements, diverge rounds, wildcards, the card format, relay instructions, thought experiments (for Timed write), the doctor checklist, the manager-test questions, rungs, levers, shifts.'],
-  ['FORGE_LINES', L10_FORGE_LINES_DEFAULT, 'Revenue lines a goal can name, as JSON [[label, number-as-text], …]. Kept as text on purpose — the app never computes with them.'],
+  ['FORGE_PHASES', L10_FORGE_PHASES_DEFAULT, 'Forge phases as JSON [[key, label, seconds, rounds], …]. Default: DIVERGE (one round of new ideas on the seeded wall) → CLAIM → FORGE (write the goal) → DOCTOR (one peer review) → COMMIT. Other keys that still work when listed: OPENER RELAY CLUSTER VOTE COMMITTEE HANDOFFS. Labels, seconds and round counts are yours to edit. Order matters.'],
+  ['FORGE_PROMPTS', L10_FORGE_PROMPTS_DEFAULT, 'The prompt deck as JSON: the New ideas round prompt, the doctor checklist, plus the opener statements, wildcards, relay lines, thought experiments (Timed write), rungs, levers and shifts for any phase that uses them.'],
+  ['FORGE_LINES', L10_FORGE_LINES_DEFAULT, 'The FY27 goals a team goal can serve, as JSON [[label, goal-as-text], …] — the "Relevant" in SMART, and the area each seeded card carries. Kept as text on purpose; the app never computes with them.'],
+  ['FORGE_SEED_CARDS', L10_FORGE_SEED_DEFAULT, 'Cards every new Forge session starts with, as JSON [[text, area (a FORGE_LINES label), source], …]. Default: Stuart\'s FY27 goals + the team\'s F27 backlog. Claimable, never anonymous, never parked at Lock. Edit before the day to change the deck.'],
+  ['FORGE_TIMED_WRITE', 'NO', 'YES shows the facilitator\'s "Timed write" button in the Forge room ("for the next N minutes, everyone write…"). NO (default) hides it.'],
   ['FORGE_VOTE_MODE', 'TOKENS', 'TOKENS = investment tokens on the clustered themes (forces the committee conversation); DOTS = dots on individual cards.'],
   ['FORGE_TOKENS', 10, 'Tokens per person in TOKENS mode.'],
   ['FORGE_TOKEN_MAX_PER_THEME', 4, 'Most tokens one person may put on one theme.'],
   ['FORGE_DOTS', 5, 'Dots per person in DOTS mode.'],
   ['FORGE_DOT_MAX_PER_IDEA', 2, 'Most dots one person may put on one card.'],
   ['FORGE_SUPER_VOTES', 1, 'Revenue super-votes per person (the "is this about the number?" vote), either mode.'],
-  ['FORGE_IDEA_TARGET', 40, 'The team card-count target shown on the room screen during Diverge.'],
-  ['FORGE_REVIEWS_PER_GOAL', 2, 'Goal-doctor rounds; each round assigns a different reviewer.'],
+  ['FORGE_IDEA_TARGET', 15, 'The team card-count target for NEW cards shown on the room screen during the ideas round (seeded cards do not count).'],
+  ['FORGE_REVIEWS_PER_GOAL', 1, 'Peer-review rounds per goal when no DOCTOR phase is configured; a DOCTOR phase\'s own round count wins.'],
   ['FORGE_SHORTLIST', 12, 'DOTS mode only: how many top cards are eligible to claim.'],
   ['FORGE_GOALS_PER_PERSON', 5, 'Goal cards per person, the personal one included (4 business + 1 personal = 5).'],
   ['FORGE_Q1_MILESTONE_BY', '2026-10-31', 'Latest allowed date for a goal\'s Q1 milestone (the fiscal Q1 end). Blank = no check.'],
@@ -698,6 +792,37 @@ function l10SeedConfig_(ss) {
   L10_CONFIG_DEFAULTS.forEach(function (row) {
     if (!existing[row[0]]) sheet.appendRow(row);
   });
+  l10UpgradeConfigDefaults_(sheet);
+}
+
+// Config values that shipped as defaults in an earlier version and have a new
+// default now. A row is rewritten ONLY when its value still equals the old
+// default exactly — i.e. nobody ever edited it. Anything a person changed is
+// left alone, so a repair never undoes a deliberate setting.
+var L10_CONFIG_UPGRADES = [
+  ['FORGE_PHASES', L10_FORGE_PHASES_V217_, L10_FORGE_PHASES_DEFAULT],
+  ['FORGE_PROMPTS', L10_FORGE_PROMPTS_V217_, L10_FORGE_PROMPTS_DEFAULT],
+  ['FORGE_LINES', L10_FORGE_LINES_V217_, L10_FORGE_LINES_DEFAULT],
+  ['FORGE_PASSWORD', 'Welcome', ''],
+  ['FORGE_REVIEWS_PER_GOAL', 2, 1],
+  ['FORGE_IDEA_TARGET', 40, 15]
+];
+function l10UpgradeConfigDefaults_(sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+  var n = sheet.getLastRow() - 1;
+  var keys = sheet.getRange(2, 1, n, 1).getValues();
+  var vals = sheet.getRange(2, 2, n, 1).getValues();
+  var changed = 0;
+  L10_CONFIG_UPGRADES.forEach(function (up) {
+    for (var i = 0; i < n; i++) {
+      if (String(keys[i][0]).trim() !== up[0]) continue;
+      if (String(vals[i][0]) === String(up[1])) {
+        sheet.getRange(i + 2, 2).setValue(up[2]);
+        changed++;
+      }
+    }
+  });
+  return changed;
 }
 
 // ---------------------------------------------------------------------------

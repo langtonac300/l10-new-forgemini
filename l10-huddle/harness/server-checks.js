@@ -158,8 +158,14 @@ function makeEnv(o) {
     HtmlService: {},
   };
   vm.createContext(ctx);
-  ['L10Setup.gs', 'L10Code.gs', 'L10Jira.gs'].forEach((f) => vm.runInContext(fs.readFileSync(path.join(APPS, f), 'utf8'), ctx, { filename: f }));
-  return { ctx, sheets, log, triggers };
+  ['L10Setup.gs', 'L10Code.gs', 'L10Jira.gs', 'L10Forge.gs'].forEach((f) => vm.runInContext(fs.readFileSync(path.join(APPS, f), 'utf8'), ctx, { filename: f }));
+  return { ctx, sheets, log, triggers, addSheet };
+}
+// The five Forge tabs, empty but headed, so a session can be created.
+function forgeTabs(env) {
+  const H = env.ctx.L10.HEADERS;
+  ['L10_Forge_Sessions', 'L10_Forge_Ideas', 'L10_Forge_Votes', 'L10_Forge_Handoffs', 'L10_Goals', 'L10_Scorecard', 'L10_Rocks', 'L10_Rock_Milestones']
+    .forEach((t) => { if (!env.sheets[t]) env.addSheet(t, [H[t].slice()]); });
 }
 // Each Apps Script execution starts with empty per-execution memos; a "next run"
 // of the trigger must not see this run's cache.
@@ -332,8 +338,89 @@ function scenarioFormulaRefFallback() {
   check(live.value === 90.6 && live.how === "='Financial Dashboard v2'!H7", 'fallback: a working formula is untouched, got ' + JSON.stringify(live));
 }
 
+// --- Forge v2.18: config fallback + upgrade, the seeded wall, goal prefill ---
+function forgeEnv(configRows) {
+  const env = makeEnv({ todos: [TODO_HEADERS], jira: fakeJira(mkStore()) });
+  const cfg = env.sheets['L10_Config'].grid;
+  cfg.push(['TEAM', 'Alex, Courtney, Scott, CJ', '']);
+  (configRows || []).forEach((r) => cfg.push(r));
+  forgeTabs(env);
+  freshExecution(env);
+  return env;
+}
+function scenarioForgeConfigFallback() {
+  // A workbook still holding the v2.17 phase list (never edited) reads as the new default.
+  const envOld = forgeEnv([['FORGE_PHASES', null, ''], ['FORGE_PROMPTS', null, ''], ['FORGE_LINES', null, '']]);
+  const g = envOld.sheets['L10_Config'].grid;
+  g.find((r) => r[0] === 'FORGE_PHASES')[1] = envOld.ctx.L10_FORGE_PHASES_V217_;
+  g.find((r) => r[0] === 'FORGE_PROMPTS')[1] = envOld.ctx.L10_FORGE_PROMPTS_V217_;
+  g.find((r) => r[0] === 'FORGE_LINES')[1] = envOld.ctx.L10_FORGE_LINES_V217_;
+  const c1 = envOld.ctx.l10ForgeCfg_();
+  check(c1.phases.map((p) => p.key).join(',') === 'DIVERGE,CLAIM,FORGE,DOCTOR,COMMIT', 'forge cfg: v2.17 phase value should read as the new default, got ' + c1.phases.map((p) => p.key).join(','));
+  check(c1.phases[0].rounds === 1 && c1.reviews === 1, 'forge cfg: one ideas round and one review round, got rounds=' + c1.phases[0].rounds + ' reviews=' + c1.reviews);
+  check(c1.hasVote === false && c1.hasHandoffs === false && c1.timedWrite === false, 'forge cfg: no vote, no handoffs, no timed write by default');
+  check(c1.prompts.rounds.length === 1 && /missing for YOUR accounts/.test(c1.prompts.rounds[0].prompt), 'forge cfg: v2.17 prompts should read as the new deck');
+  check(c1.lines.length >= 10 && c1.lines[0][0] === 'Direct revenue', 'forge cfg: v2.17 lines should read as the FY27 goal areas, got ' + JSON.stringify(c1.lines[0]));
+  check(c1.seeds.length >= 30 && c1.seeds.every((s) => s.text && s.area && (s.by === 'Stuart' || s.by === 'Team')), 'forge cfg: seed deck missing or malformed (' + c1.seeds.length + ')');
+  const areas = {}; c1.lines.forEach((l) => { areas[l[0]] = true; });
+  const orphan = c1.seeds.filter((s) => !areas[s.area]).map((s) => s.area);
+  check(!orphan.length, 'forge cfg: every seed area must be a FORGE_LINES label, orphans: ' + JSON.stringify(orphan));
+  // A custom phase list is respected, and a DOCTOR with two rounds means two reviewers.
+  const custom = JSON.stringify([['DIVERGE', 'Ideas', 300, 2], ['VOTE', 'Vote', 300], ['CLAIM', 'Claim', 300], ['FORGE', 'Write', 900], ['DOCTOR', 'Review', 300, 2], ['COMMIT', 'Commit', 300]]);
+  const envC = forgeEnv([['FORGE_PHASES', custom, ''], ['FORGE_SEED_CARDS', '[]', ''], ['FORGE_TIMED_WRITE', 'YES', '']]);
+  const c2 = envC.ctx.l10ForgeCfg_();
+  check(c2.phases.length === 6 && c2.hasVote === true && c2.reviews === 2 && c2.timedWrite === true, 'forge cfg: custom phases should be kept, got ' + JSON.stringify({ n: c2.phases.length, v: c2.hasVote, r: c2.reviews, t: c2.timedWrite }));
+  check(c2.seeds.length === 0, 'forge cfg: "[]" must mean no seed cards, got ' + c2.seeds.length);
+}
+function scenarioForgeConfigUpgrade() {
+  const env = forgeEnv([['FORGE_PHASES', null, ''], ['FORGE_PASSWORD', 'Welcome', ''], ['FORGE_LINES', '[["Mine","custom"]]', ''], ['FORGE_REVIEWS_PER_GOAL', 2, '']]);
+  const sheet = env.sheets['L10_Config'];
+  sheet.grid.find((r) => r[0] === 'FORGE_PHASES')[1] = env.ctx.L10_FORGE_PHASES_V217_;
+  const n = env.ctx.l10UpgradeConfigDefaults_(sheet);
+  const val = (k) => sheet.grid.find((r) => r[0] === k)[1];
+  check(n === 3, 'config upgrade: expected 3 rows rewritten (phases, password, reviews), got ' + n);
+  check(val('FORGE_PHASES') === env.ctx.L10_FORGE_PHASES_DEFAULT, 'config upgrade: phases not moved to the new default');
+  check(val('FORGE_PASSWORD') === '', 'config upgrade: the Welcome passphrase should become blank, got ' + JSON.stringify(val('FORGE_PASSWORD')));
+  check(val('FORGE_LINES') === '[["Mine","custom"]]', 'config upgrade: an edited value must be left alone');
+  check(String(val('FORGE_REVIEWS_PER_GOAL')) === '1', 'config upgrade: reviews 2 → 1, got ' + val('FORGE_REVIEWS_PER_GOAL'));
+  check(env.ctx.l10UpgradeConfigDefaults_(sheet) === 0, 'config upgrade: a second run must change nothing');
+}
+function scenarioForgeSeededSession() {
+  const env = forgeEnv([]);
+  const r = env.ctx.l10_forgeCreate('Goals day', 'Alex', '');
+  check(r.ok && r.id === 'FS-001' && r.seeded >= 30, 'forge create: session with a seeded wall expected, got ' + JSON.stringify(r));
+  const ideas = env.ctx.l10ReadTab_('L10_Forge_Ideas').rows;
+  check(ideas.length === r.seeded, 'forge create: ' + ideas.length + ' idea rows written for ' + r.seeded + ' seeds');
+  const first = ideas[0];
+  check(first['Round'] === 'S' && first['Anon'] === 'NO' && first['Status'] === 'RAW' && first['Session ID'] === 'FS-001' && !!first['Theme'], 'forge create: seed row shape wrong: ' + JSON.stringify(first));
+  const ids = new Set(ideas.map((i) => i['ID']));
+  check(ids.size === ideas.length && /^FI-\d{3}$/.test(first['ID']), 'forge create: seed ids must be unique FI-### (' + ids.size + ' of ' + ideas.length + ')');
+  // A goal made from a seed card starts as that card.
+  freshExecution(env);
+  const st = env.ctx.l10_forgeState('FS-001', 0, 'Courtney', '');
+  check(st.ok && st.ideas.length === r.seeded && st.cfg.seeds === r.seeded && st.cfg.hasVote === false, 'forge state: seeds should be visible with cfg flags, got ' + JSON.stringify({ ok: st.ok, n: st.ideas && st.ideas.length, seeds: st.cfg && st.cfg.seeds, v: st.cfg && st.cfg.hasVote }));
+  const card = st.ideas.find((i) => i.by === 'Stuart');
+  check(card && card.by === 'Stuart', 'forge state: seed cards are never anonymous (by must show before Claim)');
+  freshExecution(env);
+  const cl = env.ctx.l10_forgeClaim(card.id, 'Courtney');
+  check(cl.ok, 'forge claim: a seed card must be claimable with no vote configured: ' + JSON.stringify(cl));
+  freshExecution(env);
+  const gsave = env.ctx.l10_forgeSaveGoal('FS-001', 'Courtney', { type: 'Business', ideaId: card.id, title: '' });
+  check(gsave.ok, 'forge goal: create from card failed: ' + JSON.stringify(gsave));
+  const goal = env.ctx.l10ReadTab_('L10_Goals').rows.find((g) => g['ID'] === gsave.id);
+  check(goal && goal['Title'] === card.idea.slice(0, 120) && goal['Revenue Line'] === card.theme, 'forge goal: title and FY27 goal should prefill from the card, got ' + JSON.stringify(goal && { t: goal['Title'], l: goal['Revenue Line'] }));
+  // Releasing a seed card puts it back to RAW, never on the shortlist that Lock parks.
+  freshExecution(env);
+  const g2 = env.ctx.l10_forgeDropGoal(gsave.id, 'Courtney');
+  freshExecution(env);
+  const un = env.ctx.l10_forgeUnclaim(card.id, 'Courtney');
+  const back = env.ctx.l10ReadTab_('L10_Forge_Ideas').rows.find((i) => i['ID'] === card.id);
+  check(g2.ok && un.ok && back['Status'] === 'RAW' && back['Claimed By'] === '', 'forge unclaim: released seed should be RAW, got ' + JSON.stringify(back && { s: back['Status'], c: back['Claimed By'] }));
+}
+
 [scenarioDuplicateHeader, scenarioCreate, scenarioLabelsRejected, scenarioWriteBackBlocked, scenarioDuplicateIds,
-  scenarioSearchFails, scenarioDuplicateReport, scenarioRangeReasons, scenarioFormulaRefFallback].forEach((fn) => {
+  scenarioSearchFails, scenarioDuplicateReport, scenarioRangeReasons, scenarioFormulaRefFallback,
+  scenarioForgeConfigFallback, scenarioForgeConfigUpgrade, scenarioForgeSeededSession].forEach((fn) => {
   try { fn(); } catch (e) { failures.push(fn.name + ' threw: ' + (e && e.stack || e)); }
 });
 
