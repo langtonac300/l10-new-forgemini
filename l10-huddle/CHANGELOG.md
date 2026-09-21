@@ -5,7 +5,37 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.17.1 (2026-09-21)** · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.17.2 (2026-09-21)** · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.17.2 (2026-09-21) — the five utilization rows: stale `#REF!` formulas, read through
+
+Found from an export of the live workbook. The Source Ref cells of `SC-001`…`SC-005`
+hold formulas — `='Financial Dashboard v2'!H7` … `!H11` (shared, I2:I6) — and every one
+displays `#REF!`, while the cells they name hold good numbers (H7:H11 = utilization 90.6%,
+88.5%, 103.9%, 100.7%, 81.7% at export time). Every other formula in the workbook that
+references that tab works (47 of them), its name is plain ASCII, and the three **text**
+refs to the same tab (`SC-011`/`SC-012`/`SC-015`, K7/K8/K10) resolve. The capture history
+dates it: all five landed every week through 2026-09-14 (captured 09-15 10:09), and the
+2026-09-21 capture wrote nine metrics without them. So the formulas' binding to the tab
+went stale — the kind of thing a rebuilt tab or block does — in the same window as the
+v2.17 re-paste, though nothing in the app writes to that tab or those cells.
+
+- **`l10ResolveRef_`: read through a stale plain-reference formula.** When a Source Ref
+  formula is nothing but a same-workbook cell reference (`='Tab'!H7`, anchors allowed;
+  never an expression, a function or a `#REF!` cell) and its display is not a number, the
+  named cell is read directly (`l10PullRange_`). A good number is captured with the data
+  note *`Financial Dashboard v2!H7 (read directly; the Source Ref formula shows "#REF!" —
+  retype the ref as text to clear it)`*; a blank or broken target still fails, and the
+  reason now says both what the formula shows and what the target holds. Nothing is
+  ever invented: the value comes from the exact cell the formula names.
+- **Sheet fix (two minutes, recommended anyway):** in `L10_Scorecard`, retype I2:I6 as
+  plain text — `Financial Dashboard v2!H7`, `!H8`, `!H9`, `!H10`, `!H11` (no leading `=`,
+  the same form the seed and `SC-011`/`012`/`015` use). That clears the `#REF!` in the
+  tab; the app resolves text refs itself at capture time.
+- **Harness:** `server-checks.js` gains the case (quoted and unquoted sheet names, `$`
+  anchors, an expression / function / deleted-cell reference are *not* read through,
+  a blank target still fails, a working formula is untouched).
+- **Re-paste:** `L10Code.gs` only, then **redeploy the web app as a new version**.
 
 ## v2.17.1 (2026-09-21) — capture notes that stay, and a Jira sync that cannot run away
 

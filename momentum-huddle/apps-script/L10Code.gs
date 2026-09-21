@@ -310,14 +310,37 @@ function l10PullRange_(ref) {
 //   • a live formula    — ='Metrics'!H7 → the cell already computes the
 //     number, so its own displayed value IS the value;
 //   • anything else (typed constant, formula error) → {value:null, why}.
+// A Source Ref formula that is nothing but a same-workbook cell reference
+// (='Financial Dashboard v2'!H7) → "Financial Dashboard v2!H7", else ''.
+// Anything with a function, an operator or a second reference stays ''.
+function l10FormulaRefTarget_(formula) {
+  var m = String(formula || '').match(/^=\s*(?:'([^']+)'|([^'!=()+\-*\/,]+?))\s*!\s*\$?([A-Za-z]{1,3})\$?(\d+)\s*$/);
+  if (!m) return '';
+  return (m[1] || m[2]).trim() + '!' + m[3].toUpperCase() + m[4];
+}
+
 function l10ResolveRef_(cell) {
   if (cell.formula) {
     var v = l10ParseDisplay_(cell.display);
     if (v !== null) return { value: v, how: cell.formula };
     var shown = String(cell.display === undefined || cell.display === null ? '' : cell.display).trim();
-    if (shown === '') return { value: null, why: 'the Source Ref formula ' + cell.formula.slice(0, 60) + ' shows a blank result' };
+    // A formula that only names a cell in this workbook can show #REF! while
+    // that cell is fine — the formula's binding to the tab went stale when the
+    // tab was rebuilt, even though the text still reads correctly. The text IS
+    // what the person meant, so read that cell directly before giving up; the
+    // data note records the detour so the stale formula still gets noticed.
+    var direct = l10FormulaRefTarget_(cell.formula), pulled = null;
+    if (direct) {
+      pulled = l10PullRange_(direct);
+      if (pulled.value !== null) {
+        return { value: pulled.value, how: direct + ' (read directly; the Source Ref formula shows "' + (shown || 'blank') +
+            '" — retype the ref as text to clear it)' };
+      }
+    }
+    var also = pulled ? ' — and ' + direct + ' read directly: ' + pulled.why : '';
+    if (shown === '') return { value: null, why: 'the Source Ref formula ' + cell.formula.slice(0, 60) + ' shows a blank result' + also };
     return { value: null, why: 'the Source Ref formula shows "' + shown.slice(0, 40) + '", which is not a number' +
-        (/^#/.test(shown) ? ' (a formula error — for IMPORTRANGE, open the tab and allow access once)' : '') };
+        (/^#/.test(shown) ? ' (a formula error — for IMPORTRANGE, open the tab and allow access once)' : '') + also };
   }
   if (!cell.text) return { value: null, why: 'the Source Ref cell is empty' };
   if (l10ParseDisplay_(cell.text) !== null) {
