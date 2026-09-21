@@ -2,7 +2,8 @@
 // sync, run against small stubs of the Apps Script services (no browser, no
 // network). Complements run.js: the browser suite covers the client; this
 // covers the .gs logic the client cannot reach — above all the sync's promise
-// that one to-do never becomes two Jira issues, whatever the sheet does.
+// that one to-do never becomes two Jira issues, whatever the sheet does, and
+// the range resolver's fallbacks and reasons.
 //   node server-checks.js      (exit 1 on any failure)
 'use strict';
 const fs = require('fs');
@@ -306,8 +307,33 @@ function scenarioRangeReasons() {
   check(/Source Ref cell is empty/.test(rr({ text: '', formula: '', display: '' }).why || ''), 'resolve: empty ref reason');
 }
 
+function scenarioFormulaRefFallback() {
+  // The 2026-09-21 case: Source Ref cells hold ='Financial Dashboard v2'!H7 … and
+  // display #REF!, while H7 … themselves hold good numbers. The reference text
+  // is read directly; a target that is genuinely blank still fails, loudly.
+  const dash = []; for (let i = 0; i < 12; i++) dash.push(['', '', '', '', '', '', '', '']);
+  dash[6][7] = '90.6%'; dash[7][7] = ''; dash[10][7] = '81.7%';
+  const env = makeEnv({ todos: [TODO_HEADERS], jira: fakeJira(mkStore()), extraSheets: { 'Financial Dashboard v2': dash } });
+  const rr = env.ctx.l10ResolveRef_, tgt = env.ctx.l10FormulaRefTarget_;
+  check(tgt("='Financial Dashboard v2'!H7") === 'Financial Dashboard v2!H7', 'ref target: quoted sheet, got ' + tgt("='Financial Dashboard v2'!H7"));
+  check(tgt('=Metrics!$H$7') === 'Metrics!H7', 'ref target: unquoted sheet with $ anchors, got ' + tgt('=Metrics!$H$7'));
+  check(tgt("='Financial Dashboard v2'!H7*100") === '', 'ref target: an expression must not be treated as a plain reference');
+  check(tgt('=IMPORTRANGE("id","Weekly!B3")') === '', 'ref target: a function is not a plain reference');
+  check(tgt("='Financial Dashboard v2'!#REF!") === '', 'ref target: a deleted-cell reference is not a plain reference');
+  const ok = rr({ text: '#REF!', formula: "='Financial Dashboard v2'!H7", display: '#REF!' });
+  check(ok.value === 90.6 && /read directly/.test(ok.how || '') && /#REF!/.test(ok.how || ''), 'fallback: stale #REF! formula should read H7 directly, got ' + JSON.stringify(ok));
+  const ok2 = rr({ text: '#REF!', formula: "='Financial Dashboard v2'!H11", display: '#REF!' });
+  check(ok2.value === 81.7, 'fallback: H11 should read 81.7, got ' + JSON.stringify(ok2));
+  const blank = rr({ text: '#REF!', formula: "='Financial Dashboard v2'!H8", display: '#REF!' });
+  check(blank.value === null && /shows "#REF!"/.test(blank.why || '') && /H8 is blank/.test(blank.why || ''), 'fallback: a blank target must still fail and say so, got ' + JSON.stringify(blank));
+  const imp = rr({ text: '', formula: '=IMPORTRANGE("id","Weekly!B3")', display: '#REF!' });
+  check(imp.value === null && /allow access/.test(imp.why || '') && !/read directly/.test(imp.why || ''), 'fallback: IMPORTRANGE errors keep the access hint and no direct read, got ' + JSON.stringify(imp));
+  const live = rr({ text: '', formula: "='Financial Dashboard v2'!H7", display: '90.6%' });
+  check(live.value === 90.6 && live.how === "='Financial Dashboard v2'!H7", 'fallback: a working formula is untouched, got ' + JSON.stringify(live));
+}
+
 [scenarioDuplicateHeader, scenarioCreate, scenarioLabelsRejected, scenarioWriteBackBlocked, scenarioDuplicateIds,
-  scenarioSearchFails, scenarioDuplicateReport, scenarioRangeReasons].forEach((fn) => {
+  scenarioSearchFails, scenarioDuplicateReport, scenarioRangeReasons, scenarioFormulaRefFallback].forEach((fn) => {
   try { fn(); } catch (e) { failures.push(fn.name + ' threw: ' + (e && e.stack || e)); }
 });
 
