@@ -463,7 +463,23 @@
     l10_deleteMilestone: ok,
 
     // Scorecard
-    l10_captureWeek: { ok: true, captured: 3, skipped: [] },
+    // Capture returns {written: {id: value}, notes: [why…]} (see l10_captureWeek
+    // in L10Code.gs). Stateful so the smoke can watch the notes appear, get
+    // replaced by the next capture, and clear on a clean one.
+    l10_captureWeek: (function () {
+      var calls = 0;
+      return function () {
+        calls++;
+        if (calls === 1) return { ok: true, written: { 'SC-001': 101.2 }, notes: [
+          'SC-002: could not capture — the source cell Financial Dashboard v2!H8 is blank — nothing to capture until it holds a value.',
+          'SC-006: could not capture — the Source Ref formula shows "#REF!", which is not a number (a formula error — for IMPORTRANGE, open the tab and allow access once).'
+        ] };
+        if (calls === 2) return { ok: true, written: { 'SC-001': 101.2, 'SC-006': 12 }, notes: [
+          'SC-002: could not capture — the source cell Financial Dashboard v2!H8 is blank — nothing to capture until it holds a value.'
+        ] };
+        return { ok: true, written: { 'SC-001': 101.2, 'SC-002': 97.5, 'SC-006': 12 }, notes: [] };
+      };
+    })(),
     l10_addMetric: function (payload) { idSeq++; return { ok: true, metric: { 'ID': 'SC-' + idSeq, 'Metric': (payload && payload.name) || 'New metric', 'Owner': 'Alex', 'Format': '#', 'Rule': '>=', 'Goal': 0, 'Goal 2': '', 'Source': 'MANUAL', 'Source Ref': '', 'Caveat': '', 'Active': 'YES', 'Sort': 99 } }; },
     l10_addMetricPack: { ok: true, added: 3 },
     l10_editMetric: ok,

@@ -1,7 +1,12 @@
 // L10 Huddle — Jira sync (one-way: huddle to-dos -> Jira).
 // Pushes huddle To-Dos into a Jira project as issues, and closes the Jira issue
-// when the To-Do is completed. Idempotent: the created issue key is written back
-// to the To-Do row (Jira Key column), so re-running never duplicates.
+// when the To-Do is completed. Idempotent two ways: the created issue key is
+// written back to the To-Do row (Jira Key column) and read back to confirm it
+// landed, and before any create the sync asks Jira whether an unresolved issue
+// already carries this to-do's ref (label huddle-td-###, or the "Huddle ref:"
+// line every issue's description has) and links that one instead. A key that
+// will not record stops the run and switches auto-sync off rather than creating
+// the same issue again on the next run.
 //
 // All globals are l10-prefixed (this script project is shared). No credentials
 // live in code: the API token is read from the L10_JIRA_API_TOKEN script
@@ -200,6 +205,105 @@ function l10JiraEnsureColumns_() {
 
 function l10JiraKv_(k, v) { var o = {}; o[k] = v; return o; }
 
+// A header that appears twice on L10_Todos (one copy appended by an early sync,
+// another written by a later header repair) once made the sync's read and
+// write disagree about which column holds the key — so every run re-created
+// the same issue. Reads and writes now both resolve to the FIRST copy
+// (l10ReadTab_ / l10WriteRowCells_), but the tab is still malformed and the
+// extra column should be deleted by hand. Returns a warning string or ''.
+function l10JiraHeaderWarnings_() {
+  var sheet = l10Ss_().getSheetByName(L10.TABS.TODOS);
+  if (!sheet || sheet.getLastColumn() < 1) return '';
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var warn = [];
+  [L10_JIRA_KEY_COL, L10_JIRA_DONE_COL].forEach(function (h) {
+    var cols = [];
+    headers.forEach(function (x, i) { if (x === h) cols.push(l10JiraColLetter_(i + 1)); });
+    if (cols.length > 1) {
+      warn.push('"' + h + '" appears ' + cols.length + ' times (columns ' + cols.join(', ') +
+          ') — only ' + cols[0] + ' is used; delete the other copy');
+    }
+  });
+  return warn.join('; ');
+}
+
+function l10JiraColLetter_(n) {
+  var s = '';
+  while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+// The huddle id as a Jira label ("huddle-td-030"): exact, searchable, and it
+// survives a lost sheet key. Labels are case-sensitive in JQL, so always lower.
+function l10JiraLabel_(id) { return 'huddle-' + String(id || '').trim().toLowerCase(); }
+
+// Flatten an Atlassian Document Format tree to its text (for the ref check).
+function l10JiraAdfText_(node) {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  var out = node.type === 'text' ? String(node.text || '') : '';
+  (node.content || []).forEach(function (c) { out += ' ' + l10JiraAdfText_(c); });
+  return out;
+}
+
+// Before creating an issue for a keyless to-do, ask Jira whether one already
+// exists for this huddle id — by label (issues created from v2.17.1 on) or by
+// the "Huddle ref: TD-###" line every issue's description has carried since
+// day one. The sheet is the sync's memory, but a key that failed to land there
+// (wrong column, duplicated header, a row copied by hand) used to mean a new
+// issue for the same to-do every ten minutes. Only unresolved issues count: a
+// to-do reopened after its issue was closed rightly gets a fresh one.
+// Returns {ok: true, key} (key '' = none found) or {ok: false, error}.
+function l10JiraFindExisting_(s, id) {
+  var label = l10JiraLabel_(id);
+  var jql = 'project = "' + s.project + '" AND statusCategory != "Done" AND (labels = "' + label +
+      '" OR description ~ "' + id + '") ORDER BY created ASC';
+  var r = l10JiraFetch_(s, 'get', '/search/jql?jql=' + encodeURIComponent(jql) + '&maxResults=10&fields=' +
+      encodeURIComponent('labels,description'));
+  if (!(r.code >= 200 && r.code < 300) || !r.json || !r.json.issues) {
+    return { ok: false, error: 'duplicate check failed — ' + l10JiraErr_(r) };
+  }
+  var re = new RegExp('ref:\\s*' + id.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&') + '(?![0-9])', 'i');
+  for (var i = 0; i < r.json.issues.length; i++) {
+    var iss = r.json.issues[i], f = iss.fields || {};
+    if ((f.labels || []).indexOf(label) !== -1) return { ok: true, key: iss.key };
+    if (re.test(l10JiraAdfText_(f.description))) return { ok: true, key: iss.key };
+  }
+  return { ok: true, key: '' };
+}
+
+// Create the issue, tagged with the huddle label. A project whose create screen
+// lacks the Labels field rejects the label with a 400 naming it — retry once
+// without (the description ref still lets the duplicate check find the issue).
+function l10JiraCreateIssue_(s, todo) {
+  var fields = l10JiraTodoFields_(s, todo);
+  fields.labels = [l10JiraLabel_(todo['ID'])];
+  var r = l10JiraFetch_(s, 'post', '/issue', { fields: fields });
+  if (r.code === 400 && r.json && r.json.errors && r.json.errors.labels) {
+    delete fields.labels;
+    r = l10JiraFetch_(s, 'post', '/issue', { fields: fields });
+  }
+  return r;
+}
+
+// Write the key to the row, then read the tab back the way the NEXT run will
+// and confirm the key is there. A key that does not read back means the sheet
+// is not recording keys (column moved, header duplicated, row copied) — and a
+// sync that cannot remember what it created must stop, not keep creating.
+function l10JiraRecordKey_(id, key) {
+  var wrote = l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_KEY_COL, key));
+  if (!wrote) return { ok: false, error: 'row ' + id + ' was not found in ' + L10.TABS.TODOS + ' to record ' + key };
+  var rows = l10ReadTab_(L10.TABS.TODOS).rows; // fresh read: l10SetCells_ dropped the cache
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['ID'] || '').trim() !== id) continue;
+    var back = String(rows[i][L10_JIRA_KEY_COL] || '').trim();
+    if (back === key) return { ok: true };
+    return { ok: false, error: key + ' was written to row ' + id + ' but reads back as "' + back +
+        '" — the "' + L10_JIRA_KEY_COL + '" column is not recording (check the ' + L10.TABS.TODOS + ' header row)' };
+  }
+  return { ok: false, error: 'row ' + id + ' disappeared while recording ' + key };
+}
+
 function l10JiraToast_(msg) {
   try { SpreadsheetApp.getActive().toast(msg, 'Jira', 8); } catch (e) {}
   try { Logger.log(msg); } catch (e) {}
@@ -224,30 +328,55 @@ function l10JiraSyncTodos() {
   }
   try {
     l10JiraEnsureColumns_();
+    var headerWarn = l10JiraHeaderWarnings_();
     var tab = l10ReadTab_(L10.TABS.TODOS);
-    var created = 0, closed = 0, errors = 0, skipped = 0;
+    var created = 0, adopted = 0, closed = 0, errors = 0, skipped = 0;
+    var seen = {}, dupIds = [], halt = '';
     for (var i = 0; i < tab.rows.length; i++) {
       var todo = tab.rows[i];
       var id = String(todo['ID'] || '').trim();
       if (!id) continue;
+      // Two rows with one id (a row copied by hand, a double submit): the key
+      // can only be recorded on the first, so the second would be created anew
+      // every run. Sync the first, report the rest.
+      if (seen[id]) { dupIds.push(id); continue; }
+      seen[id] = true;
       var status = String(todo['Status'] || '').trim().toUpperCase();
       var key = String(todo[L10_JIRA_KEY_COL] || '').trim();
       var doneMark = String(todo[L10_JIRA_DONE_COL] || '').trim();
       var hasKey = L10_JIRA_KEY_RE.test(key);
 
-      // 1) create a Jira issue for a still-owed to-do that has no valid key yet.
+      // 1) a still-owed to-do with no valid key: link the issue Jira already has
+      // for it, else create one — and only count it once the key reads back.
       // ⚠ This tests the whole open set (OPEN/WORKING/BLOCKED), not Status ===
       // 'OPEN'. A bare 'OPEN' comparison would leave every started or blocked
       // to-do off the board entirely — the rows the team most wants tracked.
       if (!hasKey && l10TodoOpen_(status)) {
-        var r = l10JiraFetch_(s, 'post', '/issue', { fields: l10JiraTodoFields_(s, todo) });
-        if (r.code >= 200 && r.code < 300 && r.json && r.json.key) {
-          l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_KEY_COL, r.json.key));
-          created++;
-        } else {
-          l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_KEY_COL, 'ERR: ' + l10JiraErr_(r)));
+        var found = l10JiraFindExisting_(s, id);
+        if (!found.ok) {
+          // Cannot tell whether an issue exists → creating could duplicate.
+          // Record the reason and retry next run, exactly like a failed create.
+          l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_KEY_COL, 'ERR: ' + found.error));
           errors++;
+          Utilities.sleep(200);
+          continue;
         }
+        var newKey = found.key, how = 'adopted';
+        if (!newKey) {
+          var r = l10JiraCreateIssue_(s, todo);
+          if (r.code >= 200 && r.code < 300 && r.json && r.json.key) {
+            newKey = r.json.key;
+            how = 'created';
+          } else {
+            l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_KEY_COL, 'ERR: ' + l10JiraErr_(r)));
+            errors++;
+            Utilities.sleep(200);
+            continue;
+          }
+        }
+        var rec = l10JiraRecordKey_(id, newKey);
+        if (!rec.ok) { halt = rec.error + ' (' + newKey + ' exists in Jira)'; break; }
+        if (how === 'created') created++; else adopted++;
         Utilities.sleep(200);
         continue;
       }
@@ -266,9 +395,23 @@ function l10JiraSyncTodos() {
       }
       skipped++;
     }
-    l10JiraToast_('Jira sync: ' + created + ' created, ' + closed + ' closed' +
-        (errors ? ', ' + errors + ' error(s)' : '') + '.');
-    return { ok: true, created: created, closed: closed, errors: errors, skipped: skipped };
+    if (halt) {
+      // Circuit breaker. Every further run would create or re-link the same
+      // issue and never remember it, so auto-sync goes off until a person has
+      // looked at the tab. One line to the team chat so it is not silent.
+      l10RemoveJiraTrigger();
+      var stop = 'Jira sync stopped itself: ' + halt + '. Auto-sync is OFF — fix the ' + L10.TABS.TODOS +
+          ' tab, run Jira ▸ Sync now, then turn auto-sync back on.';
+      l10JiraToast_(stop);
+      try { l10NotifyChat_('⚠️ ' + stop); } catch (e) {}
+      return { ok: false, halted: true, error: stop, created: created, adopted: adopted, closed: closed, errors: errors };
+    }
+    l10JiraToast_('Jira sync: ' + created + ' created, ' + adopted + ' linked to existing, ' + closed + ' closed' +
+        (errors ? ', ' + errors + ' error(s)' : '') + '.' +
+        (dupIds.length ? ' Duplicate to-do id(s) skipped: ' + dupIds.join(', ') + '.' : '') +
+        (headerWarn ? ' Header check: ' + headerWarn + '.' : ''));
+    return { ok: true, created: created, adopted: adopted, closed: closed, errors: errors, skipped: skipped,
+             dupIds: dupIds, headerWarn: headerWarn };
   } finally {
     lock.releaseLock();
   }
@@ -391,9 +534,14 @@ function l10MenuTestJira() {
 function l10MenuSyncJiraNow() {
   var ui = SpreadsheetApp.getUi();
   var r = l10JiraSyncTodos();
-  if (!r.ok) { ui.alert('Sync not run: ' + (r.error || 'unknown')); return; }
-  ui.alert('Jira sync complete.\n\nCreated: ' + r.created + '\nClosed: ' + r.closed + '\nErrors: ' + r.errors +
-    (r.errors ? '\n\nRows with errors show "ERR: …" in the Jira Key column — they retry next sync.' : ''));
+  if (!r.ok) { ui.alert((r.halted ? 'Sync stopped: ' : 'Sync not run: ') + (r.error || 'unknown')); return; }
+  ui.alert('Jira sync complete.\n\nCreated: ' + r.created + '\nLinked to existing issues: ' + r.adopted +
+    '\nClosed: ' + r.closed + '\nErrors: ' + r.errors +
+    (r.errors ? '\n\nRows with errors show "ERR: …" in the Jira Key column — they retry next sync.' : '') +
+    (r.dupIds && r.dupIds.length
+      ? '\n\nDuplicate to-do id(s) in ' + L10.TABS.TODOS + ' (only the first row of each is synced): ' + r.dupIds.join(', ')
+      : '') +
+    (r.headerWarn ? '\n\nHeader check: ' + r.headerWarn : ''));
 }
 
 function l10MenuJiraBackfillAssignees() {
@@ -409,6 +557,74 @@ function l10MenuJiraBackfillAssignees() {
       ? '\n\nOwners with no Jira match (still unassigned): ' + r.unresolvedOwners.join(', ') +
         '\nFix via TEAM_EMAILS or JIRA_USER_MAP in L10_Config, then run this again.'
       : ''));
+}
+
+// Read-only audit of the board: every unresolved issue in the project that
+// carries a huddle ref (label or the description line), grouped by to-do id.
+// A ref on more than one issue is a duplicate set; the sheet's key (or, when
+// the sheet holds none, the oldest — the one the next sync will link) is the
+// keeper and the rest are listed for a person to delete or close in Jira.
+// Nothing is changed anywhere. Menu: Jira ▸ Find duplicate issues.
+function l10JiraDuplicateReport() {
+  var s = l10JiraSettings_();
+  if (!l10JiraEnabled_(s)) return { ok: false, error: 'not configured' };
+  var jql = 'project = "' + s.project + '" AND statusCategory != "Done" AND description ~ "Huddle ref" ORDER BY created ASC';
+  var byRef = {}, token = '', pages = 0;
+  do {
+    var path = '/search/jql?jql=' + encodeURIComponent(jql) + '&maxResults=100&fields=' +
+        encodeURIComponent('summary,description,labels,created') + (token ? '&nextPageToken=' + encodeURIComponent(token) : '');
+    var r = l10JiraFetch_(s, 'get', path);
+    if (!(r.code >= 200 && r.code < 300) || !r.json || !r.json.issues) return { ok: false, error: 'search ' + l10JiraErr_(r) };
+    r.json.issues.forEach(function (iss) {
+      var f = iss.fields || {}, ref = '';
+      (f.labels || []).forEach(function (l) {
+        var m = String(l).match(/^huddle-(td-\d+)$/i);
+        if (m) ref = m[1].toUpperCase();
+      });
+      if (!ref) {
+        var m2 = l10JiraAdfText_(f.description).match(/ref:\s*(TD-\d+)/i);
+        if (m2) ref = m2[1].toUpperCase();
+      }
+      if (!ref) return;
+      (byRef[ref] = byRef[ref] || []).push({ key: iss.key, created: String(f.created || '').slice(0, 19) });
+    });
+    token = r.json.nextPageToken || '';
+    pages++;
+  } while (token && pages < 10);
+  var sheetKey = {};
+  l10ReadTab_(L10.TABS.TODOS).rows.forEach(function (t) {
+    var k = String(t[L10_JIRA_KEY_COL] || '').trim();
+    if (L10_JIRA_KEY_RE.test(k)) sheetKey[String(t['ID'] || '').trim()] = k;
+  });
+  var groups = [];
+  Object.keys(byRef).sort().forEach(function (ref) {
+    var list = byRef[ref];
+    if (list.length < 2) return;
+    list.sort(function (a, b) { return a.created < b.created ? -1 : a.created > b.created ? 1 : 0; });
+    var linked = sheetKey[ref] || '';
+    var keep = linked || list[0].key;
+    groups.push({ ref: ref, linked: linked, keep: keep,
+      extras: list.filter(function (x) { return x.key !== keep; }).map(function (x) { return x.key; }) });
+  });
+  try { Logger.log(JSON.stringify({ refs: Object.keys(byRef).length, groups: groups })); } catch (e) {}
+  return { ok: true, groups: groups, refs: Object.keys(byRef).length };
+}
+
+function l10MenuJiraDuplicateReport() {
+  var ui = SpreadsheetApp.getUi();
+  var r = l10JiraDuplicateReport();
+  if (!r.ok) { ui.alert('Duplicate check not run: ' + (r.error || 'unknown')); return; }
+  if (!r.groups.length) {
+    ui.alert('No duplicate Jira issues found — each of the ' + r.refs + ' huddle ref(s) on the board is on one unresolved issue.');
+    return;
+  }
+  var lines = r.groups.slice(0, 40).map(function (g) {
+    return g.ref + ': keep ' + g.keep + (g.linked ? ' (the sheet\'s key)' : ' (oldest; the sheet holds no key — the next sync links it)') +
+        ' · extra: ' + g.extras.join(', ');
+  });
+  ui.alert('Duplicate Jira issues — ' + r.groups.length + ' to-do' + (r.groups.length === 1 ? '' : 's') + ' affected\n\n' +
+    lines.join('\n') + (r.groups.length > 40 ? '\n… +' + (r.groups.length - 40) + ' more (see the execution log)' : '') +
+    '\n\nNothing was changed. Delete or close the extra issues in Jira by hand; the kept key is the one the huddle keeps updating.');
 }
 
 function l10MenuInstallJiraTrigger() {

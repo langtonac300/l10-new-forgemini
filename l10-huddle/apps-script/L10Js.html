@@ -49,7 +49,11 @@ var state = {
   todoCompose: { owners: [], due: '', repeat: false, text: '', notes: '' },
   // Whether the composer is expanded past its single line. Sticky once opened —
   // see addTodoCard.
-  todoComposeOpen: false
+  todoComposeOpen: false,
+  // The last capture's "could not be read" notes ({week, notes}). Held in state
+  // and rendered by capNotesHtml_ so they survive the re-render every capture
+  // triggers — see doCapture.
+  capNotes: null
 };
 
 // Read-only endpoints: while ONLY these are in flight the chip says
@@ -1646,8 +1650,24 @@ function captureGrid() {
       '<span class="help help--grow">' + (isPast
         ? 'Backfilling a past week: every metric is typed by hand (auto-pull reads today\'s cell values, so it\'s current-week only).'
         : 'Auto-pulls RANGE metrics from their source cells and GA4 metrics from Google Analytics; manual cells from the inputs (plain numbers — % and $ are fine too).') + '</span></div>' +
-      '<div class="js-cap-notes"></div>';
+      '<div class="js-cap-notes">' + capNotesHtml_(wk) + '</div>';
   return html;
+}
+// The "could not be read" notes from the last capture, for the week shown. Kept
+// in state rather than poked into the DOM: a capture re-renders the Metrics
+// page AND the segment, and a note written straight into the old DOM vanished
+// with it — leaving a toast that promised details under the button that were
+// never there. Switching the week picker hides them; the next capture replaces
+// them; dismiss clears them.
+function capNotesHtml_(wk) {
+  var cn = state.capNotes;
+  if (!cn || cn.week !== wk || !cn.notes || !cn.notes.length) return '';
+  var n = cn.notes.length;
+  return '<div class="banner warn cap-notes-head"><b>⚠ ' + n + ' value' + (n === 1 ? '' : 's') +
+      ' could not be read</b> — nothing was saved for ' + (n === 1 ? 'it' : 'these') +
+      ' (a blank or broken source is skipped, never guessed). Fix the source cell or the metric\'s Source Ref, then Capture again. ' +
+      '<button class="btn mini subtle js-cap-notes-dismiss" type="button">dismiss</button></div>' +
+      cn.notes.map(function (t) { return '<div class="banner warn cap-note">' + esc(t) + '</div>'; }).join('');
 }
 function segScorecard() {
   return '<div class="banner info"><b>Rule:</b> each number is on track or off track — nothing else. Off track? "Drop it down." No discussing, no solving here.</div>' +
@@ -5810,6 +5830,12 @@ function wireShared(scope) {
   });
   var cap = scope.querySelector('.js-capture');
   if (cap) cap.addEventListener('click', function () { doCapture(scope); });
+  var capDismiss = scope.querySelector('.js-cap-notes-dismiss');
+  if (capDismiss) capDismiss.addEventListener('click', function () {
+    state.capNotes = null;
+    renderScorecard();
+    renderSegment();
+  });
   var capWk = scope.querySelector('.js-cap-week');
   if (capWk) capWk.addEventListener('change', function () {
     state.capWeek = capWk.value === state.boot.weekOf ? null : capWk.value;
@@ -5830,20 +5856,20 @@ function doCapture(scope) {
   var btn = scope.querySelector('.js-capture');
   if (btn) { btn.disabled = true; btn.textContent = 'Capturing…'; }
   gs('l10_captureWeek', wk, manual).then(function (res) {
-    var notesEl = scope.querySelector('.js-cap-notes');
-    if (res.notes && res.notes.length && notesEl) {
-      notesEl.innerHTML = res.notes.map(function (n) {
-        return '<div class="banner warn">' + esc(n) + '</div>';
-      }).join('');
-    }
-    notify('Captured ' + Object.keys(res.written).length + ' metric(s)', 'ok');
-    if (res.notes && res.notes.length) {
-      notify(res.notes.length + ' value(s) could not be read — details below the capture button.', 'warn', 8000);
+    res = res || {};
+    if (res.ok === false) throw new Error(res.error || 'Capture failed.');
+    var written = res.written || {}, notes = res.notes || [];
+    // The notes go into state, not the DOM: the two renders below rebuild the
+    // capture card, and captureGrid draws them back from state (capNotesHtml_).
+    state.capNotes = notes.length ? { week: wk, notes: notes } : null;
+    notify('Captured ' + Object.keys(written).length + ' metric(s)', 'ok');
+    if (notes.length) {
+      notify(notes.length + ' value(s) could not be read — details below the capture button.', 'warn', 8000);
     }
     // Splice the captured values into local state — no full re-bootstrap.
     var vals = state.boot.scorecard.values;
-    Object.keys(res.written).forEach(function (mid) {
-      (vals[mid] = vals[mid] || {})[wk] = res.written[mid];
+    Object.keys(written).forEach(function (mid) {
+      (vals[mid] = vals[mid] || {})[wk] = written[mid];
     });
     renderScorecard();
     renderSegment();

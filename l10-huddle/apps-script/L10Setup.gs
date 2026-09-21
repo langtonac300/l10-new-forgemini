@@ -443,6 +443,7 @@ function l10BuildMenu() {
             .addSeparator()
             .addItem('Sync now', 'l10MenuSyncJiraNow')
             .addItem('Assign owners on existing issues', 'l10MenuJiraBackfillAssignees')
+            .addItem('Find duplicate issues', 'l10MenuJiraDuplicateReport')
             .addItem('Turn on auto-sync (every 10 min)', 'l10MenuInstallJiraTrigger')
             .addItem('Turn off auto-sync', 'l10MenuRemoveJiraTrigger'))
         .addToUi();

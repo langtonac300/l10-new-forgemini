@@ -15,7 +15,9 @@ and on demand (menu **Sync now**):
 - A **DONE** to-do whose issue we created → transition to Done (prefers the
   `JIRA_DONE_TRANSITION` name, else any transition whose target is in the *done*
   status category) and stamp the **`Jira Done`** column so it's never re-processed.
-- **Idempotent + safe:** the `Jira Key` column is the dedupe guard (a real key
+- **Idempotent + safe:** the `Jira Key` column is the dedupe guard — and, from v2.17.1,
+  Jira itself is asked before any create and the written key is read back (see the
+  v2.17.1 section at the end). A real key
   `^[A-Z][A-Z0-9]+-\d+$` is skipped; a failure writes `ERR: …` and retries next run).
   Historical already-DONE to-dos are **not** backfilled (no board spam); DROPPED
   to-dos are skipped. Chosen over hooking `l10_addTodo`/`l10_setTodoStatus` so it
@@ -97,3 +99,53 @@ issues** (v2.9.1) retro-assigns keyed open to-dos without overwriting manual pic
 > `l10JiraSyncTodos`-style call inside `l10_addTodo` / `l10_setTodoStatus` (mirrors
 > the v1.11 chat hook) — needs an `L10Code.gs` re-paste + web-app redeploy, so it's
 > deliberately left out.
+
+## v2.17.1 (2026-09-21) — the runaway, and why it cannot happen again
+
+**What happened.** One to-do was created in BNADM 20+ times, one issue per 10-minute
+trigger run, each one emailing its assignee (the "assigned to you" notification is Jira's own,
+one per issue — check the sender to confirm). The `Jira Key` column was the sync's **only** memory: the created key was
+written to the row, and if the next run did not read that key back, it created again.
+Two ways a written key goes invisible were found in the code:
+
+1. **A duplicated header.** `l10ReadTab_` mapped a header that appears twice to its *last*
+   column, while `l10WriteRowCells_` writes to the *first*. `Jira Key` present twice on
+   `L10_Todos` (one copy appended at the end by an early sync, one written at column K by
+   a later **Setup / repair tabs** — which rewrites the header row in place) meant the key
+   went to K and was read from P, forever blank. Reads now use the first column too, and
+   the sync summary warns when a header is duplicated and which column to delete.
+2. **A duplicated to-do id** (a row copied by hand, a double submit): the key can only be
+   recorded on the first row; the second was created anew every run. The first row is
+   synced; the rest are named in the summary.
+
+**Guards, in the order the sync applies them** (`l10JiraSyncTodos`):
+
+- **Ask Jira first** (`l10JiraFindExisting_`): for a keyless open to-do, search the project
+  for an unresolved issue that carries the to-do's ref — the label `huddle-td-###` (new,
+  set on every issue created from v2.17.1) or the *Huddle ref: TD-###* description line
+  (every issue since day one). If found, **link** it: write its key, count it as "linked
+  to existing", create nothing. Uses `GET /rest/api/3/search/jql` (the enhanced search;
+  the legacy `/search` was removed 2025-05-01). A failed search writes
+  `ERR: duplicate check failed — …` and retries next run — never create on "don't know".
+- **Create with the label** (`l10JiraCreateIssue_`); if the project's create screen lacks
+  the Labels field (a 400 naming `labels`), retry once without it.
+- **Verify the write-back** (`l10JiraRecordKey_`): write the key, then re-read the tab the
+  way the next run will. A key that does not read back **halts the run, removes the
+  10-minute trigger, toasts and posts one line to the team chat**. Sync now then shows
+  "Sync stopped: …" with the reason. A sync that cannot remember what it created must
+  stop, not keep creating.
+- **Jira → Find duplicate issues** (`l10JiraDuplicateReport`, read-only): every ref on more
+  than one unresolved issue, the key to keep (the sheet's, else the oldest — the one the
+  next sync links) and the extras to delete by hand in Jira. It changes nothing.
+
+**Recovering from a runaway:** Jira → Turn off auto-sync → re-paste `L10Code.gs`,
+`L10Jira.gs`, `L10Setup.gs` (menu item; do not run repair tabs) → Jira → Find duplicate
+issues → delete the extras in Jira → Jira → Sync now (links, does not create) → Jira →
+Turn on auto-sync. Then fix the tab: `Jira Key` / `Jira Done` exactly once in the header
+row, no to-do id twice.
+
+> Verified by `harness/server-checks.js` (node only, stubbed Sheets + Jira): duplicate
+> header → linked not created and column K carries the key; fresh create carries the
+> label; label rejected → one retry without; blocked write-back → exactly one create,
+> halt, trigger removed, one chat line, and **the next run creates nothing**; duplicate
+> ids → one create; search failure → no create; the duplicate report's keep/extra split.

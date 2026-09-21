@@ -5,7 +5,79 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.17 (2026-09-17)** · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.17.1 (2026-09-21)** · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.17.1 (2026-09-21) — capture notes that stay, and a Jira sync that cannot run away
+
+Two regressions reported after the v2.17 re-paste. Neither is in the Forge code itself: no
+file the Forge added redefines an existing function or global, and `L10Code.gs` /
+`L10Jira.gs` were untouched by v2.17 — but the v2.17 steps (re-paste, **Setup / repair
+tabs**, redeploy) exercised paths whose weak points had been there for a while. Both
+copies; browser harness green in both, plus a new node-only server check.
+
+- **Scorecard capture: the "N value(s) could not be read — details below the capture
+  button" toast pointed at nothing.** `doCapture` wrote the per-metric reasons into the
+  capture card, then re-rendered the Scorecard page and the segment — which rebuilt the card
+  and threw the reasons away. The notes now live in state (`state.capNotes`) and
+  `captureGrid` draws them under the button for the week shown, with a **dismiss**; the
+  next capture replaces them. The reason each metric was skipped is finally visible.
+- **Sharper reasons.** A RANGE metric that failed said *"did not resolve — re-point it at a
+  cell like SheetName!A1"* even when the reference was right and the source cell was
+  simply blank or showed a formula error. That is the likely story behind the five
+  utilization rows (`SC-001`…`SC-005`, `Financial Dashboard v2!H7:H11`): the capture code
+  did not change, so the cells it reads did — unverified from the code alone, which is
+  exactly why the notes matter. `l10PullRange_` now names the actual failure: *there is no
+  tab named X*, *not a cell address*, *the source cell X is blank*, *the source cell X
+  shows "#N/A", which is not a number (a formula error in the source)*; a formula Source
+  Ref showing `#REF!` gets the IMPORTRANGE allow-access hint. The metric builder's **test
+  it** uses the same words. Nothing is ever filled in — a blank stays skipped, loudly.
+- **Jira sync: the same to-do created 20+ times, one issue every ten minutes** — and, most
+  likely, one Jira "assigned to you" email to its owner per issue (Jira notifies the
+  assignee on create; check the sender of those emails to confirm). The sheet's `Jira Key`
+  column was the sync's only memory: when a written key did not read back the way the next
+  run read the tab, every run created the issue again. Two ways a written key goes
+  invisible are fixed, and the sync is now safe even when the sheet lies:
+  - `l10ReadTab_` mapped a **duplicated header** to its *last* column while writes went to
+    the *first* (`l10WriteRowCells_`). A `Jira Key` header present twice — once appended by
+    an early sync at the end of the tab, once written at K by a later header repair —
+    meant a key written to K was read back from P. Reads now use the first column, like
+    writes, and the sync warns when a header is duplicated (and which column to delete).
+  - **Duplicate to-do ids** (a row copied by hand, a double submit): only the first row
+    can hold the key, so the second was created anew every run. The first is synced, the
+    rest are reported in the sync summary.
+  - **Ask Jira before creating.** For a keyless open to-do the sync searches the project
+    for an unresolved issue carrying the to-do's ref — the new label `huddle-td-###`, or
+    the *Huddle ref: TD-###* line every issue's description has had since day one — and
+    **links** it (writes its key, "linked to existing" in the summary) instead of creating
+    another. New issues carry the label (a project whose create screen lacks Labels gets
+    one retry without it). A failed duplicate check writes `ERR: duplicate check failed — …`
+    and retries next run rather than risk a duplicate.
+  - **Verify the write-back, then stop if it fails.** After writing a key the sync reads
+    the tab back the way the next run will. A key that does not read back halts the run,
+    **turns auto-sync off**, toasts, and posts one line to the team chat — instead of
+    creating the same issue again ten minutes later. **Sync now** then says "Sync stopped:
+    …" with the reason.
+  - **Jira → Find duplicate issues** (new menu item, read-only): lists every to-do whose
+    ref sits on more than one unresolved issue, says which key to keep (the sheet's, else
+    the oldest — the one the next sync links) and which are extras to delete by hand.
+- **Harness:** the `l10_captureWeek` fixture has the real `{written, notes}` shape and the
+  smoke asserts the notes show, persist through the re-render, get replaced, dismiss and
+  clear. New `harness/server-checks.js` (node only, no browser) runs the sync against
+  stubbed Sheets + Jira: duplicate header, fresh create with label, label rejected,
+  blocked write-back (one create, halt, trigger off, and **no second create on the next
+  run**), duplicate ids, search failure, the duplicate report, and the range resolver's
+  reasons.
+- **Re-paste:** `L10Code.gs`, `L10Jira.gs`, `L10Setup.gs` (menu item only — do **not** run
+  Setup / repair tabs for this), `L10Js.html`. **Redeploy the web app as a new version**
+  (the standalone tab serves the deployed client). The in-sheet menu and the 10-minute
+  trigger run the saved code as soon as it is saved.
+- **Clean-up order for the current state:** Jira → **Turn off auto-sync** first; re-paste;
+  Jira → **Find duplicate issues**, then delete the extras in Jira by hand; Jira → **Sync
+  now** (it links, it does not create); Jira → **Turn on auto-sync**. In `L10_Todos` check
+  the header row reads `Jira Key` / `Jira Done` exactly once (delete an extra copy, keeping
+  the column the sync summary says it uses) and that no to-do id appears twice. For the
+  metrics: press **Capture** once and read the notes under the button — they name the
+  blank or broken cell.
 
 ## v2.17 (2026-09-17) — Forge: the timed idea-generation / goal-setting session, the wheel, Timed write, the passphrase gate
 
