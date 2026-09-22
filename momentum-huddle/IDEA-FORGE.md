@@ -1,5 +1,11 @@
 # Forge — timed idea-generation module
 
+> **Status (2026-09-21, later): parked for the 09-24 day.** After v2.18 merged, Alex decided to run the
+> FY27 goals day on paper and markers instead (four hours in a rented conference room). The paper
+> version keeps the same shape — seeded wall → one ideas round → claim → write → one peer review →
+> commit → lock — and the same 12 areas and 39 cards; see [`goals-day/GOALS-DAY-PAPER.md`](./goals-day/GOALS-DAY-PAPER.md).
+> The app is unchanged and still runs; nothing below is withdrawn.
+>
 > **Status (v2.18, 2026-09-21): cut to the goals day.** After the first real open Alex found the
 > eleven-phase session too much for Thursday, and Stuart's FY27 goals plus the team backlog were
 > already written — so the default day is now one round of new ideas on a **seeded wall**

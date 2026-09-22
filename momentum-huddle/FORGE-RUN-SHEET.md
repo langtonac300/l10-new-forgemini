@@ -1,5 +1,9 @@
 # Forge — run sheet for the FY27 goals day (Thu 2026-09-24)
 
+> **Parked (2026-09-21).** The 09-24 goals day runs **on paper** — rules, run of show and the
+> printable pack are in [`goals-day/GOALS-DAY-PAPER.md`](./goals-day/GOALS-DAY-PAPER.md). This
+> sheet stays for the next time the Forge is used for a goals day or a quarterly reset.
+
 One page for the facilitator. The room screen is the projector; everyone else has the
 player link open on their own laptop. Default timings come from `FORGE_PHASES` and can be
 edited in `L10_Config` before the day; +60 s, Pause and "End the clock" are always there.
