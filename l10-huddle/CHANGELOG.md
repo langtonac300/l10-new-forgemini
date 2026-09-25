@@ -5,7 +5,79 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.18 (2026-09-21)** · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.19 (2026-09-25)** · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.19 (2026-09-25) — Rocks page redesigned to the UX canvas (v4)
+
+The third page from Alex's Claude Design canvas ("Priorities Page Redesign" — **v4**, the
+latest of four iterations; v1–v3 were not used), applied the way v2.15 / v2.16 were: the
+app's own tokens (Inter, accent blue, pill system), the canvas's semantic tones, glyph +
+word wherever colour carries meaning. `rockLine()` is untouched — the huddle's Rock
+review, the 1:1 page and the context modal still render with it. Both copies; harness
+green in both, server checks green. The canvas file is kept in
+[`../momentum-huddle/design/ux-2026-09-25/`](../momentum-huddle/design/ux-2026-09-25/README.md).
+
+- **Quarter card.** Day *n* of *N* · days left in the quarter, a bar, and "*x* of *y*
+  milestones due so far are done" (every milestone dated between the quarter start and
+  today, on any rock that wasn't dropped). **Status** chips — ▲ off track · ◆ need a
+  check · ○ no plan yet · ● on track, each a filter with its count — and **Owner** chips with
+  each person's open-rock load. **Group** by Status (default) or Owner, remembered per
+  browser. The room view clears the filters, same rule as the To-dos page.
+- **One table, one quarter axis.** Month ticks and a Today marker in a sticky header; every
+  row's track runs on the same scale: span from start to due, solid fill through the last
+  milestone ticked off, a hatched stretch for time gone with nothing done (≥ 15 points behind
+  pace), a dashed red run past the due date, the due tick. Milestones dated before the
+  quarter collapse into an "earlier ‹ n ✓ / !" gutter; milestones within ~2 days merge into
+  one numbered dot. Hover names each milestone; clicking a single dot ticks it off through
+  the same `l10_setMilestoneStatus` path (the last one still auto-marks the rock DONE).
+- **Rows grouped by what needs attention:** Off track → Needs a check (the existing
+  milestone-reality nudge, now with **Yes, still on track** / **No, mark off track**) → No plan
+  yet → On track. Chips: owner (when grouped by status), *N*d past due, source (from SI / IS
+  ↗), accounts, behind pace, a caveat marker on the title. Lines: Late · / Next · / the plan
+  hint, **Why ·**, the nudge, ✓ Confirmed on track.
+- **Status column:** the pill opens a menu (on track / off track… / change the why… / done);
+  "2 wk · since Sep 8" for an off-track row; what moved this week — ↓ was on track / ↑ was
+  off track (a real change in the last 7 days), +*N* done this week, ▲ *N* slipped this week.
+- **Off track needs a why on this page** — one line, Enter saves; it rides the row until the
+  status changes. The huddle's quick "off" flip still doesn't ask.
+- **Milestone panel under the open row:** tick, **+7d**, click the date to re-date, ✎ rename /
+  re-date / note, ✕ delete (two clicks, Undo), an add line (name + date, Enter adds);
+  definition of done; caveat; the linked scorecard metric as **13 weekly bars** (dark = on goal, light =
+  off, a dashed stub where a week wasn't captured — never a filled-in value) with the
+  metric's own caveat and stale-source flag; the note; id · shift · started · runway left.
+  **Edit** (outcome, owner, due, definition of done, caveat, shift, linked metric, accounts)
+  · **Send to Issues** (the issue notes carry "from RK-### — why: …") · **Drop**.
+- **Done this quarter** folds under the table (status set to DONE on or after the quarter
+  start), ↩ Reopen. Rocks finished in earlier quarters no longer list on this page —
+  they stay in the tab.
+- **New rock sheet** (+ New rock): the outcome + how you'll know it's done, owner
+  chips with load and a one-line hint, due (End of quarter or a date), accounts it moves,
+  shift + linked metric (optional). The new row opens with its milestone line focused. The
+  quarter-turn card's ⑂ split now prefills this sheet.
+- **One status write path** (`setRockStatus_`) for the page, the huddle's pill cluster,
+  reopen and drop. Its Undo restores the row's exact prior status fields
+  (`l10_restoreRockStatus`), so an undone click leaves no "changed this week" trace.
+- **Schema — four columns appended to `L10_Rocks`** (same append-at-the-end rule as every
+  late column): `Off Track Reason`, `Previous Status`, `Confirmed On`, `Caveat`. On a tab that
+  hasn't been repaired the page shows one banner, the plain status flip still works, the
+  confirm button hides, and anything that needs a new column fails loudly — never a silent drop.
+- **Server:** `l10_setRockStatus(id, status, opts)` takes `opts.reason`; setting the same
+  status again writes only the why, so `Status Updated` / `Previous Status` now mean "the
+  last real change, and from what". New `l10_restoreRockStatus`, `l10_confirmRock`.
+  `l10_editRock` takes caveat / accounts / shift (written only when sent). The milestone
+  auto-DONE goes through the same status writer. The plan slice carries `rockColsReady`.
+- **Harness:** fixtures cover every state (8 active rocks plus done, dropped and
+  earlier-quarter rows); the `l10_addRock` / `l10_addMilestone` stubs now return the server's
+  `{ok, id, row}`. The smoke walks the quarter card counts, groups, filters, owner grouping,
+  the panel (tick, +7d, add), confirm, the off-track why (empty refused, Undo restores),
+  done this quarter, split → sheet, the New rock and edit payloads, Send to Issues, the
+  room-view filter clear, a missing why and a pre-repair workbook. `server-checks.js` covers
+  the status writer, restore, confirm, the pre-repair failures, edit and the cascade.
+- **Re-paste:** `L10Setup.gs`, `L10Code.gs`, `L10Css`, `L10Js`. Then run **L10 Huddle →
+  Setup / repair tabs** once (it appends the four `L10_Rocks` columns; nothing existing
+  changes). **Redeploy the web app as a new version.**
+- Out of scope, parked: the huddle's Rock review segment keeps the old line (its quick
+  "off" doesn't ask why); recap / digest emails don't carry the why yet.
 
 ## v2.18 (2026-09-21) — Forge, cut to the goals day: a seeded wall, one ideas round, claim, write, one review, commit
 

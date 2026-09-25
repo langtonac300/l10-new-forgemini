@@ -61,8 +61,14 @@ var L10 = {
     // 'Source' is the issue id a promoted rock came from (the tappable cross-
     // reference — l10_promoteIssue writes it instead of a Notes breadcrumb).
     // Inserting either mid-row would shift every existing row under the wrong header.
+    // The four after them are appended under the same rule (Rocks page
+    // v2.19): 'Off Track Reason' (the one-line why, kept while it is off track),
+    // 'Previous Status' (what it was before the last real change — the "was on
+    // track" chip), 'Confirmed On' (the owner's "yes, still on track" answer to a
+    // milestone nudge) and 'Caveat' (context the room must hear with the status).
     L10_Rocks: ['ID', 'Rock', 'Owner', 'Due', 'Shift', 'Accounts', 'Status',
-      'Definition of Done', 'Notes', 'Created', 'Status Updated', 'Metric ID', 'Source'],
+      'Definition of Done', 'Notes', 'Created', 'Status Updated', 'Metric ID', 'Source',
+      'Off Track Reason', 'Previous Status', 'Confirmed On', 'Caveat'],
     L10_Rock_Milestones: ['ID', 'Rock ID', 'Milestone', 'Due', 'Status', 'Done At',
       'Created', 'Notes'],
     // 'Jira Key'/'Jira Done' sit at the END on purpose — same rule as the IDS

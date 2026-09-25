@@ -53,7 +53,15 @@ var state = {
   // The last capture's "could not be read" notes ({week, notes}). Held in state
   // and rendered by capNotesHtml_ so they survive the re-render every capture
   // triggers — see doCapture.
-  capNotes: null
+  capNotes: null,
+  // --- Rocks page working state (v2.19) — transient, same rule as the
+  // to-dos page: view state only, and applyPresent_ clears the filters.
+  // rkOpen: the row whose milestone panel is open; rkEdit: the panel's edit
+  // draft; rkMsDate / rkMsEdit: a milestone's date picker / rename form;
+  // rkMsDraft: per-rock add-milestone drafts; rkCompose: the New
+  // rock sheet's draft.
+  rkFilter: { status: '', people: [] }, rkOpen: null, rkEdit: null, rkMsDate: null,
+  rkMsEdit: null, rkMsDraft: {}, rkAdding: false, rkCompose: null, rkDoneOpen: false
 };
 
 // Read-only endpoints: while ONLY these are in flight the chip says
@@ -809,7 +817,7 @@ function dlgClosed_(id) {
 // One Tab trap for all overlays: while one is open, Tab wraps inside its card.
 // sched sits last — it stacks ABOVE the IDS card (z 170 vs 150), so when both
 // are open the trap must serve the scheduler.
-var L10_DLG_IDS_ = ['ids-overlay', 'ctx-overlay', 'rkctx-overlay', 'mb-overlay', 'guide-overlay', 'wheel-overlay', 'forge-tw-overlay', 'forge-lock-overlay', 'sched-overlay'];
+var L10_DLG_IDS_ = ['ids-overlay', 'ctx-overlay', 'rkctx-overlay', 'mb-overlay', 'guide-overlay', 'wheel-overlay', 'forge-tw-overlay', 'forge-lock-overlay', 'rk-new', 'sched-overlay'];
 document.addEventListener('keydown', function (ev) {
   if (ev.key !== 'Tab') return;
   var open = null;
@@ -888,6 +896,7 @@ function fsElement_() {
 }
 function applyPresent_(on) {
   document.body.classList.toggle('present', !!on);
+  rkStickyTop_(); // the room view hides the app header the table axis sticks under
   // Going into the room view drops every personal filter and selection. The
   // projected list is the whole list, always — nobody has to remember to clear
   // a search box before screen-sharing.
@@ -895,6 +904,8 @@ function applyPresent_(on) {
     state.todoFilter = { q: '', people: [], blocked: false, carried: false, day: '' };
     state.todoSel = {};
     if (hyd('work')) renderTodos();
+    state.rkFilter = { status: '', people: [] };
+    if (hyd('plan') && hyd('core')) renderRocks();
   }
 }
 function togglePresent() {
@@ -968,7 +979,7 @@ function bootEmbed_() {
 // server-side instead of corrupting anything. Core state (the open meeting,
 // the user) is deliberately NEVER snapshotted — the embed supplies it fresh.
 var SNAP_KEYS_ = ['todoTabsReady', 'todos', 'todoSteps', 'todoLog', 'issues', 'headlines',
-  'rocks', 'milestones', 'playbook', 'scorecard'];
+  'rocks', 'milestones', 'playbook', 'scorecard', 'rockColsReady'];
 function snapKey_() { return state.snapSid ? 'l10Snap1:' + state.snapSid : null; }
 function snapLoad_() {
   var key = snapKey_();
@@ -1150,6 +1161,9 @@ function ageTick_(allowRefetch) {
   if (ac) ac.textContent = '↻ ' + ageLabel_();
   if (allowRefetch === false) return;
   if (!state.loadedAt || state.inMeeting || state.editing || state.voting || state.busyN) return;
+  if (state.rkEdit || state.rkMsEdit || state.rkAdding) return;
+  var ae = document.activeElement;
+  if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.closest && ae.closest('#page-rocks')) return;
   if (state.forge && state.forge.sid) return; // a live Forge session drives its own polling
   if (document.visibilityState !== 'visible' || overlayOpen_()) return;
   if (Date.now() - state.loadedAt > 3 * 60000) refresh();
@@ -5045,29 +5059,12 @@ function wireShared(scope) {
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   });
+  // Status flips go through setRockStatus_ (the Rocks page's one write
+  // path): optimistic, and its Undo restores the row's exact prior status fields.
   scope.querySelectorAll('[data-rock]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var parts = btn.dataset.rock.split('|');
-      var r = findRow(state.boot.rocks, 'ID', parts[0]);
-      var prev = r ? r['Status'] : '';
-      var rockRevert = function (to) {
-        return function () {
-          var rr = findRow(state.boot.rocks, 'ID', parts[0]);
-          if (rr) { rr['Status'] = to; rerenderLists(); } else refresh();
-        };
-      };
-      if (r) { r['Status'] = parts[1]; rerenderLists(); }
-      serverSync(gs('l10_setRockStatus', parts[0], parts[1]), undefined, rockRevert(prev));
-      if (r && prev && prev !== parts[1]) {
-        notifyUndo('Rock → ' + parts[1].toLowerCase(), function () {
-          var rr = findRow(state.boot.rocks, 'ID', parts[0]);
-          if (rr) { rr['Status'] = prev; rerenderLists(); }
-          serverSync(gs('l10_setRockStatus', parts[0], prev), undefined, rockRevert(parts[1]));
-          notify('Undone', 'ok');
-        });
-      } else {
-        notify('Rock → ' + parts[1].toLowerCase(), 'ok');
-      }
+      setRockStatus_(parts[0], parts[1]);
     });
   });
   // Quarter-turn card: carry re-dates to the end of this quarter (Undo puts
@@ -5095,15 +5092,10 @@ function wireShared(scope) {
   scope.querySelectorAll('[data-qsplit]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var r = findRow(state.boot.rocks, 'ID', btn.dataset.qsplit);
-      var page = $('page-rocks');
-      var title = page ? page.querySelector('.js-rk-title') : null;
-      if (!r || !title) return;
-      title.value = String(r['Rock']);
-      var ownerSel = page.querySelector('.js-rk-owner');
-      if (ownerSel) ownerSel.value = String(r['Owner'] || '');
-      title.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      title.focus();
-      try { title.setSelectionRange(0, title.value.length); } catch (e) {}
+      if (!r) return;
+      openRockSheet_({ title: String(r['Rock']), owner: String(r['Owner'] || '') });
+      var title = $('rk-new') ? $('rk-new').querySelector('.js-rkn-title') : null;
+      if (title) { try { title.setSelectionRange(0, title.value.length); } catch (e) {} }
       notify('Trim this down to the piece that\'s actually left — the original stays until you carry or drop it.', 'info', 6000);
     });
   });
@@ -6314,57 +6306,1075 @@ function openMetricBuilder(id) {
   $('mb-name').focus();
 }
 
+// --- Rocks page (v2.19 layout) ------------------------------------------
+// One shared quarter axis for every row, rows grouped by what needs attention
+// (or by owner), the milestones inline under the row, and the composer in a
+// side sheet. rockLine() is untouched: the huddle's Rock review, the 1:1
+// page and the context modal still render with it. The filters are view state
+// only — in memory, never the sheet — and the room view clears them
+// (applyPresent_), same rule as the To-dos page.
+var RK_STATUS_META_ = {
+  'ON TRACK': { g: '●', w: 'On track', cls: 'rks-on' },
+  'OFF TRACK': { g: '▲', w: 'Off track', cls: 'rks-off' },
+  'DONE': { g: '✓', w: 'Done', cls: 'rks-done' },
+  'DROPPED': { g: '✕', w: 'Dropped', cls: 'rks-dropped' }
+};
+// The four attention buckets, in the order the page leads with them.
+var RK_BUCKETS_ = [
+  { key: 'off', g: '▲', chip: 'off track', label: 'Off track', tone: 'red', title: 'The owner says it\'s slipping', hint: 'owner says it\'s slipping — IDS it' },
+  { key: 'check', g: '◆', chip: 'need a check', label: 'Needs a check', tone: 'amber', title: 'Marked on track, but the milestones disagree', hint: 'marked on track, the milestones disagree' },
+  { key: 'plan', g: '○', chip: 'no plan yet', label: 'No plan yet', tone: 'grey', title: 'Three weeks or older with no milestones', hint: 'needs a first milestone' },
+  { key: 'on', g: '●', chip: 'on track', label: 'On track', tone: 'green', title: 'On track and the milestones agree', hint: '' }
+];
+// Milestone dot states, worst last (a cluster shows its worst member).
+var RK_DOT_ = {
+  done: { g: '✓', word: 'done', rank: 0 },
+  open: { g: '', word: 'open', rank: 1 },
+  today: { g: '•', word: 'due today', rank: 2 },
+  late: { g: '!', word: 'late', rank: 3 }
+};
+function rkIsYmd_(v) { return /^\d{4}-\d{2}-\d{2}$/.test(d10(v)); }
+function rkDays_(a, b) { return Math.round((dayMs_(b) - dayMs_(a)) / 86400000); }
+function rkShort_(v) {
+  var s = d10(v);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  var d = new Date(s + 'T12:00:00');
+  return MONTH_ABBR_[d.getMonth()] + ' ' + d.getDate();
+}
+function rkMsDone_(m) { return String(m['Status']).toUpperCase() === 'DONE'; }
+function rkMsState_(m) {
+  if (rkMsDone_(m)) return 'done';
+  var d = d10(m['Due']), t = localToday();
+  return d < t ? 'late' : d === t ? 'today' : 'open';
+}
+function rkActive_() {
+  return (state.boot.rocks || []).filter(function (r) {
+    return ['DONE', 'DROPPED'].indexOf(String(r['Status'])) === -1;
+  });
+}
+// The fiscal quarter holding today (FISCAL_START_MONTH), as dates — the axis
+// every row shares. Same arithmetic as fiscalQuarterEnd_ and l10FiscalParts_.
+function rkQuarter_() {
+  var s = Number((state.boot.config || {}).FISCAL_START_MONTH) || 1;
+  if (!(s >= 1 && s <= 12)) s = 1;
+  var t = new Date(localToday() + 'T12:00:00');
+  var m0 = t.getMonth(), off = (m0 - (s - 1) + 12) % 12, qm = m0 - (off % 3), y = t.getFullYear();
+  return {
+    start: fmtLocal(new Date(y, qm, 1)),
+    end: fmtLocal(new Date(y, qm + 3, 0)),
+    months: [0, 1, 2].map(function (i) { return fmtLocal(new Date(y, qm + i, 1)); }),
+    q: 'Q' + (Math.floor(off / 3) + 1)
+  };
+}
+function rkPct_(Q, v) {
+  return Math.max(0, Math.min(100, rkDays_(Q.start, d10(v)) / Math.max(1, rkDays_(Q.start, Q.end)) * 100));
+}
+function rkGroupGet_() { try { return localStorage.getItem('l10RkGroup') === 'owner' ? 'owner' : 'status'; } catch (e) { return 'status'; } }
+function rkGroupSet_(v) { try { localStorage.setItem('l10RkGroup', v); } catch (e) {} }
+function rkFilterActive_() { var f = state.rkFilter; return !!(f.status || f.people.length); }
+
+// What a rock's milestones say about it. The nudge and the plan hint are
+// the same rules rockRealityHtml_ / rockPlanHintHtml_ apply in the huddle; a
+// "yes, still on track" from the owner rests the nudge for a week.
+function rkAnalyze_(r) {
+  var today = localToday();
+  var ms = rockMilestones(r['ID']);
+  var open = ms.filter(function (m) { return !rkMsDone_(m); });
+  var late = open.filter(function (m) { return rkIsYmd_(m['Due']) && d10(m['Due']) < today; });
+  var status = String(r['Status']);
+  var created = rkIsYmd_(r['Created']) ? d10(r['Created']) : '';
+  var due = rkIsYmd_(r['Due']) ? d10(r['Due']) : '';
+  var conf = rkIsYmd_(r['Confirmed On']) ? d10(r['Confirmed On']) : '';
+  var confirmed = status === 'ON TRACK' && conf && conf <= today && rkDays_(conf, today) < 7 ? conf : '';
+  var start = created || today;
+  var doneN = ms.length - open.length;
+  var doneFrac = ms.length ? doneN / ms.length : 0;
+  var el = due && due > start ? rkDays_(start, today) / rkDays_(start, due) : null;
+  var nudge = '';
+  if (status === 'ON TRACK' && !confirmed) {
+    if (late.length) {
+      nudge = 'Marked on track with ' + late.length + (late.length === 1 ? ' milestone' : ' milestones') + ' past due — still on track?';
+    } else if (ms.length && el !== null && el >= 0.5 && el <= 1 && el - doneFrac >= 0.4) {
+      nudge = Math.round(el * 100) + '% of the runway gone, ' + doneN + ' of ' + ms.length + ' milestones done — still on track?';
+    }
+  }
+  var hint = !ms.length && created && (status === 'ON TRACK' || status === 'OFF TRACK') && rkDays_(created, today) >= 21 ?
+      'No milestones yet — what’s the first thing that must be true?' : '';
+  var elapsed = due ? Math.max(0, Math.min(1, rkDays_(start, today) / Math.max(1, rkDays_(start, due)))) : 0;
+  return {
+    ms: ms, open: open, late: late, doneN: doneN, doneFrac: doneFrac, elapsed: elapsed,
+    behind: ms.length && due ? elapsed - doneFrac : 0,
+    nudge: nudge, hint: hint, confirmed: confirmed, created: created, due: due,
+    bucket: status === 'OFF TRACK' ? 'off' : nudge ? 'check' : hint && status === 'ON TRACK' ? 'plan' : 'on'
+  };
+}
+// What moved in the last seven days: a real status change (Previous Status is
+// written only when the status actually changes), milestones ticked off, and
+// milestones that went past their date.
+function rkChanges_(r, a) {
+  var today = localToday(), wk = addDays_(today, -7), out = [];
+  var status = String(r['Status']), prev = String(r['Previous Status'] || '');
+  var upd = rkIsYmd_(r['Status Updated']) ? d10(r['Status Updated']) : '';
+  if (upd && upd > wk && prev !== status && (prev === 'ON TRACK' || prev === 'OFF TRACK')) {
+    if (status === 'OFF TRACK') out.push({ label: '↓ was on track', cls: 'rkc-red', title: 'Marked off track ' + rkShort_(upd) + ' — it was on track before' });
+    else if (status === 'ON TRACK') out.push({ label: '↑ was off track', cls: 'rkc-green', title: 'Back on track since ' + rkShort_(upd) });
+  }
+  var doneWk = a.ms.filter(function (m) {
+    var d = d10(m['Done At']);
+    return rkMsDone_(m) && rkIsYmd_(d) && d > wk && d <= today;
+  }).length;
+  if (doneWk) out.push({ label: '+' + doneWk + ' done this week', cls: 'rkc-green', title: 'Milestones ticked off in the last 7 days' });
+  var slipped = a.late.filter(function (m) { return d10(m['Due']) >= wk; }).length;
+  if (slipped) out.push({ label: '▲ ' + slipped + ' slipped this week', cls: 'rkc-red', title: 'Milestones that went past their date in the last 7 days' });
+  return out;
+}
+
+function rkQuarterCardHtml_(Q, active, counts) {
+  var today = localToday(), f = state.rkFilter;
+  var total = rkDays_(Q.start, Q.end) + 1, day = Math.max(1, Math.min(total, rkDays_(Q.start, today) + 1));
+  var pct = Math.round(day / total * 100);
+  // Milestones due so far this quarter, across every rock that wasn't dropped.
+  var live = {};
+  (state.boot.rocks || []).forEach(function (r) { if (String(r['Status']) !== 'DROPPED') live[String(r['ID']).trim()] = 1; });
+  var dueSoFar = (state.boot.milestones || []).filter(function (m) {
+    var d = d10(m['Due']);
+    return live[String(m['Rock ID']).trim()] && rkIsYmd_(d) && d >= Q.start && d <= today;
+  });
+  var doneSoFar = dueSoFar.filter(rkMsDone_).length;
+  var load = {};
+  active.forEach(function (r) { var o = String(r['Owner'] || '').trim(); if (o) load[o] = (load[o] || 0) + 1; });
+  var people = (state.boot.team || []).slice();
+  Object.keys(load).forEach(function (o) { if (people.indexOf(o) === -1) people.push(o); });
+  var group = rkGroupGet_();
+  return '<div class="card rkq"><div class="rkq-l">' +
+      '<div class="rkq-h"><span class="rkq-day">Day ' + day + ' of ' + total + '</span><span class="rkq-left">' + (total - day) + ' days left in ' + esc(Q.q) + '</span></div>' +
+      '<div class="rkq-bar" role="img" aria-label="' + pct + '% of the quarter gone"><div class="rkq-fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="rkq-cap">' + esc(rkShort_(Q.start) + ' – ' + rkShort_(Q.end)) + ' · ' +
+        (dueSoFar.length ? doneSoFar + ' of ' + dueSoFar.length + ' milestones due so far are done' : 'no milestones due yet this quarter') + '</div></div>' +
+      '<div class="rkq-r"><div class="rkq-row"><span class="rkq-k">Status</span>' +
+      RK_BUCKETS_.map(function (b) {
+        var on = f.status === b.key;
+        return '<button type="button" class="rkq-st rkq-st--' + b.tone + (on ? ' on' : '') + '" data-rkfilter="' + b.key + '" aria-pressed="' + on + '" title="' + esc(b.title) + '">' +
+            '<span class="rkq-st-g" aria-hidden="true">' + b.g + '</span><b>' + (counts[b.key] || 0) + '</b>' + esc(b.chip) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="rkq-row"><span class="rkq-k">Owner</span>' +
+      people.map(function (p) {
+        var on = f.people.indexOf(p) !== -1;
+        return '<button type="button" class="person-chip person-chip--sm' + (on ? ' on' : '') + '" data-rkperson="' + esc(p) + '" aria-pressed="' + on + '" title="' + esc((on ? 'Stop showing ' : 'Show ') + p + '’s rocks') + '">' + avatar(p) + esc(p) + ' · ' + (load[p] || 0) + '</button>';
+      }).join('') +
+      (rkFilterActive_() ? '<button type="button" class="si-link rkq-clear" data-rkclear="1">Clear filters</button>' : '') +
+      '<span class="rkq-group"><span class="si-seg-l">Group</span>' +
+        '<button type="button" class="pill pill--btn pill--sm' + (group === 'owner' ? ' on' : '') + '" data-rkgroup="owner" aria-pressed="' + (group === 'owner') + '">Owner</button>' +
+        '<button type="button" class="pill pill--btn pill--sm' + (group === 'status' ? ' on' : '') + '" data-rkgroup="status" aria-pressed="' + (group === 'status') + '">Status</button></span>' +
+      '</div></div></div>';
+}
+function rkAxisHtml_(Q, countLabel) {
+  var tP = rkPct_(Q, localToday());
+  return '<div class="rkt-h rk-grid3">' +
+      '<div class="rkt-count">' + esc(countLabel) + '</div>' +
+      '<div class="rkt-axis"><div class="rk-early rkt-early">earlier</div><div class="rkt-ticks">' +
+      Q.months.map(function (m) {
+        var p = rkPct_(Q, m).toFixed(2) + '%';
+        return '<div class="rkt-tickline" style="left:' + p + '"></div><div class="rkt-ticklab" style="left:' + p + '">' + esc(MONTH_ABBR_[new Date(m + 'T12:00:00').getMonth()]) + '</div>';
+      }).join('') +
+      '<div class="rkt-today' + (tP > 86 ? ' rkt-today--r' : tP < 14 ? ' rkt-today--l' : '') + '" style="left:' + tP.toFixed(2) + '%">Today · ' + esc(rkShort_(localToday())) + '</div>' +
+      '</div></div><div class="rkt-sth">Status</div></div>';
+}
+function rkTrackHtml_(r, a, Q) {
+  var id = String(r['ID']), today = localToday();
+  var P = function (n) { return n.toFixed(2) + '%'; };
+  var pct = function (v) { return rkPct_(Q, v); };
+  var dated = a.ms.filter(function (m) { return rkIsYmd_(m['Due']); });
+  var earlier = dated.filter(function (m) { return d10(m['Due']) < Q.start; });
+  var inQ = dated.filter(function (m) { return d10(m['Due']) >= Q.start; });
+  var sL = pct(a.created && a.created > Q.start ? a.created : Q.start);
+  var sR = a.due ? pct(a.due) : 100;
+  var lastDone = inQ.filter(rkMsDone_).pop();
+  var fillEnd = lastDone ? Math.max(sL, pct(lastDone['Due'])) : sL;
+  var tP = pct(today);
+  var h = '<div class="rk-tl"><div class="rk-early">';
+  if (earlier.length) {
+    var allDone = earlier.every(rkMsDone_);
+    h += '<span class="rk-early-n ' + (allDone ? 'rk-early--ok' : 'rk-early--bad') + '" title="' + esc('Before ' + rkShort_(Q.start) + ':\n' + earlier.map(function (m) {
+      return m['Milestone'] + ' · ' + rkShort_(m['Due']) + (rkMsDone_(m) ? ' ✓' : ' — still open');
+    }).join('\n')) + '">‹ ' + earlier.length + (allDone ? ' ✓' : ' !') + '</span>';
+  }
+  h += '</div><div class="rk-track">';
+  Q.months.slice(1).forEach(function (m) { h += '<div class="rk-grid" style="left:' + P(pct(m)) + '"></div>'; });
+  h += '<div class="rk-today" style="left:' + P(tP) + '"></div><div class="rk-base"></div>' +
+      '<div class="rk-span" style="left:' + P(sL) + ';width:' + P(Math.max(0, sR - sL)) + '"></div>';
+  if (a.behind >= 0.15) {
+    var bEnd = Math.min(tP, sR);
+    if (bEnd > fillEnd) h += '<div class="rk-behind" style="left:' + P(fillEnd) + ';width:' + P(bEnd - fillEnd) + '" title="Time gone with no milestone done"></div>';
+  }
+  h += '<div class="rk-fill" style="left:' + P(sL) + ';width:' + P(Math.max(0, fillEnd - sL)) + '" title="' + esc(lastDone ? 'Done through ' + rkShort_(lastDone['Due']) : 'Nothing done yet') + '"></div>';
+  if (a.due && a.due < today) {
+    h += '<div class="rk-overdue" style="left:' + P(sR) + ';width:' + P(Math.max(0, tP - sR)) + '" title="' + rkDays_(a.due, today) + ' days past the due date"></div>';
+  }
+  if (a.due) {
+    var lateCls = a.due < today ? ' rk-due--late' : '';
+    h += '<div class="rk-duetick' + lateCls + '" style="left:' + P(sR) + '"></div>' +
+        '<div class="rk-duelab' + lateCls + (sR > 88 ? ' rk-due--r' : sR < 8 ? ' rk-due--l' : '') + '" style="left:' + P(sR) + '">due ' + esc(rkShort_(a.due)) + (a.due > Q.end ? ' ›' : '') + '</div>';
+  }
+  // Milestones closer than ~2.4% of the quarter merge into one numbered dot.
+  var clusters = [];
+  inQ.forEach(function (m) {
+    var p = pct(m['Due']), last = clusters[clusters.length - 1];
+    if (last && p - last.p < 2.4) last.items.push(m); else clusters.push({ p: p, items: [m] });
+  });
+  clusters.forEach(function (c) {
+    var worst = c.items.map(rkMsState_).sort(function (x, y) { return RK_DOT_[y].rank - RK_DOT_[x].rank; })[0];
+    var single = c.items.length === 1, m0 = c.items[0], mN = c.items[c.items.length - 1];
+    var tip = c.items.map(function (m) {
+      var k = rkMsState_(m);
+      return '<div class="rk-tip-i"><div class="rk-tip-n">' + esc(m['Milestone']) + '</div><div class="rk-tip-m">' +
+          esc(rkShort_(m['Due']) + ' · ' + RK_DOT_[k].word + (single ? ' — click to ' + (k === 'done' ? 'reopen' : 'tick off') : '')) + '</div></div>';
+    }).join('') + (single ? '' : '<div class="rk-tip-m rk-tip-more">click to open the milestones</div>');
+    var span = rkShort_(m0['Due']) + '–' + (d10(m0['Due']).slice(0, 7) === d10(mN['Due']).slice(0, 7) ? String(new Date(d10(mN['Due']) + 'T12:00:00').getDate()) : rkShort_(mN['Due']));
+    var attrs = single ?
+        ' data-ms="' + esc(m0['ID']) + '|' + (rkMsDone_(m0) ? 'OPEN' : 'DONE') + '" aria-label="' + esc((rkMsDone_(m0) ? 'Reopen milestone: ' : 'Tick off milestone: ') + m0['Milestone'] + ' (' + rkShort_(m0['Due']) + ')') + '"' :
+        ' data-rkopen="' + esc(id) + '" aria-label="' + esc(c.items.length + ' milestones, ' + span + ': ' + c.items.map(function (m) { return m['Milestone']; }).join('; ')) + '"';
+    h += '<div class="rk-dotw' + (single ? '' : ' rk-dotw--multi') + '" style="left:' + P(c.p) + '">' +
+        '<button type="button" class="rk-dot rk-dot--' + worst + '"' + attrs + '>' + (single ? RK_DOT_[worst].g : c.items.length) + '</button>' +
+        (single ? '' : '<span class="rk-dot-sub rk-dot-sub--' + worst + '">' + esc(span) + '</span>') +
+        '<div class="rk-tip' + (c.p > 78 ? ' rk-tip--r' : c.p < 14 ? ' rk-tip--l' : '') + '" role="tooltip">' + tip + '</div></div>';
+  });
+  return h + '</div></div>';
+}
+function rkStatusCellHtml_(r, a) {
+  var id = String(r['ID']), status = String(r['Status']);
+  var st = RK_STATUS_META_[status] || { g: '·', w: status || '—', cls: '' };
+  var h = '<div class="rk-st"><button type="button" class="rk-pill ' + st.cls + '" data-rkstatus="' + esc(id) + '" aria-haspopup="menu" title="Change status">' +
+      '<span class="rk-pill-g" aria-hidden="true">' + st.g + '</span>' + esc(st.w) + '<span class="rk-pill-c" aria-hidden="true">▾</span></button>';
+  var upd = rkIsYmd_(r['Status Updated']) ? d10(r['Status Updated']) : '';
+  if (status === 'OFF TRACK' && upd) {
+    var d = rkDays_(upd, localToday());
+    h += '<span class="rk-since" title="' + esc('Marked off track on ' + upd) + '">' +
+        (d <= 0 ? 'since today' : (d < 7 ? d + 'd' : Math.round(d / 7) + ' wk') + ' · since ' + esc(rkShort_(upd))) + '</span>';
+  }
+  rkChanges_(r, a).forEach(function (c) {
+    h += '<span class="rk-chg ' + c.cls + '" title="' + esc(c.title) + '">' + esc(c.label) + '</span>';
+  });
+  return h + '</div>';
+}
+function rkMainHtml_(r, a, group) {
+  var id = String(r['ID']), status = String(r['Status']), today = localToday();
+  var isOpen = state.rkOpen === id;
+  var caveat = String(r['Caveat'] || '').trim();
+  var chips = [];
+  if (group !== 'owner') chips.push('<span class="rk-owner">' + who(r['Owner']) + '</span>');
+  if (a.due && a.due < today) chips.push('<span class="rk-chip rk-chip--red" title="' + esc('Was due ' + rkShort_(a.due)) + '">' + rkDays_(a.due, today) + 'd past due</span>');
+  if (!a.due) chips.push('<span class="rk-chip rk-chip--grey" title="Set a due date and the timeline places it">no due date</span>');
+  if (r['Source']) {
+    var src = sourceRefHtml_(r['Source']);
+    chips.push(src.indexOf('<button') === 0 ? src : '<span class="rk-chip">' + src + '</span>');
+  }
+  String(r['Accounts'] || '').split(',').map(function (t) { return t.trim(); }).filter(String).forEach(function (t) {
+    chips.push('<span class="rk-chip">' + esc(t) + '</span>');
+  });
+  if (a.behind >= 0.15 && status === 'ON TRACK') {
+    chips.push('<span class="rk-chip rk-chip--amber" title="' + esc(Math.round(a.elapsed * 100) + '% of the time gone, ' + Math.round(a.doneFrac * 100) + '% of milestones done') + '">behind pace</span>');
+  }
+  var lines = '';
+  if (a.late.length) {
+    var l0 = a.late[0];
+    lines += '<div class="rk-line rk-line--red"><b>Late ·</b> ' + esc(l0['Milestone']) + ' — was due ' + esc(rkShort_(l0['Due'])) +
+        (a.late.length > 1 ? ' · +' + (a.late.length - 1) + ' more late' : '') + '</div>';
+  } else if (a.open.length) {
+    var nx = a.open.filter(function (m) { return rkIsYmd_(m['Due']); })[0] || a.open[0];
+    var dd = rkIsYmd_(nx['Due']) ? rkDays_(today, d10(nx['Due'])) : null;
+    lines += '<div class="rk-line' + (dd === 0 ? ' rk-line--amber' : '') + '"><b>Next ·</b> ' + esc(nx['Milestone']) + ' — ' +
+        (dd === null ? 'no date yet' : dd === 0 ? 'today' : esc(rkShort_(nx['Due'])) + ' (in ' + dd + 'd)') + '</div>';
+  } else if (a.hint) {
+    lines += '<div class="rk-line rk-line--faint">' + esc(a.hint) + '</div>';
+  }
+  if (status === 'OFF TRACK') {
+    var why = String(r['Off Track Reason'] || '').trim();
+    if (why) lines += '<div class="rk-line rk-line--red"><b>Why ·</b> ' + esc(why) + '</div>';
+    else if (state.boot.rockColsReady !== false) {
+      lines += '<div class="rk-line rk-line--red rk-line--nowhy"><b>Why ·</b> not written yet · ' +
+          '<button type="button" class="rk-link" data-rkwhy="' + esc(id) + '" title="The one line the room will ask for">add it</button></div>';
+    }
+  }
+  if (a.nudge) {
+    lines += '<div class="rk-nudge"><span>' + esc(a.nudge) + '</span>' +
+        (state.boot.rockColsReady === false ? '' : '<button type="button" class="rk-nudge-yes" data-rkconfirm="' + esc(id) + '">Yes, still on track</button>') +
+        '<button type="button" class="rk-nudge-no" data-rkflipoff="' + esc(id) + '">No, mark off track</button></div>';
+  }
+  if (a.confirmed) lines += '<div class="rk-line rk-line--faint">✓ Confirmed on track ' + (a.confirmed === today ? 'today' : esc(rkShort_(a.confirmed))) + '</div>';
+  return '<div class="rk-main" data-rkmain="' + esc(id) + '">' +
+      '<button type="button" class="rk-caret" data-rkrow="' + esc(id) + '" aria-expanded="' + isOpen + '" aria-label="' + esc((isOpen ? 'Hide' : 'Show') + ' milestones and details: ' + r['Rock']) + '">' + (isOpen ? '▾' : '▸') + '</button>' +
+      '<div class="rk-body"><div class="rk-t">' + esc(r['Rock']) +
+      (caveat ? '<span class="rk-cv" role="img" aria-label="' + esc('Caveat: ' + caveat) + '" title="' + esc(caveat) + '">i</span>' : '') + '</div>' +
+      (chips.length ? '<div class="rk-chips">' + chips.join('') + '</div>' : '') + lines + '</div></div>';
+}
+function rkMsRowHtml_(m) {
+  var mid = String(m['ID']), k = rkMsState_(m), done = k === 'done';
+  var name = String(m['Milestone'] || '');
+  if (state.rkMsEdit && state.rkMsEdit.id === mid) {
+    var e = state.rkMsEdit;
+    return '<div class="rkm rkm--edit" data-rkmsrow="' + esc(mid) + '">' +
+        '<input class="rkm-e rkm-e-t" data-rkmsef="text" value="' + esc(e.text) + '" aria-label="Milestone name">' +
+        '<input type="date" class="rkm-e rkm-e-d" data-rkmsef="due" value="' + esc(e.due) + '" aria-label="Milestone date">' +
+        '<input class="rkm-e rkm-e-n" data-rkmsef="notes" value="' + esc(e.notes) + '" placeholder="link or note (optional)" aria-label="Milestone note">' +
+        btnH_('mini', 'Save', { 'data-rkmssave': mid }) + btnH_('mini subtle', 'Cancel', { 'data-rkmscancel': mid }) + '</div>';
+  }
+  var note = String(m['Notes'] || '').trim();
+  var url = (note.match(/https?:\/\/[^\s<>"')\]]+/) || [])[0] || '';
+  var chip;
+  if (done) chip = { label: rkShort_(m['Due']) + ' ✓', cls: 'rkm-d--done', title: 'Done' + (rkIsYmd_(m['Done At']) ? ' ' + rkShort_(m['Done At']) : '') };
+  else if (!rkIsYmd_(m['Due'])) chip = { label: 'no date', cls: 'rkm-d--none', title: 'Click to set a date' };
+  else if (k === 'late') chip = { label: rkDays_(d10(m['Due']), localToday()) + 'd late', cls: 'rkm-d--late', title: 'Was due ' + rkShort_(m['Due']) + ' — click to change the date' };
+  else if (k === 'today') chip = { label: 'today', cls: 'rkm-d--today', title: 'Due today — click to change the date' };
+  else chip = { label: rkShort_(m['Due']), cls: '', title: 'Click to change the date' };
+  var dateCell = !done && state.rkMsDate === mid ?
+      '<input type="date" class="rkm-date-in" data-rkmsdate="' + esc(mid) + '" value="' + esc(d10(m['Due'])) + '" aria-label="' + esc('New date for ' + name) + '">' :
+      '<button type="button" class="rkm-d ' + chip.cls + '"' + (done ? ' disabled' : ' data-rkmsdue="' + esc(mid) + '"') + ' title="' + esc(chip.title) + '">' + esc(chip.label) + '</button>';
+  return '<div class="rkm' + (done ? ' rkm--done' : '') + '" data-rkmsrow="' + esc(mid) + '">' +
+      '<button type="button" class="rkm-ck' + (done ? ' on' : '') + '" data-ms="' + esc(mid) + '|' + (done ? 'OPEN' : 'DONE') + '" aria-pressed="' + done + '" aria-label="' + esc((done ? 'Reopen ' : 'Tick off ') + name) + '">' + (done ? '✓' : '') + '</button>' +
+      '<span class="rkm-n">' + esc(name) + (url ? ' <a class="ms-link" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(note) + '">🔗</a>' : '') + '</span>' +
+      (!done && rkIsYmd_(m['Due']) ? '<button type="button" class="rkm-7" data-rkms7="' + esc(mid) + '" title="Move this milestone a week later">+7d</button>' : '') +
+      dateCell +
+      '<button type="button" class="rkm-x" data-rkmsedit="' + esc(mid) + '" aria-label="' + esc('Edit milestone: ' + name) + '" title="Rename, re-date or add a note">✎</button>' +
+      '<button type="button" class="rkm-x rkm-x--del" data-msdel="' + esc(mid) + '" aria-label="' + esc('Delete milestone: ' + name) + '" title="Delete (click twice)">✕</button>' +
+      '</div>';
+}
+// The linked metric as 13 weekly bars: dark = on goal, light = off goal (the
+// same ruleCheck the Scorecard page uses), a dashed stub where a week wasn't
+// captured — never a filled-in value. The metric's own caveat and any
+// stale-source flag ride along, same house rule as the Scorecard page.
+function rkMetricBoxHtml_(r) {
+  var mid = String(r['Metric ID'] || '').trim();
+  var sc = state.boot.scorecard;
+  if (!mid || !sc || !sc.defs) return '';
+  var def = findRow(sc.defs, 'ID', mid);
+  if (!def) return '';
+  var weeks = sc.weeks || [], vals = (sc.values || {})[mid] || {};
+  var nums = weeks.map(function (w) {
+    var v = vals[w];
+    return (v === '' || v === null || v === undefined || !isFinite(Number(v))) ? null : Number(v);
+  });
+  var present = nums.filter(function (v) { return v !== null; });
+  var head = '<div class="rk-mh"><span class="rk-k">Linked metric</span><span class="rk-mh-s">' + weeks.length + ' weeks</span></div>';
+  var cav = String(def['Caveat'] || '').trim();
+  if (!present.length) {
+    return '<div class="rk-metric">' + head + '<div class="rk-mbox"><div class="rk-m-t"><b>' + esc(def['Metric']) + '</b>' +
+        '<span class="rk-m-g">no week captured yet</span></div></div></div>';
+  }
+  var last = null, lastW = '';
+  for (var i = nums.length - 1; i >= 0; i--) if (nums[i] !== null) { last = nums[i]; lastW = weeks[i]; break; }
+  var ck = ruleCheck(def, last);
+  var lo = Math.min.apply(null, present), hi = Math.max.apply(null, present);
+  var base = lo - ((hi - lo) * 0.2 || Math.abs(hi) * 0.1 || 1), span = (hi - base) || 1;
+  var bars = nums.map(function (v, j) {
+    if (v === null) return '<div class="rk-bar rk-bar--gap" title="' + esc('Week of ' + rkShort_(weeks[j]) + ': not captured') + '"></div>';
+    var c = ruleCheck(def, v);
+    return '<div class="rk-bar' + (c === 'on' ? ' rk-bar--on' : c === 'off' ? ' rk-bar--off' : '') + '" style="height:' + (8 + (v - base) / span * 92).toFixed(1) + '%" title="' +
+        esc('Week of ' + rkShort_(weeks[j]) + ': ' + fmtVal(v, def['Format']) + (c === 'on' ? ' — on goal' : c === 'off' ? ' — off goal' : '')) + '"></div>';
+  }).join('');
+  return '<div class="rk-metric">' + head + '<div class="rk-mbox">' +
+      '<div class="rk-m-t"><b>' + esc(def['Metric']) + '</b><span class="rk-m-v rk-m-v--' + (ck || 'na') + '" title="' + esc('Latest captured: week of ' + lastW) + '">' +
+        esc(fmtVal(last, def['Format'])) + (ck === 'on' ? ' ✓' : ck === 'off' ? ' ✗' : '') + '</span>' +
+        (goalLabel(def) !== '—' ? '<span class="rk-m-g">goal ' + esc(goalLabel(def)) + '</span>' : '') +
+        '<span class="rk-m-g">wk of ' + esc(rkShort_(lastW)) + '</span>' + healthFlagPill_(mid) + '</div>' +
+      '<div class="rk-bars" role="img" aria-label="' + esc(def['Metric'] + ': ' + present.length + ' of ' + weeks.length + ' weeks captured, latest ' + fmtVal(last, def['Format']) + (ck === 'on' ? ', on goal' : ck === 'off' ? ', off goal' : '')) + '">' + bars + '</div>' +
+      (cav ? '<div class="rk-m-cv">Caveat: ' + esc(cav) + '</div>' : '') + '</div></div>';
+}
+function rkEditDraftFrom_(r) {
+  return {
+    id: String(r['ID']), text: String(r['Rock'] || ''), owner: String(r['Owner'] || ''), due: d10(r['Due']),
+    done: String(r['Definition of Done'] || ''), caveat: String(r['Caveat'] || ''), shift: String(r['Shift'] || ''),
+    metricId: String(r['Metric ID'] || ''),
+    accounts: String(r['Accounts'] || '').split(',').map(function (t) { return t.trim(); }).filter(String)
+  };
+}
+function rkEditFormHtml_(d) {
+  var team = (state.boot.team || []).slice();
+  if (d.owner && team.indexOf(d.owner) === -1) team.unshift(d.owner);
+  var accts = cfgList_('ACCOUNT_TAGS');
+  d.accounts.forEach(function (x) { if (accts.indexOf(x) === -1) accts.push(x); });
+  var shifts = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
+  if (d.shift && shifts.indexOf(d.shift) === -1) shifts.unshift(d.shift);
+  var cavReady = state.boot.rockColsReady !== false;
+  return '<div class="rk-ed" data-rkedform="' + esc(d.id) + '"><div class="rk-k">Edit ' + esc(d.id) + '</div>' +
+      '<div class="row">' +
+        fieldH_('f-3', '<label>The outcome</label><input class="js-rke" data-rkef="text" value="' + esc(d.text) + '">') +
+        fieldH_('f-1', '<label>Owner</label><select class="js-rke" data-rkef="owner">' + team.map(function (p) {
+          return '<option' + (p === d.owner ? ' selected' : '') + '>' + esc(p) + '</option>';
+        }).join('') + '</select>') +
+        fieldH_('f-1', '<label>Due</label><input type="date" class="js-rke" data-rkef="due" value="' + esc(d.due) + '">') + '</div>' +
+      '<div class="row">' +
+        fieldH_('f-2', '<label>Definition of done</label><input class="js-rke" data-rkef="done" value="' + esc(d.done) + '" placeholder="How will you know it’s done?">') +
+        (cavReady ? fieldH_('f-2', '<label>Caveat</label><input class="js-rke" data-rkef="caveat" value="' + esc(d.caveat) + '" placeholder="context the room must hear with the status (optional)">') : '') + '</div>' +
+      '<div class="row">' +
+        fieldH_('f-1', '<label>Shift</label><select class="js-rke" data-rkef="shift"><option value="">none</option>' + shifts.map(function (s) {
+          return '<option' + (s === d.shift ? ' selected' : '') + '>' + esc(s) + '</option>';
+        }).join('') + '</select>') +
+        fieldH_('f-2', '<label>Linked metric</label>' + metricSelectHtml_('js-rke rk-ed-metric', d.metricId)) + '</div>' +
+      '<div class="rk-ed-l">Accounts it moves</div><div class="si-chipwrap">' + accts.map(function (x) {
+        var on = d.accounts.indexOf(x) !== -1;
+        return '<button type="button" class="pill pill--btn' + (on ? ' on' : '') + '" data-rkeacct="' + esc(x) + '" aria-pressed="' + on + '">' + esc(x) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="rk-ed-f">' + btnH_('', 'Save', { 'data-rkedsave': d.id }) + btnH_('subtle', 'Cancel', { 'data-rkedcancel': d.id }) + '</div></div>';
+}
+function rkPanelHtml_(r, a) {
+  var id = String(r['ID']), today = localToday();
+  if (state.rkEdit && state.rkEdit.id === id) return '<div class="rk-panel rk-panel--edit">' + rkEditFormHtml_(state.rkEdit) + '</div>';
+  var dr = state.rkMsDraft[id] || { text: '', due: '' };
+  var h = '<div class="rk-panel"><div class="rk-pl">' +
+      '<div class="rk-ph"><span class="rk-k">Milestones</span><span class="rk-ph-s">' +
+        (a.ms.length ? a.doneN + ' of ' + a.ms.length + ' done' + (a.late.length ? ' · ' + a.late.length + ' late' : '') : '') + '</span></div>' +
+      a.ms.map(rkMsRowHtml_).join('') +
+      (a.ms.length ? '' : '<div class="rk-empty">No milestones yet. Add the first thing that must be true, with a date — the timeline places it.</div>') +
+      '<div class="rk-msadd"><input class="rk-msadd-t" data-rkmsdraft="' + esc(id) + '" value="' + esc(dr.text) + '" placeholder="add a milestone — what must be true" aria-label="New milestone">' +
+      '<input type="date" class="rk-msadd-d" data-rkmsdraftdue="' + esc(id) + '" value="' + esc(dr.due) + '" aria-label="Milestone date">' +
+      btnH_('mini ghost', 'Add', { 'data-rkmsadd': id }) + '</div></div>';
+  var dod = String(r['Definition of Done'] || '').trim();
+  var caveat = String(r['Caveat'] || '').trim();
+  var notes = String(r['Notes'] || '').trim();
+  var bits = [esc(id)];
+  if (String(r['Shift'] || '').trim()) bits.push(esc(r['Shift']));
+  if (a.created) bits.push('started ' + esc(rkShort_(a.created)));
+  if (!a.due) bits.push('no due date');
+  else if (a.due < today) bits.push(rkDays_(a.due, today) + ' days past due');
+  else { var left = rkDays_(today, a.due); bits.push(left + (left === 1 ? ' day' : ' days') + ' of runway left'); }
+  h += '<div class="rk-pr"><div class="rk-k">Definition of done</div>' +
+      '<div class="rk-dod' + (dod ? '' : ' rk-dod--none') + '">' + (dod ? esc(dod) : 'Not written yet — how will the room know this is done?') + '</div>' +
+      (caveat ? '<div class="rk-caveat"><b>Caveat ·</b> ' + linkify(caveat) + '</div>' : '') +
+      rkMetricBoxHtml_(r) +
+      (notes ? '<div class="rk-note"><b>Note ·</b> ' + linkify(notes) + '</div>' : '') +
+      '<div class="rk-idline">' + bits.join(' · ') + '</div>' +
+      '<div class="rk-acts">' +
+        btnH_('mini subtle', '✎ Edit', { 'data-rkedit': id }) +
+        btnH_('mini subtle', '↓ Send to Issues', { 'data-rkissue': id, title: 'Put this rock on the issues list so the room can IDS it' }) +
+        btnH_('mini subtle rk-drop', '✕ Drop', { 'data-rkdrop': id, title: 'Drop this rock — Undo is on the notice' }) +
+      '</div></div></div>';
+  return h;
+}
+function rkRowHtml_(r, a, group, Q) {
+  var id = String(r['ID']), isOpen = state.rkOpen === id;
+  return '<div class="rkr' + (isOpen ? ' rkr--open' : '') + '" data-rkid="' + esc(id) + '"><div class="rkr-grid rk-grid3">' +
+      rkMainHtml_(r, a, group) + rkTrackHtml_(r, a, Q) + rkStatusCellHtml_(r, a) + '</div>' +
+      (isOpen ? rkPanelHtml_(r, a) : '') + '</div>';
+}
+function rkGroups_(shown, group) {
+  var out = [];
+  if (group === 'owner') {
+    var names = [];
+    shown.forEach(function (x) { var o = String(x.r['Owner'] || '').trim() || '—'; if (names.indexOf(o) === -1) names.push(o); });
+    lensOwnerOrder_(names).forEach(function (o) {
+      var rows = shown.filter(function (x) { return (String(x.r['Owner'] || '').trim() || '—') === o; });
+      var bits = [];
+      [['off', 'off track'], ['check', 'need a check'], ['plan', 'no plan yet']].forEach(function (b) {
+        var n = rows.filter(function (x) { return x.a.bucket === b[0]; }).length;
+        if (n) bits.push(n + ' ' + b[1]);
+      });
+      out.push({ owner: o, tone: 'owner', rows: rows, hint: bits.join(' · ') });
+    });
+    return out;
+  }
+  RK_BUCKETS_.forEach(function (b) {
+    var rows = shown.filter(function (x) { return x.a.bucket === b.key; });
+    if (rows.length) out.push({ label: b.label, g: b.g, tone: b.tone, rows: rows, hint: b.hint });
+  });
+  return out;
+}
+function rkDoneThisQuarter_(Q) {
+  return (state.boot.rocks || []).filter(function (r) {
+    if (String(r['Status']) !== 'DONE') return false;
+    var at = rkIsYmd_(r['Status Updated']) ? d10(r['Status Updated']) : rkIsYmd_(r['Due']) ? d10(r['Due']) : '';
+    return at && at >= Q.start;
+  });
+}
+// Keep the table's sticky axis under the app header (its height wraps with the width).
+function rkStickyTop_() {
+  var hd = document.querySelector('header');
+  var top = hd && getComputedStyle(hd).position === 'sticky' ? hd.offsetHeight : 0;
+  document.documentElement.style.setProperty('--rk-sticky', top + 'px');
+}
+window.addEventListener('resize', function () {
+  clearTimeout(window.__rkStickyH);
+  window.__rkStickyH = setTimeout(rkStickyTop_, 150);
+});
+
 function renderRocks() {
   if (!hyd('plan') || !hyd('core')) return pageLoading_('page-rocks');
+  var page = $('page-rocks');
   var b = state.boot;
-  var active = b.rocks.filter(function (r) { return ['DONE', 'DROPPED'].indexOf(String(r['Status'])) === -1; });
-  var done = b.rocks.filter(function (r) { return String(r['Status']) === 'DONE'; });
-  var html = '<h2 class="page-title">Rocks</h2><p class="page-sub">The few things that matter this quarter — one owner each, tagged to the four shifts and the accounts they move. Fiscal quarters start Aug 1.</p>';
-  html += quarterHygieneHtml_(active);
-  var byOwner = {};
-  active.forEach(function (r) {
-    var o = String(r['Owner'] || '—');
-    (byOwner[o] = byOwner[o] || []).push(r);
+  var Q = rkQuarter_();
+  var active = rkActive_();
+  var all = active.map(function (r) { return { r: r, a: rkAnalyze_(r) }; });
+  var counts = { off: 0, check: 0, plan: 0, on: 0 };
+  all.forEach(function (x) { counts[x.a.bucket]++; });
+  var f = state.rkFilter;
+  var rank = { off: 0, check: 1, plan: 2, on: 3 };
+  var shown = all.filter(function (x) {
+    return (!f.people.length || f.people.indexOf(String(x.r['Owner'] || '').trim()) !== -1) && (!f.status || x.a.bucket === f.status);
+  }).sort(function (p, q) {
+    var dp = p.a.due || '9999', dq = q.a.due || '9999';
+    return (rank[p.a.bucket] - rank[q.a.bucket]) || (dp < dq ? -1 : dp > dq ? 1 : 0);
   });
-  lensOwnerOrder_(Object.keys(byOwner)).forEach(function (o) {
-    html += '<div class="card"><h3>' + who(o) + ' <span class="h3-sub">' + byOwner[o].length + (byOwner[o].length === 1 ? ' rock' : ' rocks') + '</span></h3>' +
-        byOwner[o].map(function (r) { return rockLine(r, true); }).join('') + '</div>';
-  });
-  if (!active.length) html += '<div class="card"><div class="empty"><div class="e">🪨</div>No active rocks — add this quarter\'s 3–7 priorities in the form below.</div></div>';
-  html += '<div class="card"><h3>Add a rock</h3><div class="row">' +
-      '<div class="field field--tight f-3"><input class="js-rk-title" placeholder="outcome, not activity…"></div>' +
-      '<div class="field field--tight"><select class="js-rk-owner" title="Each name shows how many rocks that person already owns">' + rockOwnerOpts_('') + '</select></div>' +
-      '<div class="field field--tight"><input class="js-rk-due" type="date"></div>' +
-      '<div class="field field--tight"><select class="js-rk-shift"><option value="">shift…</option><option>Shift 1</option><option>Shift 2</option><option>Shift 3</option><option>Shift 4</option></select></div>' +
-      '<div class="field field--tight"><select class="js-rk-acct"><option value="">tag…</option>' +
-      String(b.config.ACCOUNT_TAGS || '').split(',').map(function (t) { return '<option>' + esc(t.trim()) + '</option>'; }).join('') + '</select></div>' +
-      '<button class="btn js-rk-add">Add</button></div>' +
-      '<div class="row row--follow">' +
-      '<div class="field field--tight f-2"><input class="js-rk-done" placeholder="How will you know it’s done? (optional)"></div>' +
-      metricSelectHtml_('js-rk-metric', '') + '</div>' +
-      '<div class="help">Both optional: the definition of done keeps the quarter honest, and a linked metric puts its 13-week trend on the card.</div></div>';
-  if (done.length) {
-    html += '<div class="card"><h3>Done</h3>' + done.map(function (r) { return rockLine(r, false); }).join('') + '</div>';
+  if (state.rkOpen && !shown.some(function (x) { return String(x.r['ID']) === state.rkOpen; })) state.rkOpen = null;
+  var group = rkGroupGet_();
+  var fsm = Number(b.config.FISCAL_START_MONTH) || 1;
+  var html = '<div class="si-head"><div class="grow"><h2 class="page-title">Rocks</h2>' +
+      '<p class="page-sub page-sub--tight">The few things that matter this quarter — one owner each, tagged to the accounts they move. Fiscal quarters start ' +
+      esc(MONTH_ABBR_[(fsm >= 1 && fsm <= 12 ? fsm : 1) - 1]) + ' 1.</p></div>' +
+      '<div class="si-head-r"><button type="button" class="btn si-cta" data-rknew="1">+ New rock</button></div></div>';
+  // Without the repair step the why / confirmation / caveat have nowhere to
+  // save — say so once instead of letting the controls quietly fail.
+  if (b.rockColsReady === false) {
+    html += '<div class="banner warn"><b>One setup step left.</b> In the spreadsheet menu run ' +
+        '<b>L10 Huddle → Setup / repair tabs</b> once, then reload. Until then the page can\'t save why a rock is off track, ' +
+        'an on-track confirmation or a caveat. It only adds four columns to L10_Rocks — nothing existing changes.</div>';
   }
-  $('page-rocks').innerHTML = html;
-  wireShared($('page-rocks'));
-  var rkAdd = $('page-rocks').querySelector('.js-rk-add');
-  rkAdd.addEventListener('click', function () {
-    var card = rkAdd.closest('.card');
-    var title = card.querySelector('.js-rk-title').value.trim();
-    if (!title) return;
-    rkAdd.disabled = true;
-    gs('l10_addRock', {
-      title: title, owner: card.querySelector('.js-rk-owner').value, due: card.querySelector('.js-rk-due').value,
-      shift: card.querySelector('.js-rk-shift').value, accounts: card.querySelector('.js-rk-acct').value,
-      done: card.querySelector('.js-rk-done').value.trim(), metricId: card.querySelector('.js-rk-metric').value
-    }).then(function (res) {
-      if (!res || res.ok === false) { rkAdd.disabled = false; errToast(res || 'Add failed'); return; }
-      if (res.row) state.boot.rocks.push(res.row);
-      notify('Rock added', 'ok');
-      rerenderLists();
-    }).catch(function (e) { rkAdd.disabled = false; errToast(e); });
+  html += quarterHygieneHtml_(active);
+  html += rkQuarterCardHtml_(Q, active, counts);
+  var countLabel = shown.length + (shown.length === 1 ? ' rock' : ' rocks') + (shown.length !== all.length ? ' of ' + all.length : '');
+  html += '<div class="card rkt">' + rkAxisHtml_(Q, countLabel);
+  rkGroups_(shown, group).forEach(function (g) {
+    html += '<div class="rkg"><div class="rkg-h rkg-' + g.tone + '">' +
+        (g.owner ? (g.owner === '—' ? '<span class="rkg-l"><span class="rkg-name">Unassigned</span></span>' : '<span class="rkg-l">' + avatar(g.owner) + '<span class="rkg-name">' + esc(g.owner) + '</span></span>') :
+          '<span class="rkg-g" aria-hidden="true">' + g.g + '</span><span class="rkg-l">' + esc(g.label) + '</span>') +
+        '<span class="rkg-n">' + g.rows.length + (g.rows.length === 1 ? ' rock' : ' rocks') + '</span>' +
+        (g.hint ? '<span class="rkg-hint">· ' + esc(g.hint) + '</span>' : '') + '</div>' +
+        g.rows.map(function (x) { return rkRowHtml_(x.r, x.a, group, Q); }).join('') + '</div>';
   });
+  if (!shown.length) {
+    // Never let a filter masquerade as an empty quarter — say which it is.
+    html += '<div class="si-empty">' + (all.length ? 'Nothing matches these filters — ' + all.length + (all.length === 1 ? ' rock is' : ' rocks are') + ' active.' :
+        'No active rocks — add this quarter’s 3–7 with + New rock.') + '</div>';
+  }
+  var doneQ = rkDoneThisQuarter_(Q);
+  html += '<div class="tdl-done rkd"><button type="button" class="tdl-done-h" data-rkdonetoggle="1" aria-expanded="' + !!state.rkDoneOpen + '">' +
+      '<span class="tdl-done-c" aria-hidden="true">' + (state.rkDoneOpen ? '▾' : '▸') + '</span><span class="si-kicker tdl-done-k">Done this quarter</span>' +
+      '<span class="tdl-done-c">' + doneQ.length + '</span></button>';
+  if (state.rkDoneOpen) {
+    html += '<div class="tdl-done-b">' + (doneQ.length ? doneQ.map(function (r) {
+      var at = rkIsYmd_(r['Status Updated']) ? ' · done ' + rkShort_(r['Status Updated']) : '';
+      return '<div class="tdl-done-r"><span class="tdl-done-g" aria-hidden="true">✓</span><span class="tdl-done-t">' + esc(r['Rock']) + '</span>' +
+          '<span class="tdl-done-m">' + esc((r['Owner'] || '—') + at) + '</span>' +
+          btnH_('mini subtle', '↩ Reopen', { 'data-rkreopen': r['ID'], title: 'Put it back on the list as on track' }) + '</div>';
+    }).join('') : '<div class="si-empty si-empty--sm">Nothing finished yet this quarter.</div>') + '</div>';
+  }
+  html += '</div></div>';
+  page.innerHTML = html;
+  rkStickyTop_();
+  wireShared(page);
+  wireRocksPage_(page);
+}
+
+// --- Rocks page controls ---------------------------------------------------
+// One status write for every rock control — the page's menu, the huddle's
+// pill cluster, reopen and drop. Optimistic; the Undo puts the row's exact prior
+// status fields back (l10_restoreRockStatus), so an undone click leaves no
+// "changed this week" trace behind.
+function rockStatusSnap_(r) {
+  return {
+    status: String(r['Status'] || ''), statusUpdated: d10(r['Status Updated']),
+    previousStatus: String(r['Previous Status'] || ''), reason: String(r['Off Track Reason'] || ''),
+    confirmedOn: d10(r['Confirmed On'])
+  };
+}
+function rockApplySnap_(r, s) {
+  r['Status'] = s.status; r['Status Updated'] = s.statusUpdated; r['Previous Status'] = s.previousStatus;
+  r['Off Track Reason'] = s.reason; r['Confirmed On'] = s.confirmedOn;
+}
+function setRockStatus_(id, status, reason) {
+  var r = findRow(state.boot.rocks, 'ID', id);
+  if (!r) return;
+  var snap = rockStatusSnap_(r);
+  var changed = snap.status !== status;
+  // Local twin of l10RockStatusUpdates_ (Code.gs) — change one, change both.
+  if (changed) {
+    r['Status'] = status;
+    r['Status Updated'] = localToday();
+    r['Previous Status'] = snap.status;
+    r['Confirmed On'] = '';
+    r['Off Track Reason'] = status === 'OFF TRACK' ? String(reason || '') : '';
+  } else if (status === 'OFF TRACK' && reason !== undefined) {
+    r['Off Track Reason'] = String(reason || '');
+  }
+  if ((status === 'DONE' || status === 'DROPPED') && state.rkOpen === String(id)) state.rkOpen = null;
+  rerenderLists();
+  var revert = function () {
+    var rr = findRow(state.boot.rocks, 'ID', id);
+    if (rr) { rockApplySnap_(rr, snap); rerenderLists(); } else refresh();
+  };
+  serverSync(gs('l10_setRockStatus', id, status, reason === undefined ? {} : { reason: reason }), undefined, revert);
+  if (!changed) {
+    notify(status === 'OFF TRACK' && reason !== undefined ? 'Why updated' : 'Already ' + (RK_STATUS_META_[status] || { w: status }).w.toLowerCase(), 'ok');
+    return;
+  }
+  var msg = status === 'DONE' ? 'Rock done' : status === 'DROPPED' ? 'Rock dropped' :
+      'Rock → ' + (RK_STATUS_META_[status] || { w: status }).w.toLowerCase();
+  notifyUndo(msg, function () {
+    var rr = findRow(state.boot.rocks, 'ID', id);
+    var now = rr ? rockStatusSnap_(rr) : null;
+    if (rr) { rockApplySnap_(rr, snap); rerenderLists(); }
+    serverSync(gs('l10_restoreRockStatus', id, snap), undefined, function () {
+      if (rr && now) { rockApplySnap_(rr, now); rerenderLists(); } else refresh();
+    });
+    notify('Undone', 'ok');
+  });
+}
+// "Why is it off track?" — required on this page: the room will ask, and the
+// answer rides the row until the status changes. A pre-repair tab has no column
+// for it, so the flip goes through without one (the banner says why).
+function rockWhyPrompt_(anchor, id) {
+  var r = findRow(state.boot.rocks, 'ID', id);
+  if (!r) return;
+  if (state.boot.rockColsReady === false) { setRockStatus_(id, 'OFF TRACK'); return; }
+  var isOff = String(r['Status']) === 'OFF TRACK';
+  var pop = mountPop_(anchor,
+      '<label class="l10pop-lbl rk-why-l">Why is it off track?</label>' +
+      '<textarea class="l10pop-ta rk-why-ta" rows="3" maxlength="500" placeholder="one line the room can act on — e.g. waiting on the category team">' +
+        esc(isOff ? String(r['Off Track Reason'] || '') : '') + '</textarea>' +
+      '<div class="l10pop-row"><button type="button" class="btn mini danger l10pop-ok">' + (isOff ? 'Save why' : 'Mark off track') + '</button>' +
+      '<button type="button" class="btn mini subtle l10pop-cancel">Cancel</button><span class="help help--after">Enter saves</span></div>');
+  var ta = pop.querySelector('textarea');
+  var done = function () {
+    var v = ta.value.trim();
+    if (!v) { notify('Add one line on why — the room will ask.', 'warn'); ta.focus(); return; }
+    closePop_();
+    setRockStatus_(id, 'OFF TRACK', v);
+  };
+  pop.querySelector('.l10pop-ok').addEventListener('click', done);
+  pop.querySelector('.l10pop-cancel').addEventListener('click', closePop_);
+  ta.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); done(); } });
+  ta.focus();
+}
+function openRockStatusMenu_(anchor, id) {
+  var r = findRow(state.boot.rocks, 'ID', id);
+  if (!r) return;
+  var cur = String(r['Status']);
+  var items = [];
+  if (cur !== 'ON TRACK') items.push(['● Mark on track', 'ON TRACK']);
+  if (cur !== 'OFF TRACK') items.push(['▲ Mark off track…', 'OFF TRACK']);
+  else if (state.boot.rockColsReady !== false) items.push(['✎ Change the why…', 'WHY']);
+  items.push(['✓ Mark done', 'DONE']);
+  openMenu_(anchor, items, function (v) {
+    if (v === 'OFF TRACK' || v === 'WHY') rockWhyPrompt_(anchor, id);
+    else setRockStatus_(id, v);
+  });
+}
+// "Yes, still on track": rests the milestone nudge for a week. Undo puts back
+// whatever confirmation was there before (usually none).
+function confirmRock_(id) {
+  var r = findRow(state.boot.rocks, 'ID', id);
+  if (!r) return;
+  var prev = rkIsYmd_(r['Confirmed On']) ? d10(r['Confirmed On']) : '';
+  var put = function (v) { var rr = findRow(state.boot.rocks, 'ID', id); if (rr) { rr['Confirmed On'] = v; rerenderLists(); } };
+  put(localToday());
+  serverSync(gs('l10_confirmRock', id), undefined, function () { put(prev); });
+  notifyUndo('Confirmed on track — the milestone check rests for a week', function () {
+    put(prev);
+    serverSync(gs('l10_confirmRock', id, prev), undefined, function () { put(localToday()); });
+    notify('Undone', 'ok');
+  });
+}
+function rockToIssue_(btn, id) {
+  var r = findRow(state.boot.rocks, 'ID', id);
+  if (!r) return;
+  var off = String(r['Status']) === 'OFF TRACK';
+  var why = off ? String(r['Off Track Reason'] || '').trim() : '';
+  btn.disabled = true;
+  gs('l10_addIssue', {
+    text: (off ? 'Rock off track: ' : 'Rock check: ') + r['Rock'], by: r['Owner'],
+    accounts: r['Accounts'], category: 'Process', notes: 'from ' + r['ID'] + (why ? ' — why: ' + why : '')
+  }).then(function (res) {
+    if (!res || res.ok === false) { btn.disabled = false; errToast(res || 'Send failed'); return; }
+    if (res.row) state.boot.issues.push(res.row);
+    notify('Sent to Issues' + (res.id ? ' as ' + res.id : '') + ' — it’s on the Solve list', 'ok');
+    rerenderLists();
+  }).catch(function (e) { btn.disabled = false; errToast(e); });
+}
+// Move one milestone's date (the +7d button and the date chip), with Undo.
+function moveMilestone_(mid, due) {
+  var m = findRow(state.boot.milestones || [], 'ID', mid);
+  if (!m || !rkIsYmd_(due)) return;
+  var prev = d10(m['Due']);
+  state.rkMsDate = null;
+  if (prev === due) { renderRocks(); return; }
+  var put = function (v) { var mm = findRow(state.boot.milestones || [], 'ID', mid); if (mm) { mm['Due'] = v; rerenderLists(); } };
+  put(due);
+  serverSync(gs('l10_editMilestone', mid, { text: String(m['Milestone']), due: due }), undefined, function () { put(prev); });
+  notifyUndo('Moved “' + m['Milestone'] + '” to ' + rkShort_(due), function () {
+    put(prev);
+    serverSync(gs('l10_editMilestone', mid, { text: String(m['Milestone']), due: prev }), undefined, function () { put(due); });
+    notify('Undone', 'ok');
+  });
+}
+function addRockMilestone_(id, page) {
+  var dr = state.rkMsDraft[id] || { text: '', due: '' };
+  var text = String(dr.text || '').trim();
+  if (!text || !rkIsYmd_(dr.due)) {
+    notify('A milestone needs a name and a date — the timeline places it by date.', 'warn');
+    var el = page.querySelector(text ? '[data-rkmsdraftdue="' + id + '"]' : '[data-rkmsdraft="' + id + '"]');
+    if (el) el.focus();
+    return;
+  }
+  var btn = page.querySelector('[data-rkmsadd="' + id + '"]');
+  if (btn) btn.disabled = true;
+  gs('l10_addMilestone', { rockId: id, text: text, due: dr.due }).then(function (res) {
+    if (!res || res.ok === false) { if (btn) btn.disabled = false; errToast(res || 'Add failed'); return; }
+    if (res.row) (state.boot.milestones = state.boot.milestones || []).push(res.row);
+    state.rkMsDraft[id] = { text: '', due: '' };
+    notify('Milestone added', 'ok');
+    rerenderLists();
+    var inp = $('page-rocks').querySelector('[data-rkmsdraft="' + id + '"]');
+    if (inp) inp.focus();
+  }).catch(function (e) { if (btn) btn.disabled = false; errToast(e); });
+}
+function saveRockMilestoneEdit_() {
+  var e = state.rkMsEdit;
+  if (!e) return;
+  var text = String(e.text || '').trim();
+  if (!text) { notify('Milestone needs a name.', 'warn'); return; }
+  if (!rkIsYmd_(e.due)) { notify('Milestone needs a due date — the timeline places it by date.', 'warn'); return; }
+  var m = findRow(state.boot.milestones || [], 'ID', e.id);
+  var before = m ? { text: m['Milestone'], due: m['Due'], notes: m['Notes'] } : null;
+  if (m) { m['Milestone'] = text; m['Due'] = e.due; m['Notes'] = e.notes; }
+  state.rkMsEdit = null;
+  rerenderLists();
+  serverSync(gs('l10_editMilestone', e.id, { text: text, due: e.due, notes: e.notes }), 'Updated ' + e.id, function () {
+    var mm = findRow(state.boot.milestones || [], 'ID', e.id);
+    if (mm && before) { mm['Milestone'] = before.text; mm['Due'] = before.due; mm['Notes'] = before.notes; rerenderLists(); } else refresh();
+  });
+}
+function saveRockEdit_() {
+  var d = state.rkEdit;
+  if (!d) return;
+  var text = String(d.text || '').trim();
+  if (!text) { notify('Give the rock a title.', 'warn'); return; }
+  var r = findRow(state.boot.rocks, 'ID', d.id);
+  var payload = { text: text, owner: d.owner, due: d.due, done: String(d.done || '').trim(), metricId: d.metricId,
+    accounts: d.accounts.join(', '), shift: d.shift };
+  if (state.boot.rockColsReady !== false) payload.caveat = String(d.caveat || '').trim();
+  if (r) {
+    r['Rock'] = text; r['Owner'] = d.owner; r['Due'] = d.due; r['Definition of Done'] = payload.done;
+    r['Metric ID'] = d.metricId; r['Accounts'] = payload.accounts; r['Shift'] = d.shift;
+    if (payload.caveat !== undefined) r['Caveat'] = payload.caveat;
+  }
+  state.rkEdit = null;
+  rerenderLists();
+  gs('l10_editRock', d.id, payload).then(function (res) {
+    if (res && res.ok === false) { errToast(res); return refresh(); }
+    var rr = findRow(state.boot.rocks, 'ID', d.id);
+    if (rr && res && res.fq !== undefined) { rr.fq = res.fq; rerenderLists(); }
+    notify('Updated ' + d.id, 'ok');
+  }).catch(function (e) { errToast(e); refresh(); });
+}
+function wireRocksPage_(page) {
+  page.querySelectorAll('[data-rknew]').forEach(function (b) { b.addEventListener('click', function () { openRockSheet_(); }); });
+  page.querySelectorAll('[data-rkfilter]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.rkfilter;
+      state.rkFilter.status = state.rkFilter.status === k ? '' : k;
+      renderRocks();
+    });
+  });
+  page.querySelectorAll('[data-rkperson]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = b.dataset.rkperson, ps = state.rkFilter.people, i = ps.indexOf(p);
+      if (i === -1) ps.push(p); else ps.splice(i, 1);
+      renderRocks();
+    });
+  });
+  page.querySelectorAll('[data-rkclear]').forEach(function (b) {
+    b.addEventListener('click', function () { state.rkFilter = { status: '', people: [] }; renderRocks(); });
+  });
+  page.querySelectorAll('[data-rkgroup]').forEach(function (b) {
+    b.addEventListener('click', function () { rkGroupSet_(b.dataset.rkgroup); renderRocks(); });
+  });
+  var toggle = function (id) {
+    state.rkOpen = state.rkOpen === id ? null : id;
+    state.rkMsDate = null; state.rkMsEdit = null;
+    if (state.rkEdit && state.rkEdit.id !== state.rkOpen) state.rkEdit = null;
+    renderRocks();
+    var caret = $('page-rocks').querySelector('[data-rkrow="' + id + '"]');
+    if (caret) caret.focus();
+  };
+  page.querySelectorAll('[data-rkrow]').forEach(function (b) {
+    b.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(b.dataset.rkrow); });
+  });
+  // The whole title cell is a mouse target too; controls inside it keep their own clicks.
+  page.querySelectorAll('[data-rkmain]').forEach(function (el) {
+    el.addEventListener('click', function (ev) {
+      if (ev.target.closest('button, a, input, select, textarea')) return;
+      if (window.getSelection && String(window.getSelection())) return; // selecting text isn't a click
+      toggle(el.dataset.rkmain);
+    });
+  });
+  page.querySelectorAll('[data-rkopen]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.rkOpen = b.dataset.rkopen;
+      renderRocks();
+      var row = $('page-rocks').querySelector('[data-rkid="' + b.dataset.rkopen + '"] .rk-panel');
+      if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  });
+  page.querySelectorAll('[data-rkstatus]').forEach(function (b) {
+    b.addEventListener('click', function () { openRockStatusMenu_(b, b.dataset.rkstatus); });
+  });
+  page.querySelectorAll('[data-rkwhy]').forEach(function (b) {
+    b.addEventListener('click', function () { rockWhyPrompt_(b, b.dataset.rkwhy); });
+  });
+  page.querySelectorAll('[data-rkflipoff]').forEach(function (b) {
+    b.addEventListener('click', function () { rockWhyPrompt_(b, b.dataset.rkflipoff); });
+  });
+  page.querySelectorAll('[data-rkconfirm]').forEach(function (b) {
+    b.addEventListener('click', function () { confirmRock_(b.dataset.rkconfirm); });
+  });
+  page.querySelectorAll('[data-rkms7]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = findRow(state.boot.milestones || [], 'ID', b.dataset.rkms7);
+      if (m) moveMilestone_(b.dataset.rkms7, addDays_(d10(m['Due']), 7));
+    });
+  });
+  page.querySelectorAll('[data-rkmsdue]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.rkMsDate = b.dataset.rkmsdue;
+      renderRocks();
+      var inp = $('page-rocks').querySelector('[data-rkmsdate="' + state.rkMsDate + '"]');
+      if (inp) { inp.focus(); try { if (inp.showPicker) inp.showPicker(); } catch (e) {} }
+    });
+  });
+  page.querySelectorAll('[data-rkmsdate]').forEach(function (inp) {
+    inp.addEventListener('change', function () { if (inp.value) moveMilestone_(inp.dataset.rkmsdate, inp.value); });
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { ev.stopPropagation(); state.rkMsDate = null; renderRocks(); }
+    });
+  });
+  page.querySelectorAll('[data-rkmsedit]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = findRow(state.boot.milestones || [], 'ID', b.dataset.rkmsedit);
+      if (!m) return;
+      state.rkMsEdit = { id: String(m['ID']), text: String(m['Milestone'] || ''), due: d10(m['Due']), notes: String(m['Notes'] || '') };
+      state.rkMsDate = null;
+      renderRocks();
+      var inp = $('page-rocks').querySelector('.rkm--edit .rkm-e-t');
+      if (inp) inp.focus();
+    });
+  });
+  page.querySelectorAll('[data-rkmsef]').forEach(function (inp) {
+    inp.addEventListener('input', function () { if (state.rkMsEdit) state.rkMsEdit[inp.dataset.rkmsef] = inp.value; });
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); saveRockMilestoneEdit_(); }
+      if (ev.key === 'Escape') { ev.stopPropagation(); state.rkMsEdit = null; renderRocks(); }
+    });
+  });
+  page.querySelectorAll('[data-rkmssave]').forEach(function (b) { b.addEventListener('click', saveRockMilestoneEdit_); });
+  page.querySelectorAll('[data-rkmscancel]').forEach(function (b) {
+    b.addEventListener('click', function () { state.rkMsEdit = null; renderRocks(); });
+  });
+  page.querySelectorAll('[data-rkmsdraft]').forEach(function (inp) {
+    var id = inp.dataset.rkmsdraft;
+    inp.addEventListener('input', function () {
+      var d = state.rkMsDraft[id] || (state.rkMsDraft[id] = { text: '', due: '' });
+      d.text = inp.value;
+    });
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); addRockMilestone_(id, page); } });
+  });
+  page.querySelectorAll('[data-rkmsdraftdue]').forEach(function (inp) {
+    var id = inp.dataset.rkmsdraftdue;
+    var keep = function () {
+      var d = state.rkMsDraft[id] || (state.rkMsDraft[id] = { text: '', due: '' });
+      d.due = inp.value;
+    };
+    inp.addEventListener('input', keep);
+    inp.addEventListener('change', keep);
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); keep(); addRockMilestone_(id, page); } });
+  });
+  page.querySelectorAll('[data-rkmsadd]').forEach(function (b) {
+    b.addEventListener('click', function () { addRockMilestone_(b.dataset.rkmsadd, page); });
+  });
+  page.querySelectorAll('[data-rkedit]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var r = findRow(state.boot.rocks, 'ID', b.dataset.rkedit);
+      if (!r) return;
+      state.rkEdit = rkEditDraftFrom_(r);
+      renderRocks();
+      var inp = $('page-rocks').querySelector('.rk-ed [data-rkef="text"]');
+      if (inp) inp.focus();
+    });
+  });
+  page.querySelectorAll('[data-rkef], .rk-ed-metric').forEach(function (el) {
+    var key = el.dataset.rkef || 'metricId';
+    var keep = function () { if (state.rkEdit) state.rkEdit[key] = el.value; };
+    el.addEventListener('input', keep);
+    el.addEventListener('change', keep);
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); keep(); saveRockEdit_(); }
+        if (ev.key === 'Escape') { ev.stopPropagation(); state.rkEdit = null; renderRocks(); }
+      });
+    }
+  });
+  page.querySelectorAll('[data-rkeacct]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!state.rkEdit) return;
+      var a = state.rkEdit.accounts, x = b.dataset.rkeacct, i = a.indexOf(x);
+      if (i === -1) a.push(x); else a.splice(i, 1);
+      var on = i === -1;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  });
+  page.querySelectorAll('[data-rkedsave]').forEach(function (b) { b.addEventListener('click', saveRockEdit_); });
+  page.querySelectorAll('[data-rkedcancel]').forEach(function (b) {
+    b.addEventListener('click', function () { state.rkEdit = null; renderRocks(); });
+  });
+  page.querySelectorAll('[data-rkissue]').forEach(function (b) {
+    b.addEventListener('click', function () { rockToIssue_(b, b.dataset.rkissue); });
+  });
+  page.querySelectorAll('[data-rkdrop]').forEach(function (b) {
+    b.addEventListener('click', function () { setRockStatus_(b.dataset.rkdrop, 'DROPPED'); });
+  });
+  page.querySelectorAll('[data-rkdonetoggle]').forEach(function (b) {
+    b.addEventListener('click', function () { state.rkDoneOpen = !state.rkDoneOpen; renderRocks(); });
+  });
+  page.querySelectorAll('[data-rkreopen]').forEach(function (b) {
+    b.addEventListener('click', function () { setRockStatus_(b.dataset.rkreopen, 'ON TRACK'); });
+  });
+}
+
+// --- New rock sheet ----------------------------------------------------------
+function ensureRkSheet_() {
+  if ($('rk-new')) return;
+  var div = document.createElement('div');
+  div.id = 'rk-new';
+  div.style.display = 'none';
+  document.body.appendChild(div);
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || document.querySelector('.l10pop')) return;
+    if (state.rkAdding) closeRockSheet_();
+  });
+}
+function openRockSheet_(prefill) {
+  ensureRkSheet_();
+  if (!state.rkAdding) dlgOpened_('rk-new');
+  state.rkAdding = true;
+  if (prefill || !state.rkCompose) {
+    var lens = lensGet_(), team = state.boot.team || [];
+    state.rkCompose = { title: '', done: '', owner: team.indexOf(lens) !== -1 ? lens : (team[0] || ''), due: rkQuarter_().end,
+      accounts: [], shift: '', metricId: '' };
+    Object.keys(prefill || {}).forEach(function (k) { if (prefill[k]) state.rkCompose[k] = prefill[k]; });
+  }
+  renderRockSheet_();
+  var t = $('rk-new').querySelector('.js-rkn-title');
+  if (t) t.focus();
+}
+function closeRockSheet_() {
+  var was = state.rkAdding;
+  state.rkAdding = false;
+  var o = $('rk-new');
+  if (o) o.style.display = 'none';
+  if (was) dlgClosed_('rk-new');
+}
+function renderRockSheet_() {
+  var o = $('rk-new');
+  if (!o) return;
+  var c = state.rkCompose, Q = rkQuarter_();
+  var active = rkActive_();
+  var load = {};
+  active.forEach(function (r) { var ow = String(r['Owner'] || '').trim(); if (ow) load[ow] = (load[ow] || 0) + 1; });
+  var accts = cfgList_('ACCOUNT_TAGS');
+  var n = load[c.owner] || 0;
+  o.innerHTML = '<div class="si-backdrop" data-rksheetclose="1"></div>' +
+      '<div class="si-sheet si-sheet--new" role="dialog" aria-modal="true" aria-labelledby="rk-new-h">' +
+      '<div class="si-sheet-h"><div class="si-sheet-title" id="rk-new-h">New rock</div>' +
+      '<div class="si-sheet-sub">An outcome for this quarter, one owner. Aim for 3–7 across the team.</div></div>' +
+      '<div class="si-sheet-b">' +
+      '<div class="si-step">The outcome</div>' +
+      '<div class="field"><input class="js-rkn-title" data-rknf="title" value="' + esc(c.title) + '" placeholder="outcome, not activity — e.g. Shared negative list live across Seton"></div>' +
+      '<div class="field"><input class="js-rkn-done" data-rknf="done" value="' + esc(c.done) + '" placeholder="How will you know it’s done? (optional)"></div>' +
+      '<div class="si-step">Who owns it</div>' +
+      '<div class="si-chipwrap">' + (state.boot.team || []).map(function (p) {
+        var on = c.owner === p;
+        return '<button type="button" class="person-chip person-chip--sm' + (on ? ' on' : '') + '" data-rknowner="' + esc(p) + '" aria-pressed="' + on + '">' + avatar(p) + esc(p) + (load[p] ? ' · ' + load[p] : '') + '</button>';
+      }).join('') + '</div>' +
+      '<div class="help rk-sheet-hint">' + esc((c.owner || 'Nobody') + ' owns ' + n + (n === 1 ? ' open rock' : ' open rocks') + ' · the team has ' + active.length + ' in total') + '</div>' +
+      '<div class="si-step">Due</div>' +
+      '<div class="si-chipwrap"><button type="button" class="pill pill--btn' + (c.due === Q.end ? ' on' : '') + '" data-rknqend="1" aria-pressed="' + (c.due === Q.end) + '">End of quarter · ' + esc(rkShort_(Q.end)) + '</button>' +
+      '<input type="date" class="rk-sheet-date" data-rknf="due" value="' + esc(c.due) + '" aria-label="Due date"></div>' +
+      '<div class="si-step">Accounts it moves</div>' +
+      '<div class="si-chipwrap">' + accts.map(function (x) {
+        var on = c.accounts.indexOf(x) !== -1;
+        return '<button type="button" class="pill pill--btn' + (on ? ' on' : '') + '" data-rknacct="' + esc(x) + '" aria-pressed="' + on + '">' + esc(x) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="si-step">Also (optional)</div>' +
+      '<div class="row"><div class="field f-1"><select data-rknf="shift" title="The shift it serves"><option value="">shift…</option>' +
+        ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'].map(function (s) { return '<option' + (c.shift === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field f-2">' + metricSelectHtml_('rk-sheet-metric', c.metricId) + '</div></div>' +
+      '</div>' +
+      '<div class="si-sheet-f"><button type="button" class="btn si-cta js-rkn-add">Add rock</button>' +
+      '<button type="button" class="btn subtle" data-rksheetclose="1">Cancel</button>' +
+      '<span class="si-sheet-count">Milestones get added on the row</span></div></div>';
+  o.style.display = 'block';
+  wireRockSheet_(o);
+}
+function wireRockSheet_(o) {
+  var c = state.rkCompose;
+  o.querySelectorAll('[data-rksheetclose]').forEach(function (el) { el.addEventListener('click', closeRockSheet_); });
+  o.querySelectorAll('[data-rknf]').forEach(function (el) {
+    var k = el.dataset.rknf;
+    var keep = function () {
+      c[k] = el.value;
+      if (k === 'due') {
+        var q = o.querySelector('[data-rknqend]');
+        var on = el.value === rkQuarter_().end;
+        if (q) { q.classList.toggle('on', on); q.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+      }
+    };
+    el.addEventListener('input', keep);
+    el.addEventListener('change', keep);
+    if (el.tagName === 'INPUT' && el.type !== 'date') {
+      el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); submitRockSheet_(); } });
+    }
+  });
+  var met = o.querySelector('.rk-sheet-metric');
+  if (met) met.addEventListener('change', function () { c.metricId = met.value; });
+  o.querySelectorAll('[data-rknowner]').forEach(function (b) {
+    b.addEventListener('click', function () { c.owner = b.dataset.rknowner; renderRockSheet_(); var ob = $('rk-new').querySelector('[data-rknowner="' + c.owner + '"]'); if (ob) ob.focus(); });
+  });
+  var qe = o.querySelector('[data-rknqend]');
+  if (qe) qe.addEventListener('click', function () { c.due = rkQuarter_().end; renderRockSheet_(); });
+  o.querySelectorAll('[data-rknacct]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var x = b.dataset.rknacct, i = c.accounts.indexOf(x);
+      if (i === -1) c.accounts.push(x); else c.accounts.splice(i, 1);
+      b.classList.toggle('on', i === -1);
+      b.setAttribute('aria-pressed', i === -1 ? 'true' : 'false');
+    });
+  });
+  var add = o.querySelector('.js-rkn-add');
+  if (add) add.addEventListener('click', submitRockSheet_);
+}
+function submitRockSheet_() {
+  var o = $('rk-new'), c = state.rkCompose;
+  if (!o || !c) return;
+  var title = String(c.title || '').trim();
+  if (!title) { notify('Name the outcome first.', 'warn'); var t = o.querySelector('.js-rkn-title'); if (t) t.focus(); return; }
+  var add = o.querySelector('.js-rkn-add');
+  if (add) add.disabled = true;
+  gs('l10_addRock', {
+    title: title, owner: c.owner, due: c.due, shift: c.shift, accounts: c.accounts.join(', '),
+    done: String(c.done || '').trim(), metricId: c.metricId
+  }).then(function (res) {
+    if (!res || res.ok === false) { if (add) add.disabled = false; errToast(res || 'Add failed'); return; }
+    if (res.row) state.boot.rocks.push(res.row);
+    state.rkCompose = null;
+    closeRockSheet_();
+    // The new row opens with its milestone line ready — a rock without a
+    // first milestone is the "no plan yet" the page flags three weeks later.
+    state.rkFilter = { status: '', people: [] };
+    state.rkOpen = res.id || null;
+    notify('Rock ' + (res.id || '') + ' added — give it a first milestone.', 'ok');
+    rerenderLists();
+    var inp = res.id ? $('page-rocks').querySelector('[data-rkmsdraft="' + res.id + '"]') : null;
+    if (inp) { inp.focus(); if (inp.scrollIntoView) inp.scrollIntoView({ block: 'center' }); }
+  }).catch(function (e) { if (add) add.disabled = false; errToast(e); });
 }
 
 function renderHeadlines() {

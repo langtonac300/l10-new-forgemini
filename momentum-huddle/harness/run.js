@@ -452,7 +452,8 @@ async function clickNav(page, target) {
   if (!/Initiatives they lead \(3\)/.test(o11Txt)) errors.push('1:1 page for Courtney should list 3 live initiatives she leads (2 fixture + 1 added)');
   // A to-do's "from SI-###" reference opens the drawer.
   await clickNav(page, 'todos');
-  const siRef = await page.$('[data-initref="SI-001"]');
+  // Scoped to the To-dos page: priorities carry SI references too (RK-007), on a hidden page.
+  const siRef = await page.$('#page-todos [data-initref="SI-001"]');
   if (!siRef) errors.push('to-do sourced from SI-001 carries no tappable reference');
   else {
     await siRef.click();
@@ -463,6 +464,214 @@ async function clickNav(page, target) {
     await page.waitForTimeout(100);
   }
   await shot(page, 'strategy');
+
+  // --- Priorities page (v2.19 layout): quarter card, shared axis, buckets, panel, status, sheet ---
+  {
+    await clickNav(page, 'rocks');
+    const gsSince = (n) => page.evaluate((k) => window.__GS_CALLS.slice(k), n);
+    const gsN = () => page.evaluate(() => window.__GS_CALLS.length);
+    const rkCounts = () => page.$$eval('[data-rkfilter]', (els) => els.map((e) => e.dataset.rkfilter + '=' + e.querySelector('b').textContent).join(' '));
+    const rkq = await page.$eval('.rkq', (el) => el.textContent.replace(/\s+/g, ' '));
+    if (!/Day \d+ of \d+/.test(rkq) || !/days left in Q\d/.test(rkq)) errors.push('quarter card missing "Day n of N · days left": ' + rkq.slice(0, 80));
+    if (!/milestones due so far are done/.test(rkq)) errors.push('quarter card caption missing the milestones-due line: ' + rkq.slice(0, 120));
+    const c0 = await rkCounts();
+    if (c0 !== 'off=2 check=1 plan=1 on=4') errors.push('status chips should count off=2 check=1 plan=1 on=4, got ' + c0);
+    const groupsSt = await page.$$eval('.rkg-h .rkg-l', (els) => els.map((e) => e.textContent.trim()));
+    if (groupsSt.join('|') !== 'Off track|Needs a check|No plan yet|On track') errors.push('status groups should lead with attention: ' + groupsSt.join('|'));
+    if ((await page.$$('.rkr')).length !== 8) errors.push('priorities page should list the 8 active fixture priorities, got ' + (await page.$$('.rkr')).length);
+    if ((await page.$$eval('.rkt-ticklab', (els) => els.length)) !== 3) errors.push('quarter axis should carry three month ticks');
+    if (!(await page.$('.rkt-today'))) errors.push('quarter axis missing the Today marker');
+    if (!(await page.$('.qturn [data-qsplit="RK-011"]'))) errors.push('the past-quarter priority should keep its quarter-turn card');
+    const r3 = await page.$eval('[data-rkid="RK-003"]', (el) => el.textContent.replace(/\s+/g, ' '));
+    if (!/Why · Implementation needs a dev sprint/.test(r3)) errors.push('off-track row missing its why line: ' + r3.slice(0, 160));
+    if (!/Next · Solution ideation complete — today/.test(r3)) errors.push('RK-003 should lead with the milestone due today: ' + r3.slice(0, 160));
+    if (!(await page.$('[data-rkid="RK-003"] .rk-early-n'))) errors.push('RK-003 should show the earlier-than-the-quarter gutter');
+    if (!(await page.$('[data-rkid="RK-003"] .rk-dotw--multi'))) errors.push('RK-003 today + tomorrow milestones should merge into one cluster dot');
+    if (!/was on track/.test(await page.$eval('[data-rkid="RK-002"] .rk-st', (el) => el.textContent))) errors.push('RK-002 went off track 3 days ago — its status cell should say "was on track"');
+    const r4 = await page.$eval('[data-rkid="RK-004"]', (el) => el.textContent.replace(/\s+/g, ' '));
+    if (!/25d past due/.test(r4) || !/still on track\?/.test(r4) || !/1 slipped this week/.test(r4) || !/\+1 more late/.test(r4)) errors.push('needs-a-check row missing past due / nudge / slipped / more late: ' + r4.slice(0, 200));
+    if (!(await page.$('[data-rkid="RK-004"] .rk-cv'))) errors.push('RK-004 caveat marker missing on the title');
+    if (!/Confirmed on track today/.test(await page.$eval('[data-rkid="RK-007"]', (el) => el.textContent))) errors.push('RK-007 should read "Confirmed on track today"');
+    // Hover tooltip on a single dot names the milestone and what a click does.
+    const tip = await page.$eval('[data-rkid="RK-006"] .rk-dotw:not(.rk-dotw--multi) .rk-tip', (el) => el.textContent);
+    if (!/click to (reopen|tick off)/.test(tip)) errors.push('dot tooltip should say what a click does: ' + tip);
+    // Filters: a status chip narrows, a person narrows further, Clear restores.
+    await page.click('[data-rkfilter="off"]');
+    await page.waitForTimeout(120);
+    if ((await page.$$('.rkr')).length !== 2) errors.push('off-track filter should leave 2 rows');
+    await page.click('[data-rkperson="CJ"]');
+    await page.waitForTimeout(120);
+    const cjOff = await page.$$eval('.rkr', (els) => els.map((e) => e.dataset.rkid).join(','));
+    if (cjOff !== 'RK-002') errors.push('off track + CJ should leave RK-002 only, got ' + cjOff);
+    if (!/2 priorities of 8|1 priority of 8/.test(await page.$eval('.rkt-count', (el) => el.textContent))) errors.push('count label should say "of 8" while filtered');
+    await page.click('[data-rkclear]');
+    await page.waitForTimeout(120);
+    if ((await page.$$('.rkr')).length !== 8) errors.push('Clear filters did not bring back all 8 rows');
+    // Group by owner, then back (the choice is remembered per browser).
+    await page.click('[data-rkgroup="owner"]');
+    await page.waitForTimeout(120);
+    const ownerGroups = await page.$$eval('.rkg-h .rkg-name', (els) => els.map((e) => e.textContent.trim()).sort().join('|'));
+    if (ownerGroups !== 'Alex|CJ|Courtney|Scott') errors.push('owner grouping should give Alex|CJ|Courtney|Scott, got ' + ownerGroups);
+    await page.click('[data-rkgroup="status"]');
+    await page.waitForTimeout(120);
+    // The panel: milestones, definition of done, the linked metric's 13 bars.
+    await page.click('[data-rkrow="RK-006"]');
+    await page.waitForTimeout(150);
+    if (!(await page.$('[data-rkid="RK-006"] .rk-panel'))) errors.push('opening RK-006 did not show its panel');
+    else {
+      if ((await page.$$('[data-rkid="RK-006"] .rkm')).length !== 5) errors.push('RK-006 panel should list 5 milestones');
+      if ((await page.$$('[data-rkid="RK-006"] .rk-bar')).length !== 13) errors.push('the linked metric should draw 13 weekly bars');
+      const pt = await page.$eval('[data-rkid="RK-006"] .rk-panel', (el) => el.textContent);
+      if (!/One shared negative list attached/.test(pt)) errors.push('panel missing the definition of done');
+      if (!/Brady utilization/.test(pt)) errors.push('panel missing the linked metric name');
+      if (!/\+1 done this week/.test(await page.$eval('[data-rkid="RK-006"] .rk-st', (el) => el.textContent))) errors.push('RK-006 should show "+1 done this week"');
+      let n0 = await gsN();
+      await page.click('[data-rkid="RK-006"] .rkm-ck[data-ms^="MS-017|"]');
+      await page.waitForTimeout(200);
+      let calls = await gsSince(n0);
+      if (!calls.some((c) => c.fn === 'l10_setMilestoneStatus' && c.args[0] === 'MS-017' && c.args[1] === 'DONE')) errors.push('ticking a milestone in the panel did not call l10_setMilestoneStatus(MS-017, DONE)');
+      if (!(await page.$('[data-rkid="RK-006"] .rk-panel'))) errors.push('panel closed after ticking a milestone');
+      const due18 = await page.evaluate(() => findRow(state.boot.milestones, 'ID', 'MS-018')['Due']);
+      n0 = await gsN();
+      await page.click('[data-rkms7="MS-018"]');
+      await page.waitForTimeout(150);
+      calls = await gsSince(n0);
+      const want18 = await page.evaluate((d) => addDays_(d, 7), due18);
+      const mv = calls.find((c) => c.fn === 'l10_editMilestone' && c.args[0] === 'MS-018');
+      if (!mv || mv.args[1].due !== want18) errors.push('+7d should move MS-018 to ' + want18 + ', sent ' + JSON.stringify(mv && mv.args[1]));
+      const newDue = await page.evaluate(() => addDays_(localToday(), 9));
+      await page.fill('[data-rkmsdraft="RK-006"]', 'Harness milestone');
+      await page.fill('[data-rkmsdraftdue="RK-006"]', newDue);
+      n0 = await gsN();
+      await page.press('[data-rkmsdraft="RK-006"]', 'Enter');
+      await page.waitForTimeout(200);
+      calls = await gsSince(n0);
+      const addMs = calls.find((c) => c.fn === 'l10_addMilestone');
+      if (!addMs || addMs.args[0].rockId !== 'RK-006' || addMs.args[0].text !== 'Harness milestone' || addMs.args[0].due !== newDue) errors.push('add milestone sent the wrong payload: ' + JSON.stringify(addMs && addMs.args[0]));
+      if ((await page.$$('[data-rkid="RK-006"] .rkm')).length !== 6) errors.push('the added milestone did not appear in the panel');
+      if ((await page.$eval('[data-rkmsdraft="RK-006"]', (el) => el.value)) !== '') errors.push('the add-milestone line did not clear after adding');
+    }
+    await shot(page, 'priorities-panel');
+    // The nudge's "Yes, still on track" confirms and moves RK-004 out of "Needs a check".
+    let nC = await gsN();
+    await page.click('[data-rkconfirm="RK-004"]');
+    await page.waitForTimeout(150);
+    if (!(await gsSince(nC)).some((c) => c.fn === 'l10_confirmRock' && c.args[0] === 'RK-004')) errors.push('"Yes, still on track" did not call l10_confirmRock(RK-004)');
+    const c1 = await rkCounts();
+    if (c1 !== 'off=2 check=0 plan=1 on=5') errors.push('after confirming RK-004 the chips should read off=2 check=0 plan=1 on=5, got ' + c1);
+    // Status menu → off track needs a why: empty is refused, a line goes through with it.
+    await page.click('[data-rkstatus="RK-001"]');
+    await page.waitForTimeout(120);
+    const menu = await page.$$eval('.l10pop .l10pop-item', (els) => els.map((e) => e.dataset.v).join(','));
+    if (menu !== 'OFF TRACK,DONE') errors.push('on-track status menu should offer OFF TRACK,DONE, got ' + menu);
+    await page.click('.l10pop .l10pop-item[data-v="OFF TRACK"]');
+    await page.waitForTimeout(120);
+    nC = await gsN();
+    await page.click('.l10pop .l10pop-ok');
+    await page.waitForTimeout(120);
+    if ((await gsSince(nC)).some((c) => c.fn === 'l10_setRockStatus')) errors.push('an empty why must not mark the priority off track');
+    if (!(await page.$('.l10pop textarea'))) errors.push('the why prompt closed on an empty answer');
+    await page.fill('.l10pop textarea', 'Waiting on MCC access');
+    await page.click('.l10pop .l10pop-ok');
+    await page.waitForTimeout(200);
+    const off1 = (await gsSince(nC)).find((c) => c.fn === 'l10_setRockStatus');
+    if (!off1 || off1.args[0] !== 'RK-001' || off1.args[1] !== 'OFF TRACK' || !off1.args[2] || off1.args[2].reason !== 'Waiting on MCC access') errors.push('mark off track sent the wrong call: ' + JSON.stringify(off1 && off1.args));
+    const r1 = await page.$eval('[data-rkid="RK-001"]', (el) => el.textContent.replace(/\s+/g, ' '));
+    if (!/Why · Waiting on MCC access/.test(r1) || !/was on track/.test(r1)) errors.push('RK-001 should now show its why and "was on track": ' + r1.slice(0, 200));
+    // Undo restores the exact prior fields through l10_restoreRockStatus.
+    nC = await gsN();
+    await page.click('#notify-stack .notif:last-child .undo');
+    await page.waitForTimeout(200);
+    const rest = (await gsSince(nC)).find((c) => c.fn === 'l10_restoreRockStatus');
+    if (!rest || rest.args[0] !== 'RK-001' || rest.args[1].status !== 'ON TRACK' || rest.args[1].reason !== '') errors.push('undo should restore RK-001 to on track via l10_restoreRockStatus: ' + JSON.stringify(rest && rest.args));
+    if (/was on track/.test(await page.$eval('[data-rkid="RK-001"]', (el) => el.textContent))) errors.push('after undo RK-001 must not claim a status change');
+    // Done this quarter: RK-008 only (RK-009 finished before the quarter; RK-010 was dropped).
+    await page.click('[data-rkdonetoggle]');
+    await page.waitForTimeout(120);
+    const doneQ = await page.$$eval('.rkd .tdl-done-r', (els) => els.map((e) => e.textContent));
+    if (doneQ.length !== 1 || !/FY27 budgets loaded/.test(doneQ[0])) errors.push('done this quarter should list RK-008 only: ' + JSON.stringify(doneQ));
+    // Split on the quarter-turn card prefills the New priority sheet.
+    await page.click('[data-qsplit="RK-011"]');
+    await page.waitForTimeout(150);
+    if (!(await page.$eval('#rk-new', (el) => el.style.display === 'block'))) errors.push('split did not open the New priority sheet');
+    else {
+      if ((await page.$eval('#rk-new .js-rkn-title', (el) => el.value)) !== 'Last quarter feed audit, still open') errors.push('split did not prefill the title');
+      if (!(await page.$('#rk-new [data-rknowner="CJ"].on'))) errors.push('split did not prefill the owner');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(120);
+      if (await page.$eval('#rk-new', (el) => el.style.display !== 'none')) errors.push('Escape did not close the New priority sheet');
+    }
+    // New priority sheet: title, owner, account; due defaults to the end of the quarter; the new row opens.
+    await page.click('[data-rknew]');
+    await page.waitForTimeout(150);
+    await page.fill('#rk-new .js-rkn-title', 'Harness priority');
+    await page.click('#rk-new [data-rknowner="Courtney"]');
+    await page.click('#rk-new [data-rknacct="Amazon"]');
+    nC = await gsN();
+    await page.click('#rk-new .js-rkn-add');
+    await page.waitForTimeout(250);
+    const qEnd = await page.evaluate(() => rkQuarter_().end);
+    const addRk = (await gsSince(nC)).find((c) => c.fn === 'l10_addRock');
+    if (!addRk || addRk.args[0].title !== 'Harness priority' || addRk.args[0].owner !== 'Courtney' || addRk.args[0].accounts !== 'Amazon' || addRk.args[0].due !== qEnd) {
+      errors.push('New priority sent the wrong payload: ' + JSON.stringify(addRk && addRk.args[0]));
+    }
+    if (await page.$eval('#rk-new', (el) => el.style.display !== 'none')) errors.push('New priority sheet stayed open after adding');
+    const openRow = await page.$eval('.rkr--open', (el) => el.dataset.rkid).catch(() => '');
+    if (!/^RK-\d+$/.test(openRow) || openRow === 'RK-006') errors.push('the new priority should open with its milestone line ready, open row: ' + openRow);
+    // Edit in the panel: the caveat, accounts and shift ride l10_editRock.
+    await page.click('[data-rkrow="RK-005"]');
+    await page.waitForTimeout(120);
+    await page.click('[data-rkedit="RK-005"]');
+    await page.waitForTimeout(120);
+    await page.fill('.rk-ed [data-rkef="caveat"]', 'Harness caveat');
+    nC = await gsN();
+    await page.click('[data-rkedsave="RK-005"]');
+    await page.waitForTimeout(200);
+    const ed = (await gsSince(nC)).find((c) => c.fn === 'l10_editRock');
+    if (!ed || ed.args[0] !== 'RK-005' || ed.args[1].caveat !== 'Harness caveat' || ed.args[1].accounts !== 'Amazon, PDC/Wristbands' || ed.args[1].shift !== 'Shift 3') errors.push('panel edit sent the wrong payload: ' + JSON.stringify(ed && ed.args));
+    if (!(await page.$('[data-rkid="RK-005"] .rk-cv'))) errors.push('the saved caveat should mark the title');
+    // Send to Issues carries the priority id in the notes.
+    nC = await gsN();
+    await page.click('[data-rkissue="RK-005"]');
+    await page.waitForTimeout(200);
+    const iss = (await gsSince(nC)).find((c) => c.fn === 'l10_addIssue');
+    if (!iss || !/^from RK-005/.test(iss.args[0].notes)) errors.push('Send to Issues should note "from RK-005": ' + JSON.stringify(iss && iss.args[0]));
+    // The room view clears personal filters.
+    await page.click('[data-rkfilter="on"]');
+    await page.waitForTimeout(100);
+    await page.evaluate(() => { applyPresent_(true); applyPresent_(false); });
+    await page.waitForTimeout(100);
+    if (await page.evaluate(() => !!state.rkFilter.status)) errors.push('the room view should clear the priorities filter');
+    // An off-track row without a why asks for one; the answer only updates the why.
+    await page.evaluate(() => { findRow(state.boot.rocks, 'ID', 'RK-002')['Off Track Reason'] = ''; renderRocks(); });
+    await page.waitForTimeout(100);
+    if (!(await page.$('[data-rkwhy="RK-002"]'))) errors.push('an off-track row with no why should offer to add one');
+    else {
+      await page.click('[data-rkwhy="RK-002"]');
+      await page.waitForTimeout(120);
+      await page.fill('.l10pop textarea', 'Feed lag');
+      const nW = await gsN();
+      await page.press('.l10pop textarea', 'Enter');
+      await page.waitForTimeout(150);
+      const w = (await gsSince(nW)).find((c) => c.fn === 'l10_setRockStatus');
+      if (!w || w.args[0] !== 'RK-002' || w.args[1] !== 'OFF TRACK' || w.args[2].reason !== 'Feed lag') errors.push('adding a why sent the wrong call: ' + JSON.stringify(w && w.args));
+      if (!/Why · Feed lag/.test(await page.$eval('[data-rkid="RK-002"]', (el) => el.textContent))) errors.push('the added why did not show on the row');
+    }
+    // A workbook that hasn't run Setup / repair tabs: one banner, no confirm button, off track without a why.
+    await page.evaluate(() => { state.boot.rockColsReady = false; findRow(state.boot.rocks, 'ID', 'RK-001')['Status'] = 'ON TRACK'; renderRocks(); });
+    await page.waitForTimeout(100);
+    if (!/One setup step left/.test(await page.$eval('#page-rocks', (el) => el.textContent))) errors.push('pre-repair workbook should show the setup banner');
+    if (await page.$('[data-rkconfirm]')) errors.push('pre-repair workbook must not offer "Yes, still on track" (nowhere to save it)');
+    await page.click('[data-rkstatus="RK-001"]');
+    await page.waitForTimeout(100);
+    const nP = await gsN();
+    await page.click('.l10pop .l10pop-item[data-v="OFF TRACK"]');
+    await page.waitForTimeout(150);
+    const pr = (await gsSince(nP)).find((c) => c.fn === 'l10_setRockStatus');
+    if (!pr || pr.args[1] !== 'OFF TRACK' || (pr.args[2] && pr.args[2].reason !== undefined)) errors.push('pre-repair off track should flip without a why: ' + JSON.stringify(pr && pr.args));
+    await page.evaluate(() => { state.boot.rockColsReady = true; renderRocks(); });
+    await shot(page, 'priorities');
+  }
 
   // --- In-app guide: nav ? opens the iframe modal ---
   await page.click('#btn-guide');
