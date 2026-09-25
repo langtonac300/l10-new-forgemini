@@ -940,6 +940,11 @@ function l10BootPlan_() {
       o.fq = l10FiscalQuarterOf_(o['Due']);
       return o;
     }),
+    // The Rocks page's why / was / confirmed / caveat columns (v2.19): false
+    // until Setup / repair tabs has appended them, so the page can say so.
+    rockColsReady: ['Off Track Reason', 'Previous Status', 'Confirmed On', 'Caveat'].every(function (h) {
+      return l10ReadTab_(L10.TABS.ROCKS).headers.indexOf(h) !== -1;
+    }),
     milestones: l10ReadTab_(L10.TABS.MILESTONES).rows.map(l10Sanitize_),
     playbook: l10ReadTab_(L10.TABS.PLAYBOOK).rows.map(l10Sanitize_)
   };
@@ -1404,10 +1409,86 @@ function l10_addMetricPack(packId) {
 // Rocks
 // ---------------------------------------------------------------------------
 
-function l10_setRockStatus(id, status) {
+// The status columns one change writes, in one place: Status, the date it
+// changed, what it was before, the off-track why (kept only while it is off
+// track) and the on-track confirmation (a new status starts a new
+// conversation, so it clears). Setting the same status again writes nothing
+// but a new why: 'Status Updated' and 'Previous Status' must keep meaning
+// "when it last actually changed, and from what". Headers a pre-repair tab
+// doesn't have are skipped by l10WriteRowCells_, so the plain flip still lands.
+function l10RockStatusUpdates_(row, status, reason) {
+  var cur = String(row['Status'] || '').trim();
+  var u = {};
+  if (cur !== status) {
+    u['Status'] = status;
+    u['Status Updated'] = l10Today_();
+    u['Previous Status'] = cur;
+    u['Confirmed On'] = '';
+    u['Off Track Reason'] = status === 'OFF TRACK' ? String(reason || '') : '';
+  } else if (status === 'OFF TRACK' && reason !== undefined) {
+    u['Off Track Reason'] = String(reason || '');
+  }
+  return u;
+}
+
+function l10RockRow_(id) {
+  var found = null;
+  l10ReadTab_(L10.TABS.ROCKS).rows.forEach(function (r) {
+    if (String(r['ID']).trim() === String(id).trim()) found = r;
+  });
+  return found;
+}
+
+// opts.reason: the one-line why for OFF TRACK (optional here — the huddle's
+// quick flip doesn't ask; the Rocks page does).
+function l10_setRockStatus(id, status, opts) {
   if (L10.ROCK_STATUSES.indexOf(status) === -1) return { ok: false, error: 'Bad status' };
-  var wrote = l10SetCells_(L10.TABS.ROCKS, id, { 'Status': status, 'Status Updated': l10Today_() });
-  return wrote ? { ok: true, status: status } : { ok: false, error: 'Rock ' + id + ' not found.' };
+  opts = opts || {};
+  var row = l10RockRow_(id);
+  if (!row) return { ok: false, error: 'Rock ' + id + ' not found.' };
+  var reason = opts.reason === undefined ? undefined : String(opts.reason || '').trim().slice(0, 500);
+  // A why typed into a pre-repair tab would vanish — fail loudly instead.
+  if (reason && l10ReadTab_(L10.TABS.ROCKS).headers.indexOf('Off Track Reason') === -1) {
+    return { ok: false, error: 'L10_Rocks has no Off Track Reason column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+  }
+  var u = l10RockStatusUpdates_(row, status, reason);
+  if (Object.keys(u).length) l10SetCells_(L10.TABS.ROCKS, id, u);
+  return { ok: true, status: status, changed: u['Status'] !== undefined };
+}
+
+// Undo for a status change: the client snapshots the row's status fields
+// before the flip and this puts them back exactly, so an undone click leaves
+// no "changed this week" trace. Only the status columns are ever written.
+function l10_restoreRockStatus(id, snap) {
+  snap = snap || {};
+  var status = String(snap.status || '');
+  if (L10.ROCK_STATUSES.indexOf(status) === -1) return { ok: false, error: 'Bad status' };
+  var ymd = function (v) { v = String(v || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
+  var prev = String(snap.previousStatus || '');
+  var wrote = l10SetCells_(L10.TABS.ROCKS, id, {
+    'Status': status,
+    'Status Updated': ymd(snap.statusUpdated),
+    'Previous Status': L10.ROCK_STATUSES.indexOf(prev) === -1 ? '' : prev,
+    'Off Track Reason': String(snap.reason || '').slice(0, 500),
+    'Confirmed On': ymd(snap.confirmedOn)
+  });
+  return wrote ? { ok: true } : { ok: false, error: 'Rock ' + id + ' not found.' };
+}
+
+// "Yes, still on track": the owner has looked at the milestones that disagree
+// and says it holds. value omitted = today; '' clears it (Undo); a yyyy-MM-dd
+// puts back an earlier confirmation.
+function l10_confirmRock(id, value) {
+  if (l10ReadTab_(L10.TABS.ROCKS).headers.indexOf('Confirmed On') === -1) {
+    return { ok: false, error: 'L10_Rocks has no Confirmed On column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+  }
+  var row = l10RockRow_(id);
+  if (!row) return { ok: false, error: 'Rock ' + id + ' not found.' };
+  var v = value === undefined ? l10Today_() : String(value || '').slice(0, 10);
+  if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: false, error: 'Bad date.' };
+  if (v && String(row['Status']) !== 'ON TRACK') return { ok: false, error: 'Only an on-track rock can be confirmed on track.' };
+  l10SetCells_(L10.TABS.ROCKS, id, { 'Confirmed On': v });
+  return { ok: true, confirmedOn: v };
 }
 
 // ---------------------------------------------------------------------------
@@ -1458,6 +1539,16 @@ function l10_editRock(id, p) {
     }
     updates['Metric ID'] = metricId;
   }
+  // Same only-when-sent rule for the Rocks page's fuller edit form.
+  if (p.caveat !== undefined) {
+    var caveat = String(p.caveat || '').trim().slice(0, 500);
+    if (caveat && l10ReadTab_(L10.TABS.ROCKS).headers.indexOf('Caveat') === -1) {
+      return { ok: false, error: 'L10_Rocks has no Caveat column yet — run L10 Huddle → Setup / repair tabs once, then retry.' };
+    }
+    updates['Caveat'] = caveat;
+  }
+  if (p.accounts !== undefined) updates['Accounts'] = String(p.accounts || '');
+  if (p.shift !== undefined) updates['Shift'] = String(p.shift || '');
   var r = l10Edit_(L10.TABS.ROCKS, id, updates);
   if (r && r.ok) r.fq = l10FiscalQuarterOf_(p.due || '');
   return r;
@@ -1572,7 +1663,7 @@ function l10_setMilestoneStatus(id, status) {
         if (String(r['ID']).trim() === rockId) rock = r;
       });
       if (rock && ['DONE', 'DROPPED'].indexOf(String(rock['Status'])) === -1) {
-        l10SetCells_(L10.TABS.ROCKS, rockId, { 'Status': 'DONE', 'Status Updated': l10Today_() });
+        l10SetCells_(L10.TABS.ROCKS, rockId, l10RockStatusUpdates_(rock, 'DONE'));
         out.rockDone = rockId;
       }
     }
@@ -1604,7 +1695,7 @@ function l10_deleteMilestone(id) {
           if (String(r['ID']).trim() === rockId) rock = r;
         });
         if (rock && ['DONE', 'DROPPED'].indexOf(String(rock['Status'])) === -1) {
-          l10SetCells_(L10.TABS.ROCKS, rockId, { 'Status': 'DONE', 'Status Updated': l10Today_() });
+          l10SetCells_(L10.TABS.ROCKS, rockId, l10RockStatusUpdates_(rock, 'DONE'));
           out.rockDone = rockId;
         }
       }

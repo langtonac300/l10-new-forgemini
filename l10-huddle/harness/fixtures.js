@@ -23,6 +23,16 @@
   const WEEKS = [];
   for (let i = 12; i >= 0; i--) WEEKS.push(fmt(shiftDays(MON, -7 * i)));
 
+  // Rocks fixtures (v2.19 page) are relative to today, plus the start of
+  // the fiscal quarter holding today (FISCAL_START_MONTH 8 → Aug / Nov / Feb /
+  // May) so an "earlier than this quarter" milestone exists on any run date.
+  const T = (n) => fmt(shiftDays(NOW, n));
+  const QSTART = (function () {
+    const off = (NOW.getMonth() - 7 + 12) % 12;
+    return new Date(NOW.getFullYear(), NOW.getMonth() - (off % 3), 1);
+  })();
+  const Q = (n) => fmt(shiftDays(QSTART, n));
+
   const TEAM = ['Alex', 'Courtney', 'CJ', 'Scott'];
   // A 1×1 PNG: the smallest thing avatar() will accept as a team photo.
   const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -131,6 +141,15 @@
     ]
   };
 
+  function rk(id, title, owner, created, due, status, extra) {
+    return Object.assign({ 'ID': id, 'Rock': title, 'Owner': owner, 'Due': due, 'Shift': '', 'Accounts': '', 'Status': status,
+      'Definition of Done': '', 'Notes': '', 'Created': created, 'Status Updated': created, 'Metric ID': '', 'Source': '',
+      'Off Track Reason': '', 'Previous Status': '', 'Confirmed On': '', 'Caveat': '', fq: 'FY27 Q1' }, extra || {});
+  }
+  function ms(id, rockId, name, due, doneAt) {
+    return { 'ID': id, 'Rock ID': rockId, 'Milestone': name, 'Due': due, 'Status': doneAt ? 'DONE' : 'OPEN', 'Done At': doneAt || '', 'Created': T(-60), 'Notes': '' };
+  }
+
   const PLAN = {
     // Strategy tabs (v2.14). SI-001 is piloting with an open to-do; SI-002 is
     // rolling out with NO open to-do and last touched 20 days ago (both flags).
@@ -153,14 +172,64 @@
       { 'ID': 'SL-001', 'Initiative ID': 'SI-001', 'At': fmt(shiftDays(MON, -1)) + ' 10:12', 'Who': 'Courtney', 'Note': 'Seton US: not started → TESTING · hub IDEA-051' },
       { 'ID': 'SL-002', 'Initiative ID': 'SI-001', 'At': fmt(shiftDays(MON, -21)) + ' 09:00', 'Who': 'Courtney', 'Note': 'Created' }
     ],
+    // Every state the Rocks page draws, counted so the smoke can assert it
+    // on any run date: off track ×2 (RK-002 changed 3 days ago with a why,
+    // RK-003 two weeks in, with an earlier-than-the-quarter milestone and a
+    // today/tomorrow cluster), needs a check ×1 (RK-004: past due, two late
+    // milestones, a caveat), no plan yet ×1 (RK-005), on track ×4 (RK-006 with
+    // a source, a linked metric and a milestone done this week; RK-007
+    // confirmed on track today despite a late milestone; RK-011 from a past
+    // fiscal quarter, so the quarter-turn card shows), done this quarter ×1
+    // (RK-008), done before it (RK-009) and dropped (RK-010) stay off the page.
+    rockColsReady: true,
     rocks: [
-      { 'ID': 'RK-001', 'Rock': 'Stand up Seton/Emedco negatives loop end-to-end', 'Owner': 'Scott', 'Due': fmt(shiftDays(MON, 32)), 'Shift': 'Shift 2', 'Accounts': 'Seton', 'Status': 'ON TRACK', 'Definition of Done': 'Weekly negatives applied in both MCCs 4 weeks running', 'Notes': '', 'Created': fmt(shiftDays(MON, -42)), 'Status Updated': fmt(shiftDays(MON, -6)), 'Metric ID': 'SC-013', 'Source': '', fq: 'FY27 Q1' },
-      { 'ID': 'RK-002', 'Rock': 'Amazon A/S under 15% with advertised-only base', 'Owner': 'CJ', 'Due': fmt(shiftDays(MON, 60)), 'Shift': 'Shift 1', 'Accounts': 'Amazon', 'Status': 'OFF TRACK', 'Definition of Done': 'SC-015 < 15% for a full month', 'Notes': '', 'Created': fmt(shiftDays(MON, -30)), 'Status Updated': fmt(shiftDays(MON, -6)), 'Metric ID': 'SC-015', 'Source': 'IS-014', fq: 'FY27 Q1' }
+      rk('RK-001', 'Stand up Seton/Emedco negatives loop end-to-end', 'Scott', fmt(shiftDays(MON, -42)), fmt(shiftDays(MON, 32)), 'ON TRACK',
+        { 'Shift': 'Shift 2', 'Accounts': 'Seton US, EMEDCO', 'Definition of Done': 'Weekly negatives applied in both MCCs 4 weeks running', 'Status Updated': fmt(shiftDays(MON, -6)), 'Metric ID': 'SC-006' }),
+      rk('RK-002', 'Amazon A/S under 15% with advertised-only base', 'CJ', fmt(shiftDays(MON, -30)), fmt(shiftDays(MON, 60)), 'OFF TRACK',
+        { 'Shift': 'Shift 1', 'Accounts': 'Amazon', 'Definition of Done': 'SC-015 < 15% for a full month', 'Status Updated': T(-3), 'Previous Status': 'ON TRACK',
+          'Off Track Reason': 'The advertised-only sales feed lags two days, so early-month reads run high.', 'Metric ID': 'SC-011', 'Source': 'IS-014' }),
+      rk('RK-003', 'Fail-proof UTM tracking system', 'Alex', Q(-50), T(36), 'OFF TRACK',
+        { 'Accounts': 'Cross-account', 'Definition of Done': 'Every paid click lands in GA4 with source, medium and campaign intact.', 'Status Updated': T(-17), 'Previous Status': 'ON TRACK',
+          'Off Track Reason': 'Implementation needs a dev sprint that has not been scheduled.' }),
+      rk('RK-004', 'Seton/Emedco feed swapped to the in-house solution', 'Scott', T(-59), T(-25), 'ON TRACK',
+        { 'Accounts': 'Cross-account', 'Definition of Done': 'All three accounts pull from the in-house feed and the vendor contract is cancelled.',
+          'Caveat': 'The vendor contract runs to the 15th — cancelling earlier still bills the month.' }),
+      rk('RK-005', 'Amazon vs search overlap report automated weekly', 'CJ', T(-38), T(36), 'ON TRACK', { 'Shift': 'Shift 3', 'Accounts': 'Amazon, PDC/Wristbands' }),
+      rk('RK-006', 'Shared negative list live across the Seton family', 'Alex', T(-51), T(15), 'ON TRACK',
+        { 'Shift': 'Shift 1', 'Accounts': 'Seton US, EMEDCO, Seton CA', 'Source': 'SI-002', 'Metric ID': 'SC-001',
+          'Definition of Done': 'One shared negative list attached to every Seton-family search campaign, reviewed monthly.', 'Notes': 'Working sheet: https://docs.google.com/spreadsheets/d/negatives-fixture' }),
+      rk('RK-007', 'Brady CA Demand Gen running on the FY27 creative set', 'Courtney', T(-52), T(22), 'ON TRACK',
+        { 'Shift': 'Shift 2', 'Accounts': 'Brady CA/MX/BR', 'Source': 'SI-001', 'Confirmed On': T(0) }),
+      rk('RK-008', 'FY27 budgets loaded for every account and month', 'Courtney', T(-80), T(-5), 'DONE', { 'Status Updated': T(0), 'Previous Status': 'ON TRACK' }),
+      rk('RK-009', 'Huddle deck template rebuilt', 'Alex', Q(-90), Q(-30), 'DONE', { 'Status Updated': Q(-20) }),
+      rk('RK-010', 'Broad match test on brand terms', 'Scott', T(-40), T(20), 'DROPPED', { 'Status Updated': T(-10) }),
+      rk('RK-011', 'Last quarter feed audit, still open', 'CJ', T(-140), T(-60), 'ON TRACK', { fq: 'FY26 Q3' })
     ],
     milestones: [
-      { 'ID': 'MS-001', 'Rock ID': 'RK-001', 'Milestone': 'Shared SQR sheet live', 'Due': fmt(shiftDays(MON, -14)), 'Status': 'DONE', 'Done At': fmt(shiftDays(MON, -12)), 'Created': fmt(shiftDays(MON, -42)), 'Notes': '' },
-      { 'ID': 'MS-002', 'Rock ID': 'RK-001', 'Milestone': 'First weekly apply in both MCCs', 'Due': fmt(shiftDays(MON, 7)), 'Status': 'OPEN', 'Done At': '', 'Created': fmt(shiftDays(MON, -42)), 'Notes': '' },
-      { 'ID': 'MS-003', 'Rock ID': 'RK-001', 'Milestone': '4-week streak', 'Due': fmt(shiftDays(MON, 30)), 'Status': 'OPEN', 'Done At': '', 'Created': fmt(shiftDays(MON, -42)), 'Notes': '' }
+      ms('MS-001', 'RK-001', 'Shared SQR sheet live', fmt(shiftDays(MON, -14)), fmt(shiftDays(MON, -12))),
+      ms('MS-002', 'RK-001', 'First weekly apply in both MCCs', fmt(shiftDays(MON, 7))),
+      ms('MS-003', 'RK-001', '4-week streak', fmt(shiftDays(MON, 30))),
+      ms('MS-004', 'RK-003', 'Refresher meeting on the UTM rules', Q(-5), Q(-5)),
+      ms('MS-005', 'RK-003', 'Current process mapped end to end', T(-49), T(-49)),
+      ms('MS-006', 'RK-003', 'Failure points defined', T(-42), T(-43)),
+      ms('MS-007', 'RK-003', 'Solution ideation complete', T(0)),
+      ms('MS-008', 'RK-003', 'Implementation', T(1)),
+      ms('MS-009', 'RK-003', 'Reviewing since implementation', T(27)),
+      ms('MS-010', 'RK-004', 'Audit descriptions in the export feed', T(-56), T(-56)),
+      ms('MS-011', 'RK-004', 'Export access for the Seton account', T(-39), T(-40)),
+      ms('MS-012', 'RK-004', 'Export access for the Emedco account', T(-32)),
+      ms('MS-013', 'RK-004', 'Confirm all three accounts pull from the in-house feed', T(-4)),
+      ms('MS-014', 'RK-006', '90-day search-term export per account', T(-44), T(-44)),
+      ms('MS-015', 'RK-006', 'Waste clustered by theme', T(-30), T(-31)),
+      ms('MS-016', 'RK-006', 'Shared floor agreed with Courtney', T(-16), T(-2)),
+      ms('MS-017', 'RK-006', 'Applied to Seton US', T(5)),
+      ms('MS-018', 'RK-006', 'Rolled to Seton CA and EMEDCO', T(12)),
+      ms('MS-019', 'RK-007', 'US variants that beat benchmark picked', T(-41), T(-41)),
+      ms('MS-020', 'RK-007', 'CA copy rewritten and signed off', T(-6)),
+      ms('MS-021', 'RK-007', 'Launch the three CA ad groups', T(5)),
+      ms('MS-022', 'RK-007', 'First two-week read shared', T(19)),
+      ms('MS-023', 'RK-011', 'Audit scoped', T(-100), T(-100)),
+      ms('MS-024', 'RK-011', 'Findings written up', T(10))
     ],
     playbook: [
       { 'Playbook ID': 'PB-002', 'Name': 'Feed disapproval sweep', 'Trigger Keywords': 'feed, disapproval, merchant', 'Accounts': 'PDC', 'What It Answers': 'Which SKUs and why', 'How To Run': 'Merchant Center diagnostics export', 'Standing Caveat': '', 'Updated At': fmt(shiftDays(MON, -20)) }
@@ -446,8 +515,16 @@
     l10_killHeadline: ok,
     l10_reviveHeadline: ok,
     l10_toggleCascade: ok,
-    l10_addRock: function (payload) { idSeq++; return { ok: true, rock: { 'ID': 'RK-' + idSeq, 'Rock': (payload && payload.text) || 'New rock', 'Owner': 'Alex', 'Due': '', 'Shift': '', 'Accounts': '', 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': '', fq: '' } }; },
-    l10_setRockStatus: ok,
+    // Shapes mirror l10_addRock / l10_setRockStatus: {ok, id, row} — the client splices `row`.
+    l10_addRock: function (p) {
+      idSeq++;
+      p = p || {};
+      return { ok: true, id: 'RK-' + idSeq, row: rk('RK-' + idSeq, p.title || 'New rock', p.owner || 'Alex', TODAY, p.due || '', 'ON TRACK',
+        { 'Shift': p.shift || '', 'Accounts': p.accounts || '', 'Definition of Done': p.done || '', 'Notes': p.notes || '', 'Metric ID': p.metricId || '', 'Source': p.source || '', fq: '' }) };
+    },
+    l10_setRockStatus: function (id, status) { return { ok: true, status: status, changed: true }; },
+    l10_restoreRockStatus: ok,
+    l10_confirmRock: function (id, v) { return { ok: true, confirmedOn: v === undefined ? TODAY : v }; },
 
     // Strategy initiatives (v2.14) — shapes mirror L10Code.gs.
     l10_addInitiative: function (p) {
@@ -471,7 +548,7 @@
     l10_sendInitiativeToHub: function (id, acct) { idSeq++; return { ok: true, ideaId: 'IDEA-0' + idSeq, touched: TODAY + ' 10:05', row: { 'ID': 'SA-x', 'Initiative ID': id, 'Account': acct, 'State': 'TESTING', 'Hub Ref': 'IDEA-0' + idSeq, 'Rock ID': '', 'Note': '', 'Updated At': TODAY + ' 10:05' }, log: null }; },
     l10_promoteInitiativeToRock: function (id, acct, p) { idSeq++; return { ok: true, rockId: 'RK-' + idSeq, touched: TODAY + ' 10:06', rock: { 'ID': 'RK-' + idSeq, 'Rock': (p && p.title) || 'Promoted', 'Owner': 'Courtney', 'Due': '', 'Shift': '', 'Accounts': acct, 'Status': 'ON TRACK', 'Created': TODAY, 'Metric ID': '', 'Source': id, fq: '' }, row: { 'ID': 'SA-y', 'Initiative ID': id, 'Account': acct, 'State': 'TESTING', 'Hub Ref': '', 'Rock ID': 'RK-' + idSeq, 'Note': '', 'Updated At': TODAY + ' 10:06' }, log: null }; },
     l10_editRock: ok,
-    l10_addMilestone: function (rockId, text, due) { idSeq++; return { ok: true, milestone: { 'ID': 'MS-' + idSeq, 'Rock ID': rockId, 'Milestone': text, 'Due': due || '', 'Status': 'OPEN', 'Done At': '', 'Created': TODAY, 'Notes': '' }, rockDone: false }; },
+    l10_addMilestone: function (p) { idSeq++; p = p || {}; return { ok: true, id: 'MS-' + idSeq, row: { 'ID': 'MS-' + idSeq, 'Rock ID': p.rockId, 'Milestone': p.text, 'Due': p.due || '', 'Status': 'OPEN', 'Done At': '', 'Created': TODAY, 'Notes': p.notes || '' } }; },
     l10_setMilestoneStatus: { ok: true, rockDone: false },
     l10_editMilestone: ok,
     l10_deleteMilestone: ok,

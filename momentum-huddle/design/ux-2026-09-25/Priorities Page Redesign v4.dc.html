@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: #d8dde5; -webkit-font-smoothing: antialiased; }
+  a { color: #003087; text-decoration: none; }
+  a:hover { color: #FF6B00; text-decoration: underline; }
+  * { box-sizing: border-box; }
+  input, button, textarea, select { font-family: inherit; }
+  ::selection { background: #e8eff8; }
+</style>
+</helmet>
+<div style="font-family: 'DM Sans', system-ui, sans-serif; color: #222; padding: 28px; display: flex; justify-content: center; background: #d8dde5">
+<div style="width: 1440px; height: 860px; flex: none; background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(2,30,71,.35); display: flex; flex-direction: column; overflow: hidden; position: relative">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 28px 12px; flex: none">
+    <div style="font-size: 18px; font-weight: 500; color: #101828">Momentum Huddle</div>
+    <div style="font-size: 16px; color: #667085; cursor: pointer" style-hover="color: #101828">✕</div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 14px; padding: 0 28px 12px; flex: none">
+    <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #001f5c, #003087); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; flex: none">MH</div>
+    <div style="flex: none">
+      <div style="font-size: 16px; font-weight: 700; color: #101828; line-height: 1.25; white-space: nowrap">Paid Media Momentum Huddle</div>
+      <div style="font-size: 12px; color: #667085">Week of 2026-09-21</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; margin-left: 8px">
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">BDay 19 of 22</span>
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">FY27 · Q1</span>
+      <span style="background: #ecfdf3; color: #15803d; padding: 4px 12px; border-radius: 99px; white-space: nowrap">9 live · 9 need decision</span>
+      <span style="background: #f6f7f9; color: #475467; padding: 4px 12px; border-radius: 99px; white-space: nowrap">↻ just now</span>
+      <span style="background: #e8eff8; color: #001f5c; padding: 4px 12px; border-radius: 99px; white-space: nowrap">everyone</span>
+      <span style="border: 1.5px solid #c3d3ea; background: #e8eff8; color: #001f5c; padding: 5px 14px; border-radius: 99px; white-space: nowrap; cursor: pointer" style-hover="border-color: #003087; background: #dbe6f6">Schedule</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 28px 10px; flex: none">
+    <sc-for list="{{ nav }}" as="t" hint-placeholder-count="14">
+      <div style="padding: 9px 14px; font-size: 13px; font-weight: 600; color: {{ t.color }}; background: {{ t.bg }}; border-radius: 10px; cursor: pointer; white-space: nowrap" style-hover="background: #f6f7f9">{{ t.label }}</div>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 22px; padding: 8px 28px; background: #021e47; color: #fff; font-size: 12px; flex: none">
+    <span style="display: flex; gap: 8px; align-items: baseline; white-space: nowrap"><b style="font-weight: 700">Jul 1 – Sep 30</b><span style="color: #dbe6f6">M610/M710 printer promo (~20% off, US + CA)</span></span>
+    <span style="width: 1px; height: 14px; background: rgba(255,255,255,.25)"></span>
+    <span style="display: flex; gap: 8px; align-items: baseline; white-space: nowrap"><b style="font-weight: 700">Sep 14 – Sep 25</b><span style="color: #dbe6f6">Year-end conversations (HR window)</span></span>
+  </div>
+
+  <div style="flex: 1; overflow: auto; background: #f6f7f9; padding: 20px 28px 40px">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px">
+      <div style="flex: 1; min-width: 0">
+        <div style="font-size: 25px; font-weight: 700; color: #021e47; letter-spacing: -.01em; line-height: 1.15">Priorities</div>
+        <div style="font-size: 13.5px; color: #555; margin-top: 3px; text-wrap: pretty">The few things that matter this quarter — one owner each, tagged to the accounts they move. Fiscal quarters start Aug 1.</div>
+      </div>
+      <button type="button" onClick="{{ toggleAdd }}" style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 10px 16px; border-radius: 4px; white-space: nowrap; cursor: pointer; flex: none" style-hover="background: #001f5c; border-color: #001f5c" style-active="transform: scale(.98)">+ New priority</button>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #eaecf0; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06); margin-bottom: 14px; display: flex; align-items: stretch">
+      <div style="padding: 15px 22px 16px; border-right: 1px solid #eaecf0; flex: none; width: 360px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-size: 15px; font-weight: 700; color: #021e47; line-height: 1.2">Day {{ qtr.day }} of {{ qtr.total }}</span>
+          <span style="font-size: 13px; color: #475467; white-space: nowrap">{{ qtr.left }} days left in Q1</span>
+        </div>
+        <div style="position: relative; height: 7px; background: #eef0f3; border-radius: 99px; margin: 11px 0 7px">
+          <div style="position: absolute; left: 0; top: 0; bottom: 0; width: {{ qtr.barW }}; background: #003087; border-radius: 99px"></div>
+        </div>
+        <div style="font-size: 12.5px; color: #475467; line-height: 1.4">{{ qtr.caption }}</div>
+      </div>
+      <div style="flex: 1; min-width: 0; padding: 14px 22px; display: flex; flex-direction: column; justify-content: center; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085; width: 70px">Status</span>
+          <sc-for list="{{ statusChips }}" as="c" hint-placeholder-count="3">
+            <button type="button" onClick="{{ c.onClick }}" title="{{ c.title }}" aria-pressed="{{ c.on }}" style="display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; padding: 6px 15px 6px 12px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ c.bg }}; color: {{ c.color }}; border: 1px solid {{ c.border }}" style-hover="border-color: #003087"><span style="font-size: 11px">{{ c.glyph }}</span><b style="font-size: 20px; line-height: 1">{{ c.n }}</b>{{ c.label }}</button>
+          </sc-for>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085; width: 70px">Owner</span>
+          <sc-for list="{{ people }}" as="p" hint-placeholder-count="4">
+            <button type="button" onClick="{{ p.onClick }}" aria-pressed="{{ p.on }}" style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 4px 12px 4px 5px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ p.bg }}; color: {{ p.color }}; border: 1.5px solid {{ p.border }}" style-hover="border-color: #003087"><span style="width: 19px; height: 19px; border-radius: 50%; background: {{ p.avBg }}; color: {{ p.avColor }}; font-size: 9.5px; font-weight: 700; display: grid; place-items: center; flex: none">{{ p.initials }}</span>{{ p.label }}</button>
+          </sc-for>
+          <sc-if value="{{ reset }}" hint-placeholder-val="{{ false }}">
+            <button type="button" onClick="{{ reset }}" style="font-size: 12px; color: #667085; background: transparent; border: 0; padding: 4px; cursor: pointer; white-space: nowrap" style-hover="color: #003087">Clear filters</button>
+          </sc-if>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 6px">
+            <span style="font-size: 12px; color: #475467">Group</span>
+            <sc-for list="{{ groupTabs }}" as="g" hint-placeholder-count="2">
+              <button type="button" onClick="{{ g.onClick }}" style="font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ g.bg }}; color: {{ g.color }}; border: 1px solid {{ g.border }}">{{ g.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #eaecf0; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.06)">
+
+      <div style="position: sticky; top: -20px; z-index: 20; background: #fff; border-radius: 16px 16px 0 0; border-bottom: 1px solid #eaecf0; display: grid; grid-template-columns: 440px minmax(0, 1fr) 150px; align-items: end">
+        <div style="padding: 12px 18px 10px 46px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085">{{ countLabel }}</div>
+        <div style="display: flex; align-items: flex-end; height: 58px; border-left: 1px solid #f2f4f7">
+          <sc-if value="{{ quarterMode }}" hint-placeholder-val="{{ true }}">
+            <div style="width: 56px; flex: none; padding-bottom: 10px; text-align: center; font-size: 12px; color: #667085">earlier</div>
+          </sc-if>
+          <div style="position: relative; flex: 1; height: 100%; margin: 0 26px">
+            <sc-for list="{{ axisTicks }}" as="k" hint-placeholder-count="3">
+              <div style="position: absolute; left: {{ k.left }}; bottom: 0; height: 12px; border-left: 1px solid #d0d5dd"></div>
+              <div style="position: absolute; left: {{ k.left }}; bottom: 12px; padding-left: 5px; font-size: 12px; font-weight: 700; color: #344054; white-space: nowrap">{{ k.label }}</div>
+            </sc-for>
+            <sc-if value="{{ axisToday }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: {{ axisToday.left }}; top: 5px; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: #fff; background: #003087; border: 1px solid #003087; padding: 2px 9px; border-radius: 99px; white-space: nowrap">{{ axisToday.label }}</div>
+            </sc-if>
+            <sc-if value="{{ axisOwn }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: space-between; font-size: 12px; color: #667085"><span>start</span><span>each row runs start → due</span><span>due</span></div>
+            </sc-if>
+          </div>
+        </div>
+        <div style="padding: 12px 18px 10px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085; border-left: 1px solid #f2f4f7">Status</div>
+      </div>
+
+      <sc-for list="{{ groups }}" as="grp" hint-placeholder-count="3">
+        <div>
+          <div style="display: flex; align-items: center; gap: 9px; padding: 9px 18px; background: #f6f7f9; border-bottom: 1px solid #eaecf0">
+            <sc-if value="{{ grp.initials }}" hint-placeholder-val="{{ false }}">
+              <span style="width: 20px; height: 20px; border-radius: 50%; background: #003087; color: #fff; font-size: 9.5px; font-weight: 700; display: grid; place-items: center; flex: none">{{ grp.initials }}</span>
+            </sc-if>
+            <span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: {{ grp.color }}; white-space: nowrap">{{ grp.label }}</span>
+            <span style="font-size: 12.5px; color: #475467">{{ grp.count }}</span>
+            <span style="font-size: 12.5px; color: #475467; white-space: nowrap">{{ grp.hint }}</span>
+          </div>
+
+          <sc-for list="{{ grp.rows }}" as="r" hint-placeholder-count="2">
+            <div style="border-bottom: 1px solid #eef0f3; background: {{ r.bg }}">
+              <div style="display: grid; grid-template-columns: 440px minmax(0, 1fr) 150px; align-items: stretch" style-hover="background: #fbfcfe">
+
+                <div onClick="{{ r.toggle }}" style="padding: 13px 18px 13px 18px; display: flex; gap: 10px; min-width: 0; cursor: pointer">
+                  <span aria-hidden="true" style="width: 24px; height: 24px; flex: none; border: 1px solid #dfe3e9; border-radius: 4px; background: #fff; color: #344054; font-size: 11px; display: grid; place-items: center">{{ r.caret }}</span>
+                  <div style="flex: 1; min-width: 0">
+                    <div style="font-size: 15px; font-weight: 600; color: #021e47; line-height: 1.35; text-wrap: pretty">{{ r.title }}<sc-if value="{{ r.caveat }}" hint-placeholder-val="{{ false }}"><span title="{{ r.caveat }}" style="display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 6px; border-radius: 50%; border: 1.5px solid #b45309; color: #b45309; font-size: 10.5px; font-weight: 700; vertical-align: 2px; cursor: help">i</span></sc-if></div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px">
+                      <sc-if value="{{ r.showOwner }}" hint-placeholder-val="{{ false }}">
+                        <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #475467; margin-right: 2px"><span style="width: 18px; height: 18px; border-radius: 50%; background: #e8eff8; color: #003087; font-size: 9px; font-weight: 700; display: grid; place-items: center">{{ r.initials }}</span>{{ r.owner }}</span>
+                      </sc-if>
+                      <sc-if value="{{ r.due }}" hint-placeholder-val="{{ false }}">
+                        <span title="{{ r.due.title }}" style="font-size: 12px; font-weight: 700; color: {{ r.due.color }}; background: {{ r.due.bg }}; border: 1px solid {{ r.due.border }}; padding: 2px 8px; border-radius: 4px; white-space: nowrap">{{ r.due.label }}</span>
+                      </sc-if>
+                      <sc-if value="{{ r.source }}" hint-placeholder-val="{{ false }}">
+                        <span title="{{ r.source.title }}" style="font-size: 12px; font-weight: 600; color: #003087; background: #e8eff8; border: 1px solid #c3d3ea; padding: 2px 8px; border-radius: 4px; white-space: nowrap; cursor: pointer">{{ r.source.label }}</span>
+                      </sc-if>
+                      <sc-for list="{{ r.tags }}" as="t" hint-placeholder-count="1">
+                        <span style="font-size: 12px; font-weight: 500; color: {{ t.color }}; background: {{ t.bg }}; border: 1px solid {{ t.border }}; padding: 2px 8px; border-radius: 4px; white-space: nowrap">{{ t.label }}</span>
+                      </sc-for>
+                      <sc-if value="{{ r.pace }}" hint-placeholder-val="{{ false }}">
+                        <span title="{{ r.pace.title }}" style="font-size: 12px; font-weight: 700; color: {{ r.pace.color }}; background: {{ r.pace.bg }}; border: 1px solid {{ r.pace.border }}; padding: 2px 8px; border-radius: 4px; white-space: nowrap">{{ r.pace.label }}</span>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ r.line }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size: 13px; color: {{ r.line.color }}; margin-top: 7px; line-height: 1.4; text-wrap: pretty"><b style="font-weight: 700">{{ r.line.lead }}</b> {{ r.line.text }}</div>
+                    </sc-if>
+                    <sc-if value="{{ r.reason }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size: 13px; color: #a5291a; margin-top: 4px; line-height: 1.4; text-wrap: pretty"><b style="font-weight: 700">Why ·</b> {{ r.reason }}</div>
+                    </sc-if>
+                    <sc-if value="{{ r.nudge }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px">
+                        <span style="font-size: 13px; color: #b45309; line-height: 1.4">{{ r.nudge }}</span>
+                        <button type="button" onClick="{{ r.confirm }}" style="border: 1.5px solid #f0d5a8; background: #fff8ec; color: #92400e; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #b45309">Yes, still on track</button>
+                        <button type="button" onClick="{{ r.flipOff }}" style="border: 1px solid #dfe3e9; background: #fff; color: #475467; font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #a5291a; color: #a5291a">No, mark off track</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ r.confirmed }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size: 12.5px; color: #475467; margin-top: 4px">{{ r.confirmed }}</div>
+                    </sc-if>
+                  </div>
+                </div>
+
+                <div style="display: flex; border-left: 1px solid #f2f4f7; min-width: 0">
+                  <sc-if value="{{ quarterMode }}" hint-placeholder-val="{{ true }}">
+                    <div style="width: 56px; flex: none; display: flex; align-items: center; justify-content: center; border-right: 1px dashed #eaecf0">
+                      <sc-if value="{{ r.earlier }}" hint-placeholder-val="{{ false }}">
+                        <span title="{{ r.earlier.title }}" style="font-size: 12px; font-weight: 700; color: {{ r.earlier.color }}; white-space: nowrap">{{ r.earlier.label }}</span>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                  <div style="position: relative; flex: 1; margin: 0 26px; min-height: 76px">
+                    <sc-for list="{{ grid }}" as="g" hint-placeholder-count="2">
+                      <div style="position: absolute; left: {{ g }}; top: 0; bottom: 0; border-left: 1px solid #f2f4f7"></div>
+                    </sc-for>
+                    <div style="position: absolute; left: {{ r.todayLeft }}; top: 0; bottom: 0; border-left: 2px solid #003087; opacity: .55"></div>
+                    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: #eaecf0; border-radius: 99px"></div>
+                    <div style="position: absolute; left: {{ r.span.left }}; width: {{ r.span.width }}; top: 50%; height: 6px; margin-top: -3px; background: {{ r.span.color }}; border-radius: 99px"></div>
+                    <sc-if value="{{ r.behind }}" hint-placeholder-val="{{ false }}">
+                      <div title="{{ r.behind.title }}" style="position: absolute; left: {{ r.behind.left }}; width: {{ r.behind.width }}; top: 50%; height: 6px; margin-top: -3px; background: repeating-linear-gradient(135deg, #f0b76a 0 3px, #fff8ec 3px 6px); border-radius: 99px"></div>
+                    </sc-if>
+                    <div title="{{ r.fill.title }}" style="position: absolute; left: {{ r.fill.left }}; width: {{ r.fill.width }}; top: 50%; height: 6px; margin-top: -3px; background: #003087; border-radius: 99px"></div>
+                    <sc-if value="{{ r.overdue }}" hint-placeholder-val="{{ false }}">
+                      <div title="{{ r.overdue.title }}" style="position: absolute; left: {{ r.overdue.left }}; width: {{ r.overdue.width }}; top: 50%; height: 0; border-top: 2px dashed #d97a6c"></div>
+                    </sc-if>
+                    <sc-if value="{{ r.dueTick }}" hint-placeholder-val="{{ false }}">
+                      <div style="position: absolute; left: {{ r.dueTick.left }}; top: 50%; height: 18px; margin-top: -9px; width: 2px; margin-left: -1px; background: {{ r.dueTick.color }}; border-radius: 1px"></div>
+                      <div style="position: absolute; left: {{ r.dueTick.left }}; top: 50%; margin-top: 12px; transform: {{ r.dueTick.shift }}; font-size: 12px; font-weight: 700; color: {{ r.dueTick.color }}; white-space: nowrap">{{ r.dueTick.label }}</div>
+                    </sc-if>
+                    <sc-for list="{{ r.dots }}" as="d" hint-placeholder-count="3">
+                      <div onMouseEnter="{{ d.enter }}" onMouseLeave="{{ d.leave }}" style="position: absolute; left: {{ d.left }}; top: 50%; transform: translate(-50%, -50%); z-index: {{ d.z }}">
+                        <button type="button" onClick="{{ d.onClick }}" aria-label="{{ d.aria }}" style="width: {{ d.size }}; height: {{ d.size }}; border-radius: 50%; border: 2px solid {{ d.border }}; background: {{ d.bg }}; color: {{ d.color }}; font-size: 11px; font-weight: 700; display: grid; place-items: center; cursor: pointer; padding: 0; box-shadow: 0 0 0 3px #fff" style-hover="transform: scale(1.15)">{{ d.glyph }}</button>
+                        <sc-if value="{{ d.sub }}" hint-placeholder-val="{{ false }}">
+                          <div style="position: absolute; top: 27px; left: 50%; transform: translateX(-50%); font-size: 11.5px; font-weight: 700; color: {{ d.color }}; white-space: nowrap; background: #fff; padding: 0 3px">{{ d.sub }}</div>
+                        </sc-if>
+                        <sc-if value="{{ d.tipOn }}" hint-placeholder-val="{{ false }}">
+                          <div style="position: absolute; bottom: 26px; left: 50%; transform: {{ d.tipShift }}; background: #021e47; color: #fff; border-radius: 6px; padding: 8px 11px; box-shadow: 0 8px 30px rgba(2,30,71,.25); min-width: 200px; max-width: 280px; pointer-events: none">
+                            <sc-for list="{{ d.tip }}" as="tp" hint-placeholder-count="1">
+                              <div style="padding: 2px 0">
+                                <div style="font-size: 12.5px; font-weight: 600; line-height: 1.35">{{ tp.name }}</div>
+                                <div style="font-size: 11px; color: #c3d3ea; margin-top: 1px">{{ tp.meta }}</div>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="border-left: 1px solid #f2f4f7; padding: 13px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px">
+                  <div style="position: relative">
+                    <button type="button" onClick="{{ r.statusMenu }}" title="Change status" style="display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ r.status.bg }}; color: {{ r.status.color }}; border: 1px solid {{ r.status.border }}" style-hover="border-color: #003087"><span style="font-size: 9px">{{ r.status.glyph }}</span>{{ r.status.label }}<span style="font-size: 9px; opacity: .7">▾</span></button>
+                    <sc-if value="{{ r.statusPop }}" hint-placeholder-val="{{ false }}">
+                      <div data-pop="1" style="position: absolute; top: 32px; right: 0; z-index: 40; background: #fff; border: 1px solid #d8dde5; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.18); padding: 5px; min-width: 170px">
+                        <sc-if value="{{ r.askReason }}" hint-placeholder-val="{{ false }}">
+                          <div style="padding: 6px; width: 280px">
+                            <div style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #a5291a; margin-bottom: 6px">Why is it off track?</div>
+                            <textarea value="{{ reasonDraft }}" onInput="{{ onReason }}" rows="3" placeholder="one line the room can act on — e.g. waiting on the category team" style="width: 100%; border: 1px solid #dfe3e9; border-radius: 4px; padding: 8px 10px; font-size: 13px; resize: none; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8"></textarea>
+                            <div style="display: flex; gap: 8px; margin-top: 8px">
+                              <button type="button" onClick="{{ r.saveOff }}" style="background: #a5291a; border: 2px solid #a5291a; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 7px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap">Mark off track</button>
+                              <button type="button" onClick="{{ r.cancelOff }}" style="border: 0; background: transparent; color: #667085; font-size: 12.5px; cursor: pointer">Cancel</button>
+                            </div>
+                          </div>
+                        </sc-if>
+                        <sc-for list="{{ r.statusItems }}" as="p" hint-placeholder-count="3">
+                          <button type="button" onClick="{{ p.onClick }}" style="width: 100%; text-align: left; border: 0; background: transparent; font-size: 12.5px; color: #333; padding: 7px 9px; border-radius: 4px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px" style-hover="background: #e8eff8; color: #003087"><b style="width: 12px; text-align: center; font-size: 10px; color: {{ p.color }}">{{ p.glyph }}</b>{{ p.label }}</button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ r.since }}" hint-placeholder-val="{{ false }}">
+                    <span title="{{ r.since.title }}" style="font-size: 12px; white-space: nowrap; color: #a5291a; line-height: 1.35; padding-left: 4px">{{ r.since.label }}</span>
+                  </sc-if>
+                  <sc-for list="{{ r.changes }}" as="c" hint-placeholder-count="1">
+                    <span title="{{ c.title }}" style="font-size: 12px; font-weight: 600; white-space: nowrap; color: {{ c.color }}; line-height: 1.35; padding-left: 4px">{{ c.label }}</span>
+                  </sc-for>
+                </div>
+              </div>
+
+              <sc-if value="{{ r.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 32px; padding: 4px 18px 20px 46px">
+                  <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px">
+                      <span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085">Milestones</span>
+                      <span style="font-size: 11.5px; color: #667085">{{ r.msSummary }}</span>
+                    </div>
+                    <sc-for list="{{ r.msRows }}" as="m" hint-placeholder-count="3">
+                      <div style="display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f2f4f7">
+                        <button type="button" onClick="{{ m.toggle }}" aria-label="{{ m.aria }}" style="width: 20px; height: 20px; flex: none; border-radius: 4px; border: 1.5px solid {{ m.border }}; background: {{ m.bg }}; color: {{ m.color }}; font-size: 11px; font-weight: 700; display: grid; place-items: center; cursor: pointer; padding: 0" style-hover="border-color: #003087">{{ m.glyph }}</button>
+                        <span style="flex: 1; min-width: 0; font-size: 13px; color: {{ m.textColor }}; line-height: 1.4; text-wrap: pretty">{{ m.name }}</span>
+                        <sc-if value="{{ m.canMove }}" hint-placeholder-val="{{ false }}">
+                          <button type="button" onClick="{{ m.push7 }}" title="Move this milestone a week later" style="border: 1px solid #eaecf0; background: #fff; color: #475467; font-size: 11.5px; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087">+7d</button>
+                        </sc-if>
+                        <sc-if value="{{ m.editing }}" hint-placeholder-val="{{ false }}">
+                          <input type="date" value="{{ m.due }}" onChange="{{ m.onDate }}" aria-label="New date" style="border: 1px solid #003087; border-radius: 4px; padding: 2px 6px; font-size: 12px; color: #333; outline: none; box-shadow: 0 0 0 3px #e8eff8; width: 128px">
+                        </sc-if>
+                        <sc-if value="{{ m.notEditing }}" hint-placeholder-val="{{ true }}">
+                          <button type="button" onClick="{{ m.edit }}" title="{{ m.editTitle }}" style="font-size: 11.5px; font-weight: 700; color: {{ m.chip.color }}; background: {{ m.chip.bg }}; border: 1px solid {{ m.chip.border }}; padding: 2px 8px; border-radius: 4px; white-space: nowrap; width: 128px; text-align: center; cursor: pointer" style-hover="border-color: #003087">{{ m.chip.label }}</button>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ r.noMs }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding: 10px 0; font-size: 12.5px; color: #667085">No milestones yet. Add the first thing that must be true, with a date — the timeline places it.</div>
+                    </sc-if>
+                    <div style="display: flex; gap: 8px; margin-top: 10px">
+                      <input value="{{ draft.text }}" onInput="{{ onDraftText }}" placeholder="add a milestone" style="flex: 1; border: 1px solid #dfe3e9; border-radius: 4px; padding: 8px 11px; font-size: 13px; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+                      <input type="date" value="{{ draft.due }}" onInput="{{ onDraftDue }}" aria-label="Milestone date" style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 7px 9px; font-size: 12.5px; color: #333; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+                      <button type="button" onClick="{{ r.addMs }}" style="border: 1px solid #c3d3ea; background: #fff; color: #003087; font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #e8eff8">Add</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085; margin-bottom: 6px">Definition of done</div>
+                    <div style="font-size: 13px; color: {{ r.dod.color }}; line-height: 1.5; text-wrap: pretty; padding: 10px 12px; background: #fafbfc; border: 1px solid #eaecf0; border-radius: 4px">{{ r.dod.text }}</div>
+                    <sc-if value="{{ r.caveat }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size: 13px; color: #92400e; line-height: 1.45; margin-top: 10px; padding: 9px 12px; background: #fff8ec; border: 1px solid #f0d5a8; border-radius: 4px"><b>Caveat ·</b> {{ r.caveat }}</div>
+                    </sc-if>
+                    <sc-if value="{{ r.metric }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top: 14px">
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px">
+                          <span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085">Linked metric</span>
+                          <span style="font-size: 12px; color: #475467">13 weeks</span>
+                        </div>
+                        <div style="padding: 10px 12px; border: 1px solid #eaecf0; border-radius: 4px">
+                          <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap">
+                            <span style="font-size: 13px; font-weight: 600; color: #021e47">{{ r.metric.name }}</span>
+                            <span style="font-size: 13px; font-weight: 700; color: {{ r.metric.color }}">{{ r.metric.value }}</span>
+                            <span style="font-size: 12px; color: #475467">goal {{ r.metric.goal }}</span>
+                          </div>
+                          <div style="display: flex; align-items: flex-end; gap: 3px; height: 34px; margin-top: 8px">
+                            <sc-for list="{{ r.metric.bars }}" as="b" hint-placeholder-count="13">
+                              <div title="{{ b.title }}" style="flex: 1; height: {{ b.h }}; background: {{ b.color }}; border-radius: 2px 2px 0 0"></div>
+                            </sc-for>
+                          </div>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <div style="font-size: 12px; color: #475467; margin-top: 10px">{{ r.idLine }}</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px">
+                      <button type="button" style="border: 1px solid #dfe3e9; background: #fff; color: #475467; font-size: 12px; padding: 7px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087">✎ Edit</button>
+                      <button type="button" style="border: 1px solid #dfe3e9; background: #fff; color: #475467; font-size: 12px; padding: 7px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087">↓ Send to Issues</button>
+                      <button type="button" onClick="{{ r.drop }}" style="border: 1px solid #dfe3e9; background: #fff; color: #475467; font-size: 12px; padding: 7px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #a5291a; color: #a5291a">✕ Drop</button>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ emptyText }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 34px 18px; text-align: center; font-size: 13px; color: #667085">{{ emptyText }}</div>
+      </sc-if>
+
+      <div style="border-top: 1px solid #eaecf0; background: #fafbfc; border-radius: 0 0 16px 16px">
+        <button type="button" onClick="{{ toggleDone }}" style="width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 18px; background: transparent; border: 0; cursor: pointer; text-align: left" style-hover="background: #f4f6f9">
+          <span style="font-size: 10px; color: #667085; width: 18px; text-align: center">{{ doneCaret }}</span>
+          <span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #667085">Done this quarter</span>
+          <span style="font-size: 11px; color: #667085">{{ doneCount }}</span>
+        </button>
+        <sc-if value="{{ doneOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 1px solid #eef0f3">
+            <sc-for list="{{ doneRows }}" as="d" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 18px; border-bottom: 1px solid #f2f4f7">
+                <span style="width: 18px; text-align: center; font-size: 13px; font-weight: 700; color: #12693a; flex: none">✓</span>
+                <span style="flex: 1; min-width: 0; font-size: 13px; color: #475467; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ d.title }}</span>
+                <span style="font-size: 12px; color: #667085; white-space: nowrap">{{ d.meta }}</span>
+                <button type="button" onClick="{{ d.reopen }}" style="border: 1px solid #eaecf0; background: #fff; color: #667085; font-size: 11.5px; padding: 4px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="border-color: #003087; color: #003087">↩ Reopen</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 28px; bottom: 22px; z-index: 80; background: #021e47; color: #fff; font-size: 13px; padding: 9px 10px 9px 16px; border-radius: 6px; box-shadow: 0 8px 30px rgba(2,30,71,.3); display: flex; align-items: center; gap: 14px">
+      <span>{{ toast }}</span>
+      <sc-if value="{{ undo }}" hint-placeholder-val="{{ false }}">
+        <button type="button" onClick="{{ undo }}" style="border: 1.5px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap" style-hover="background: #fff; color: #021e47; border-color: #fff">Undo</button>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; z-index: 70; background: rgba(2,30,71,.45); backdrop-filter: blur(3px); display: flex; justify-content: flex-end">
+      <div onClick="{{ toggleAdd }}" style="flex: 1"></div>
+      <div style="width: 540px; background: #fff; height: 100%; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(2,30,71,.25)">
+        <div style="padding: 18px 22px 15px; border-bottom: 1px solid #eaecf0; flex: none">
+          <div style="font-size: 18px; font-weight: 700; color: #021e47">New priority</div>
+          <div style="font-size: 12.5px; color: #667085; margin-top: 3px">An outcome for this quarter, one owner. Aim for 3–7 across the team.</div>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 18px 22px">
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #003087; margin-bottom: 9px">The outcome</div>
+          <input value="{{ add.title }}" onInput="{{ onAddTitle }}" placeholder="outcome, not activity — e.g. Shared negative list live across Seton" style="width: 100%; border: 1px solid #dfe3e9; border-radius: 4px; padding: 11px 12px; font-size: 14px; outline: none; margin-bottom: 9px" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+          <input value="{{ add.dod }}" onInput="{{ onAddDod }}" placeholder="How will you know it's done? (optional)" style="width: 100%; border: 1px solid #dfe3e9; border-radius: 4px; padding: 10px 12px; font-size: 13px; outline: none; margin-bottom: 22px" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #003087; margin-bottom: 9px">Who owns it</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 7px">
+            <sc-for list="{{ addOwners }}" as="o" hint-placeholder-count="4">
+              <button type="button" onClick="{{ o.onClick }}" style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; padding: 6px 13px 6px 7px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ o.bg }}; color: {{ o.color }}; border: 1.5px solid {{ o.border }}"><span style="width: 20px; height: 20px; border-radius: 50%; background: {{ o.avBg }}; color: {{ o.avColor }}; font-size: 9.5px; font-weight: 700; display: grid; place-items: center">{{ o.initials }}</span>{{ o.label }}</button>
+            </sc-for>
+          </div>
+          <div style="font-size: 11.5px; color: #667085; margin-bottom: 22px">{{ addOwnerHint }}</div>
+
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #003087; margin-bottom: 9px">Due</div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-bottom: 22px">
+            <button type="button" onClick="{{ addDueEnd.onClick }}" style="font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 99px; white-space: nowrap; cursor: pointer; background: {{ addDueEnd.bg }}; color: {{ addDueEnd.color }}; border: 1px solid {{ addDueEnd.border }}">End of quarter · Oct 31</button>
+            <input type="date" value="{{ add.due }}" onInput="{{ onAddDue }}" aria-label="Due date" style="border: 1px solid #dfe3e9; border-radius: 4px; padding: 6px 9px; font-size: 12.5px; color: #333; outline: none" style-focus="border-color: #003087; box-shadow: 0 0 0 3px #e8eff8">
+          </div>
+
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #003087; margin-bottom: 9px">Accounts it moves</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px">
+            <sc-for list="{{ addAccts }}" as="a" hint-placeholder-count="10">
+              <button type="button" onClick="{{ a.onClick }}" style="font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 4px; white-space: nowrap; cursor: pointer; background: {{ a.bg }}; color: {{ a.color }}; border: 1px solid {{ a.border }}">{{ a.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding: 14px 22px; border-top: 1px solid #eaecf0; display: flex; align-items: center; gap: 10px; flex: none">
+          <button type="button" onClick="{{ submitAdd }}" style="background: #003087; border: 2px solid #003087; color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 10px 18px; border-radius: 4px; white-space: nowrap; cursor: pointer" style-hover="background: #001f5c; border-color: #001f5c">Add priority</button>
+          <button type="button" onClick="{{ toggleAdd }}" style="border: 0; background: transparent; color: #667085; font-size: 12.5px; padding: 10px 6px; cursor: pointer" style-hover="color: #222">Cancel</button>
+          <span style="margin-left: auto; font-size: 11.5px; color: #667085; white-space: nowrap">Milestones get added on the row</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1496,&quot;height&quot;:916},&quot;defaultGrouping&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;owner&quot;,&quot;status&quot;],&quot;default&quot;:&quot;status&quot;,&quot;tsType&quot;:&quot;'owner' | 'status'&quot;,&quot;section&quot;:&quot;Behaviour&quot;},&quot;trackScale&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;quarter&quot;,&quot;own&quot;],&quot;default&quot;:&quot;quarter&quot;,&quot;tsType&quot;:&quot;'quarter' | 'own'&quot;,&quot;section&quot;:&quot;Behaviour&quot;}}">
+const TODAY = '2026-09-25';
+const Q = { label: 'FY27 Q1', start: '2026-08-01', end: '2026-10-31' };
+const TEAM = ['Alex', 'Courtney', 'Scott', 'CJ'];
+const ACCOUNT_TAGS = ['Brady US', 'Brady CA/MX/BR', 'Seton US', 'EMEDCO', 'Seton CA', 'PDC/Wristbands', 'Amazon', 'Social/Awareness', 'Marking', 'Cross-account'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function dt(s) { return new Date(s + 'T12:00:00'); }
+function days(a, b) { return Math.round((dt(b) - dt(a)) / 86400000); }
+function fmt(s) { const d = dt(s); return MONTHS[d.getMonth()] + ' ' + d.getDate(); }
+function ini(n) { return String(n || '?').slice(0, 2) === 'CJ' ? 'CJ' : String(n || '?').slice(0, 1).toUpperCase(); }
+function plural(n, a, b) { return n + ' ' + (n === 1 ? a : b); }
+
+const SEED = [
+  { id: 'R-014', title: 'Fail Proof UTM Tracking System', owner: 'Alex', created: '2026-06-12', due: '2026-10-31', status: 'OFF TRACK', offSince: '2026-09-08', offReason: 'Implementation needs a dev sprint that hasn\u2019t been scheduled.', prev: { status: 'OFF TRACK', done: 3 }, shift: '', accounts: 'Cross-account',
+    dod: 'Every paid click lands in GA4 with source, medium and campaign intact — no (not set) rows for 30 straight days.',
+    ms: [
+      { name: 'Set up a refresher meeting on the UTM rules', due: '2026-06-26', done: true },
+      { name: 'What is our current process — mapped end to end', due: '2026-08-07', done: true },
+      { name: 'Failure points defined', due: '2026-08-14', done: true },
+      { name: 'Solution ideation complete', due: '2026-09-25', done: false },
+      { name: 'Implementation', due: '2026-09-26', done: false },
+      { name: 'Reviewing since implementation', due: '2026-10-22', done: false }] },
+  { id: 'R-020', title: 'Shared negative list live across the Seton family', owner: 'Alex', created: '2026-08-05', due: '2026-10-10', status: 'ON TRACK', prev: { status: 'ON TRACK', done: 2 }, source: 'SI-002', metric: { name: 'Seton search waste', fmt: '$', goal: '\u2264 $1,800/wk', target: 1800, lower: true, series: [3400, 3300, 3350, 3100, 2900, 2950, 2800, 2600, 2500, 2400, 2250, 2100, 1950] }, shift: 'Shift 1', accounts: 'Seton US, EMEDCO, Seton CA',
+    dod: 'One shared negative list attached to every Seton-family search campaign, reviewed monthly.',
+    ms: [
+      { name: '90-day search-term export per account', due: '2026-08-12', done: true },
+      { name: 'Waste clustered by theme', due: '2026-08-26', done: true },
+      { name: 'Shared floor agreed with Courtney', due: '2026-09-09', done: true },
+      { name: 'Applied to Seton US', due: '2026-09-30', done: false },
+      { name: 'Rolled to Seton CA and EMEDCO', due: '2026-10-07', done: false }] },
+  { id: 'R-019', title: 'Brady CA Demand Gen running on the FY27 creative set', owner: 'Courtney', created: '2026-08-04', due: '2026-10-17', status: 'ON TRACK', prev: { status: 'ON TRACK', done: 2 }, source: 'SI-001', shift: 'Shift 2', accounts: 'Brady CA/MX/BR',
+    dod: 'All three CA Demand Gen ad groups live on FY27 creative, with a two-week read shared with Stuart.',
+    ms: [
+      { name: 'US variants that beat benchmark picked', due: '2026-08-15', done: true },
+      { name: 'CA copy rewritten and legal sign-off', due: '2026-09-12', done: true },
+      { name: 'Launch the three CA ad groups', due: '2026-09-30', done: false },
+      { name: 'First two-week read to Stuart', due: '2026-10-14', done: false }] },
+  { id: 'R-022', title: 'Value-based bidding scoped for Brady US', owner: 'Courtney', created: '2026-08-01', due: '2026-09-30', status: 'OFF TRACK', offSince: '2026-09-22', offReason: 'Margin data for 40% of SKUs is missing from the feed.', prev: { status: 'ON TRACK', done: 1 }, source: 'SI-004', shift: 'Shift 4', accounts: 'Brady US',
+    dod: '',
+    ms: [
+      { name: 'Margin field in the product feed', due: '2026-08-22', done: true },
+      { name: 'Back-test against last quarter', due: '2026-09-19', done: false },
+      { name: 'Scoping session with Stuart', due: '2026-09-29', done: false }] },
+  { id: 'R-017', title: 'Seton/Emedco Feedonomics Swapped to In-House Solution', owner: 'Scott', created: '2026-07-28', due: '2026-08-31', status: 'ON TRACK', prev: { status: 'ON TRACK', done: 2 }, caveat: 'The Feedonomics contract runs to Oct 15 \u2014 cancelling earlier still bills the month.', shift: '', accounts: 'Cross-account',
+    dod: 'All three accounts pull from the in-house feed and the Feedonomics contract is cancelled.',
+    ms: [
+      { name: 'Audit descriptions in the export feed', due: '2026-07-31', done: true },
+      { name: 'Give Carson Google Ads export access — Seton', due: '2026-08-17', done: true },
+      { name: 'Give Carson Google Ads export access — Emedco', due: '2026-08-24', done: false },
+      { name: 'Confirm all 3 accounts pull from the in-house feed', due: '2026-08-31', done: false }] },
+  { id: 'R-023', title: 'Brand impression share held at 90% on every account', owner: 'Scott', created: '2026-08-01', due: '2026-10-31', status: 'ON TRACK', prev: { status: 'ON TRACK', done: 2 }, metric: { name: 'Brand impression share', fmt: '%', goal: '\u2265 90%', target: 90, lower: false, series: [86, 88, 87, 91, 92, 90, 93, 92, 91, 94, 92, 93, 91] }, shift: 'Shift 1', accounts: 'Cross-account',
+    dod: 'Brand IS at or above 90% every week of the quarter, checked in the Monday pull.',
+    ms: [
+      { name: 'Floor set on every brand campaign', due: '2026-08-08', done: true },
+      { name: 'Weekly check automated', due: '2026-09-05', done: true },
+      { name: 'September review', due: '2026-10-02', done: false },
+      { name: 'October review', due: '2026-10-30', done: false }] },
+  { id: 'R-021', title: 'Amazon vs search overlap report automated weekly', owner: 'CJ', created: '2026-08-18', due: '2026-10-31', status: 'ON TRACK', prev: { status: 'ON TRACK', done: 0 }, shift: 'Shift 3', accounts: 'Amazon, PDC/Wristbands',
+    dod: '', ms: [] }
+];
+const DONE = [
+  { id: 'R-012', title: 'FY27 budgets loaded for every account and month', owner: 'CJ', doneAt: '2026-08-06' },
+  { id: 'R-015', title: 'Huddle deck template rebuilt for FY27', owner: 'Alex', doneAt: '2026-08-21' }
+];
+
+const STATUS = {
+  'ON TRACK': { glyph: '●', label: 'On track', color: '#15803d', bg: '#ecfdf3', border: '#b7e4c7' },
+  'OFF TRACK': { glyph: '▲', label: 'Off track', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7' },
+  'DONE': { glyph: '✓', label: 'Done', color: '#12693a', bg: '#fff', border: '#eaecf0' }
+};
+const DOT = {
+  done: { bg: '#12693a', border: '#12693a', color: '#fff', glyph: '✓', word: 'done', rank: 0 },
+  open: { bg: '#fff', border: '#003087', color: '#003087', glyph: '', word: 'open', rank: 1 },
+  today: { bg: '#fff8ec', border: '#b45309', color: '#b45309', glyph: '', word: 'due today', rank: 2 },
+  late: { bg: '#fff', border: '#a5291a', color: '#a5291a', glyph: '!', word: 'late', rank: 3 }
+};
+
+class Component extends DCLogic {
+  state = {
+    data: JSON.parse(JSON.stringify(SEED)), done: DONE.slice(),
+    open: null, pop: null, hov: null, people: [], filter: '', group: null, doneOpen: false,
+    draft: { text: '', due: '' }, reasonFor: null, reasonDraft: '', toast: '', snap: null, editMs: null, adding: false,
+    add: { title: '', owner: 'Alex', due: Q.end, shift: '', accts: [], dod: '' }
+  };
+
+  componentDidMount() {
+    this._away = (ev) => { if (this.state.pop && !ev.target.closest('[data-pop]')) this.setState({ pop: null }); };
+    document.addEventListener('click', this._away, true);
+  }
+  componentWillUnmount() { document.removeEventListener('click', this._away, true); clearTimeout(this._t); }
+
+  say(msg, snap) { clearTimeout(this._t); this.setState({ toast: msg, snap: snap || null }); this._t = setTimeout(() => this.setState({ toast: '', snap: null }), snap ? 7000 : 3200); }
+  snapshot() { return { data: JSON.parse(JSON.stringify(this.state.data)), done: this.state.done.slice() }; }
+  undo() { const s = this.state.snap; if (!s) return; clearTimeout(this._t); this.setState({ data: s.data, done: s.done, snap: null, toast: '' }); }
+  patch(id, fn) { this.setState({ data: this.state.data.map((r) => (r.id === id ? fn(JSON.parse(JSON.stringify(r))) : r)) }); }
+  finish(id) {
+    const r = this.state.data.filter((x) => x.id === id)[0];
+    this.setState({ data: this.state.data.filter((x) => x.id !== id), done: [{ id: r.id, title: r.title, owner: r.owner, doneAt: TODAY }].concat(this.state.done), pop: null, open: null });
+  }
+  toggleMs(id, i) {
+    const r = this.state.data.filter((x) => x.id === id)[0];
+    const snap = this.snapshot();
+    const ms = r.ms.map((m, j) => (j === i ? Object.assign({}, m, { done: !m.done }) : m));
+    if (ms.length && ms.every((m) => m.done)) { this.finish(id); this.say('Last milestone done — “' + r.title + '” moved to Done.', snap); return; }
+    this.patch(id, (x) => { x.ms = ms; return x; });
+    this.say((ms[i].done ? 'Ticked off “' : 'Reopened “') + ms[i].name + '”', snap);
+  }
+
+  metricFor(r) {
+    const m = r.metric; if (!m) return null;
+    const f = (v) => m.fmt === '$' ? '$' + v.toLocaleString() : v + '%';
+    const hit = (v) => m.lower ? v <= m.target : v >= m.target;
+    const max = Math.max.apply(null, m.series), min = Math.min.apply(null, m.series) * 0.9;
+    const last = m.series[m.series.length - 1];
+    return { name: m.name, goal: m.goal, value: f(last) + (hit(last) ? ' \u2713' : ' \u2717'), color: hit(last) ? '#12693a' : '#a5291a',
+      bars: m.series.map((v, i) => ({ h: Math.max(8, ((v - min) / (max - min)) * 100) + '%', color: hit(v) ? '#003087' : '#c3d3ea', title: 'Week ' + (i + 1) + ': ' + f(v) + (hit(v) ? ' \u2014 on goal' : ' \u2014 off goal') })) };
+  }
+  changesFor(r, a) {
+    const out = []; const p = r.prev; if (!p) return out;
+    if (p.status !== r.status) out.push(r.status === 'OFF TRACK' ? { label: '\u2193 was on track', color: '#a5291a', title: 'Status changed since last huddle' } : { label: '\u2191 was off track', color: '#12693a', title: 'Status changed since last huddle' });
+    const doneN = a.ms.length - a.open.length;
+    if (doneN > p.done) out.push({ label: '+' + (doneN - p.done) + ' done this week', color: '#12693a', title: 'Milestones ticked off since last huddle' });
+    const slipped = a.open.filter((m) => m.due < TODAY && days(m.due, TODAY) <= 7).length;
+    if (slipped) out.push({ label: '\u25b2 ' + slipped + ' slipped this week', color: '#a5291a', title: 'Milestones that went late since last huddle' });
+    return out;
+  }
+  msState(m) { return m.done ? 'done' : m.due < TODAY ? 'late' : m.due === TODAY ? 'today' : 'open'; }
+
+  analyze(r) {
+    const ms = r.ms.slice().sort((a, b) => (a.due < b.due ? -1 : 1));
+    const open = ms.filter((m) => !m.done);
+    const late = open.filter((m) => m.due < TODAY);
+    let nudge = '', hint = '';
+    const confirmedFresh = r.confirmedOn && days(r.confirmedOn, TODAY) < 7;
+    if (r.status === 'ON TRACK' && !confirmedFresh) {
+      if (late.length) nudge = 'Marked on track with ' + plural(late.length, 'milestone', 'milestones') + ' past due — still on track?';
+      else if (ms.length) {
+        const el = days(r.created, TODAY) / days(r.created, r.due);
+        const df = (ms.length - open.length) / ms.length;
+        if (el >= 0.5 && el <= 1 && el - df >= 0.4) nudge = Math.round(el * 100) + '% of the runway gone, ' + (ms.length - open.length) + ' of ' + ms.length + ' milestones done — still on track?';
+      } else if (days(r.created, TODAY) >= 21) hint = 'No milestones yet — what’s the first thing that must be true?';
+    }
+    const bucket = r.status === 'OFF TRACK' ? 'off' : nudge ? 'check' : hint ? 'plan' : 'on';
+    const elapsed = Math.max(0, Math.min(1, days(r.created, TODAY) / Math.max(1, days(r.created, r.due))));
+    const doneFrac = ms.length ? (ms.length - open.length) / ms.length : 0;
+    return { ms, open, late, nudge, hint, bucket, elapsed, doneFrac, behind: ms.length ? elapsed - doneFrac : 0 };
+  }
+
+  rowFor(r, a, group) {
+    const s = this.state;
+    const own = (this.props.trackScale || 'quarter') === 'own';
+    const aStart = own ? r.created : Q.start;
+    const lastMs = a.ms.length ? a.ms[a.ms.length - 1].due : r.due;
+    const aEnd = own ? [r.due, lastMs, r.due < TODAY ? TODAY : r.due].sort().pop() : Q.end;
+    const span = Math.max(1, days(aStart, aEnd));
+    const pct = (d) => Math.max(0, Math.min(100, (days(aStart, d) / span) * 100));
+    const P = (n) => n.toFixed(2) + '%';
+
+    const earlier = a.ms.filter((m) => m.due < aStart);
+    const inRange = a.ms.map((m, i) => ({ m, i: r.ms.indexOf(m), p: pct(m.due) })).filter((x) => x.m.due >= aStart);
+    const clusters = [];
+    inRange.forEach((x) => {
+      const last = clusters[clusters.length - 1];
+      if (last && x.p - last.p < 2.4) last.items.push(x); else clusters.push({ p: x.p, items: [x] });
+    });
+    const dots = clusters.map((c, ci) => {
+      const worst = c.items.map((x) => DOT[this.msState(x.m)]).sort((p, q) => q.rank - p.rank)[0];
+      const key = r.id + ':' + ci;
+      const single = c.items.length === 1;
+      return {
+        left: P(c.p), z: s.hov === key ? 30 : 2,
+        size: single ? '18px' : '22px',
+        bg: worst.bg, border: worst.border, color: worst.color,
+        glyph: single ? worst.glyph : String(c.items.length),
+        sub: single ? '' : fmt(c.items[0].m.due) + '–' + dt(c.items[c.items.length - 1].m.due).getDate(),
+        aria: c.items.map((x) => x.m.name).join(', '),
+        tipOn: s.hov === key,
+        tipShift: c.p > 78 ? 'translateX(-88%)' : c.p < 14 ? 'translateX(-12%)' : 'translateX(-50%)',
+        tip: c.items.map((x) => ({ name: x.m.name, meta: fmt(x.m.due) + ' · ' + DOT[this.msState(x.m)].word + (single ? ' — click to ' + (x.m.done ? 'reopen' : 'tick off') : '') })),
+        enter: () => this.setState({ hov: key }), leave: () => this.setState({ hov: null }),
+        onClick: (ev) => { ev.stopPropagation(); if (single) this.toggleMs(r.id, c.items[0].i); else this.setState({ open: r.id, draft: { text: '', due: '' } }); }
+      };
+    });
+
+    const pastDue = r.due < TODAY;
+    const lastDone = a.ms.filter((m) => m.done && m.due >= aStart).pop();
+    const fillEnd = lastDone ? Math.max(pct(r.created < aStart ? aStart : r.created), pct(lastDone.due)) : pct(r.created < aStart ? aStart : r.created);
+    const sL = pct(r.created < aStart ? aStart : r.created);
+    const sR = pct(r.due);
+    const dueChip = pastDue
+      ? { label: days(r.due, TODAY) + 'd past due', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7', title: 'Was due ' + fmt(r.due) }
+      : null;
+    const tags = [];
+    r.accounts.split(',').map((t) => t.trim()).filter(Boolean).forEach((t) => tags.push({ label: t, color: '#475467', bg: '#fff', border: '#dfe3e9' }));
+
+    let line = null;
+    if (a.late.length) line = { lead: 'Late ·', text: a.late[0].name + ' — was due ' + fmt(a.late[0].due) + (a.late.length > 1 ? ' · +' + (a.late.length - 1) + ' more late' : ''), color: '#a5291a' };
+    else if (a.open.length) {
+      const n = a.open[0]; const d = days(TODAY, n.due);
+      line = { lead: 'Next ·', text: n.name + ' — ' + (d === 0 ? 'today' : fmt(n.due) + ' (in ' + d + 'd)'), color: d === 0 ? '#b45309' : '#475467' };
+    } else if (a.hint) line = { lead: '', text: a.hint, color: '#667085' };
+
+    const st = STATUS[r.status];
+    const doneN = a.ms.length - a.open.length;
+    const expanded = s.open === r.id;
+    return {
+      id: r.id, title: r.title, owner: r.owner, initials: ini(r.owner),
+      showOwner: group !== 'owner', due: dueChip, tags,
+      msChip: a.ms.length ? { label: doneN + '/' + a.ms.length + ' milestones', color: doneN === a.ms.length ? '#12693a' : '#475467' } : null,
+      line, nudge: a.nudge,
+      caret: expanded ? '▾' : '▸', expanded, bg: expanded ? '#fbfcfe' : '#fff',
+      toggle: () => this.setState({ open: expanded ? null : r.id, draft: { text: '', due: '' }, pop: null }),
+      earlier: earlier.length ? { label: '‹ ' + earlier.length + (earlier.every((m) => m.done) ? ' ✓' : ' !'), color: earlier.every((m) => m.done) ? '#12693a' : '#a5291a', title: earlier.map((m) => m.name + ' · ' + fmt(m.due)).join('\n') } : null,
+      todayLeft: P(pct(TODAY)),
+      span: { left: P(sL), width: P(Math.max(0, sR - sL)), color: '#dbe6f6' },
+      fill: { left: P(sL), width: P(Math.max(0, fillEnd - sL)), title: lastDone ? 'Done through ' + fmt(lastDone.due) : 'Nothing done yet' },
+      behind: a.behind >= 0.15 ? { left: P(fillEnd), width: P(Math.max(0, Math.min(pct(TODAY), sR) - fillEnd)), title: 'Time gone with no milestone done' } : null,
+      pace: a.behind >= 0.15 && r.status === 'ON TRACK' ? { label: 'behind pace', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8', title: Math.round(a.elapsed * 100) + '% of the time gone, ' + Math.round(a.doneFrac * 100) + '% of milestones done' } : null,
+      since: r.status === 'OFF TRACK' && r.offSince ? { label: Math.max(1, Math.round(days(r.offSince, TODAY) / 7)) + ' wk · since ' + fmt(r.offSince), title: 'Marked off track on ' + r.offSince } : null,
+      overdue: pastDue ? { left: P(sR), width: P(Math.max(0, pct(TODAY) - sR)), title: days(r.due, TODAY) + ' days past the due date' } : null,
+      dueTick: { left: P(sR), label: 'due ' + fmt(r.due), color: pastDue ? '#a5291a' : '#021e47', shift: sR > 88 ? 'translateX(-100%)' : sR < 8 ? 'none' : 'translateX(-50%)' },
+      dots,
+      status: st,
+      statusPop: s.pop === r.id,
+      askReason: s.reasonFor === r.id,
+      saveOff: (ev) => { ev.stopPropagation(); const why = this.state.reasonDraft.trim(); if (!why) { this.say('Add one line on why \u2014 the room will ask.'); return; } const snap = this.snapshot(); this.patch(r.id, (x) => { x.status = 'OFF TRACK'; x.offSince = TODAY; x.offReason = why; x.confirmedOn = ''; return x; }); this.setState({ pop: null, reasonFor: null, reasonDraft: '' }); this.say('Marked off track', snap); },
+      cancelOff: (ev) => { ev.stopPropagation(); this.setState({ pop: null, reasonFor: null }); },
+      confirm: (ev) => { ev.stopPropagation(); const snap = this.snapshot(); this.patch(r.id, (x) => { x.confirmedOn = TODAY; return x; }); this.say('Confirmed on track for this week', snap); },
+      flipOff: (ev) => { ev.stopPropagation(); this.setState({ pop: r.id, reasonFor: r.id, reasonDraft: '' }); },
+      confirmed: r.confirmedOn && days(r.confirmedOn, TODAY) < 7 && r.status === 'ON TRACK' ? '\u2713 Confirmed on track ' + (r.confirmedOn === TODAY ? 'today' : fmt(r.confirmedOn)) + ' by ' + r.owner : '',
+      reason: r.status === 'OFF TRACK' ? (r.offReason || '') : '',
+      caveat: r.caveat || '',
+      source: r.source ? { label: 'from ' + r.source, title: 'Spawned by Strategy initiative ' + r.source } : null,
+      metric: this.metricFor(r),
+      changes: this.changesFor(r, a),
+      statusMenu: (ev) => { ev.stopPropagation(); this.setState({ pop: s.pop === r.id ? null : r.id }); },
+      statusItems: s.reasonFor === r.id ? [] : ['ON TRACK', 'OFF TRACK', 'DONE'].filter((k) => k !== r.status).map((k) => ({
+        label: 'Mark ' + STATUS[k].label.toLowerCase(), glyph: STATUS[k].glyph, color: STATUS[k].color,
+        onClick: (ev) => { ev.stopPropagation(); const snap = this.snapshot(); if (k === 'DONE') { this.finish(r.id); this.say('“' + r.title + '” marked done.', snap); } else if (k === 'OFF TRACK') { this.setState({ reasonFor: r.id, reasonDraft: '' }); } else { this.patch(r.id, (x) => { x.status = k; x.offSince = ''; x.offReason = ''; return x; }); this.setState({ pop: null }); this.say('Marked on track', snap); } }
+      })),
+      msSummary: a.ms.length ? doneN + ' of ' + a.ms.length + ' done' + (a.late.length ? ' · ' + a.late.length + ' late' : '') : '',
+      noMs: !a.ms.length,
+      msRows: a.ms.map((m) => {
+        const k = this.msState(m); const i = r.ms.indexOf(m); const key = r.id + ':' + i;
+        const move = (due) => { const snap = this.snapshot(); this.patch(r.id, (x) => { x.ms[i].due = due; return x; }); this.setState({ editMs: null }); this.say('Moved “' + m.name + '” to ' + fmt(due), snap); };
+        const dd = dt(m.due); dd.setDate(dd.getDate() + 7); const plus7 = dd.toISOString().slice(0, 10);
+        const chip = k === 'done' ? { label: fmt(m.due) + ' ✓', color: '#12693a', bg: '#fff', border: '#eaecf0' }
+          : k === 'late' ? { label: days(m.due, TODAY) + 'd late', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7' }
+          : k === 'today' ? { label: 'today', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8' }
+          : { label: fmt(m.due), color: '#475467', bg: '#fff', border: '#eaecf0' };
+        return {
+          name: m.name, chip, glyph: m.done ? '✓' : '', due: m.due,
+          canMove: !m.done, push7: () => move(plus7),
+          editing: s.editMs === key, notEditing: s.editMs !== key,
+          edit: () => { if (!m.done) this.setState({ editMs: s.editMs === key ? null : key }); },
+          editTitle: m.done ? 'Done ' + fmt(m.due) : 'Click to change the date',
+          onDate: (e) => { if (e.target.value) move(e.target.value); },
+          bg: m.done ? '#12693a' : '#fff', border: m.done ? '#12693a' : '#c3d3ea', color: '#fff',
+          textColor: m.done ? '#667085' : '#222', aria: (m.done ? 'Reopen ' : 'Tick off ') + m.name,
+          toggle: () => this.toggleMs(r.id, i)
+        };
+      }),
+      addMs: () => {
+        const d = this.state.draft;
+        if (!d.text.trim() || !d.due) { this.say('A milestone needs a name and a date — the timeline places it by date.'); return; }
+        this.patch(r.id, (x) => { x.ms.push({ name: d.text.trim(), due: d.due, done: false }); return x; });
+        this.setState({ draft: { text: '', due: '' } });
+      },
+      dod: r.dod ? { text: r.dod, color: '#333' } : { text: 'Not written yet — how will the room know this is done?', color: '#98a2b3' },
+      idLine: r.id + ' · started ' + fmt(r.created) + ' · ' + days(TODAY, r.due < TODAY ? TODAY : r.due) + ' days of runway left',
+      drop: () => { const snap = this.snapshot(); this.setState({ data: this.state.data.filter((x) => x.id !== r.id), open: null }); this.say('“' + r.title + '” dropped.', snap); }
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const group = s.group || this.props.defaultGrouping || 'status';
+    const own = (this.props.trackScale || 'quarter') === 'own';
+    const nav = ['Huddle', 'Metrics', 'Priorities', 'Strategy', 'Forge', 'Headlines', 'To-dos', 'Issues', '1:1s', 'History', 'Team stats', 'Settings', 'How it runs', '?'].map((l) => {
+      const on = l === 'Priorities';
+      return { label: l, color: on ? '#001f5c' : '#475467', bg: on ? '#e8eff8' : 'transparent' };
+    });
+
+    const all = s.data.map((r) => ({ r, a: this.analyze(r) }));
+    const RANK = { off: 0, check: 1, plan: 2, on: 3 };
+    const shown = all.filter((x) => (!s.people.length || s.people.indexOf(x.r.owner) !== -1) && (!s.filter || x.a.bucket === s.filter))
+      .sort((p, q) => (RANK[p.a.bucket] - RANK[q.a.bucket]) || (p.r.due < q.r.due ? -1 : p.r.due > q.r.due ? 1 : 0));
+
+    const total = days(Q.start, Q.end) + 1, day = days(Q.start, TODAY) + 1;
+    const allMs = [].concat.apply([], s.data.map((r) => r.ms));
+    const dueBy = allMs.filter((m) => m.due <= TODAY && m.due >= Q.start);
+    const dueByDone = dueBy.filter((m) => m.done).length;
+    const qtr = { day, total, left: total - day, barW: Math.round((day / total) * 100) + '%',
+      caption: 'Aug 1 – Oct 31 · ' + dueByDone + ' of ' + dueBy.length + ' milestones due so far are done' };
+
+    const counts = { off: 0, check: 0, plan: 0, on: 0 };
+    all.forEach((x) => { counts[x.a.bucket]++; });
+    const chipDef = [
+      { key: 'off', glyph: '▲', label: 'off track', color: '#a5291a', bg: '#fdf1ef', border: '#f2cdc7', title: 'Owner says it’s slipping' },
+      { key: 'check', glyph: '◆', label: 'need a check', color: '#b45309', bg: '#fff8ec', border: '#f0d5a8', title: 'Marked on track, but the milestones disagree' },
+      { key: 'plan', glyph: '○', label: 'no plan yet', color: '#475467', bg: '#f6f7f9', border: '#dfe3e9', title: 'Three weeks or older with no milestones' },
+      { key: 'on', glyph: '●', label: 'on track', color: '#15803d', bg: '#ecfdf3', border: '#b7e4c7', title: 'On track and the milestones agree' }
+    ];
+    const statusChips = chipDef.map((c) => {
+      const on = s.filter === c.key;
+      return Object.assign({}, c, { n: counts[c.key], on,
+        bg: on ? c.color : c.bg, color: on ? '#fff' : c.color, border: on ? c.color : c.border,
+        onClick: () => this.setState({ filter: on ? '' : c.key, open: null }) });
+    });
+
+    const load = {};
+    s.data.forEach((r) => { load[r.owner] = (load[r.owner] || 0) + 1; });
+    const people = TEAM.map((p) => {
+      const on = s.people.indexOf(p) !== -1;
+      return { label: p + ' · ' + (load[p] || 0), initials: ini(p), on,
+        bg: on ? '#e8eff8' : '#fff', color: on ? '#001f5c' : '#475467', border: on ? '#003087' : '#eaecf0',
+        avBg: on ? '#003087' : '#e8eff8', avColor: on ? '#fff' : '#003087',
+        onClick: () => this.setState({ people: on ? s.people.filter((x) => x !== p) : s.people.concat([p]) }) };
+    });
+    const reset = (s.people.length || s.filter) ? () => this.setState({ people: [], filter: '' }) : null;
+    const groupTabs = [['owner', 'Owner'], ['status', 'Status']].map((g) => {
+      const on = group === g[0];
+      return { label: g[1], bg: on ? '#003087' : '#fff', color: on ? '#fff' : '#475467', border: on ? '#003087' : '#eaecf0', onClick: () => this.setState({ group: g[0] }) };
+    });
+
+    let groups = [];
+    if (group === 'owner') {
+      TEAM.forEach((p) => {
+        const rows = shown.filter((x) => x.r.owner === p);
+        if (!rows.length) return;
+        const bits = [];
+        const o = rows.filter((x) => x.a.bucket === 'off').length, c = rows.filter((x) => x.a.bucket === 'check').length;
+        const pl = rows.filter((x) => x.a.bucket === 'plan').length;
+        if (o) bits.push(o + ' off track'); if (c) bits.push(c + ' need a check'); if (pl) bits.push(pl + ' no plan yet');
+        groups.push({ label: p, initials: ini(p), color: '#021e47', count: plural(rows.length, 'priority', 'priorities'), hint: bits.length ? '· ' + bits.join(' · ') : '', rows: rows.map((x) => this.rowFor(x.r, x.a, group)) });
+      });
+    } else {
+      [['off', 'Off track', '#a5291a', 'owner says it’s slipping — IDS it'], ['check', 'Needs a check', '#b45309', 'marked on track, the milestones disagree'], ['plan', 'No plan yet', '#475467', 'needs a first milestone'], ['on', 'On track', '#15803d', '']].forEach((g) => {
+        const rows = shown.filter((x) => x.a.bucket === g[0]);
+        if (!rows.length) return;
+        groups.push({ label: g[1], initials: '', color: g[2], count: plural(rows.length, 'priority', 'priorities'), hint: g[3] ? '· ' + g[3] : '', rows: rows.map((x) => this.rowFor(x.r, x.a, group)) });
+      });
+    }
+
+    const axisTicks = own ? [] : ['2026-08-01', '2026-09-01', '2026-10-01'].map((d) => ({ left: ((days(Q.start, d) / days(Q.start, Q.end)) * 100).toFixed(2) + '%', label: MONTHS[dt(d).getMonth()] }));
+    const grid = own ? [] : ['2026-09-01', '2026-10-01'].map((d) => ((days(Q.start, d) / days(Q.start, Q.end)) * 100).toFixed(2) + '%');
+
+    const add = s.add;
+    const setAdd = (f) => this.setState({ add: Object.assign({}, this.state.add, f) });
+    const sel = (on) => ({ bg: on ? '#e8eff8' : '#fff', color: on ? '#001f5c' : '#475467', border: on ? '#003087' : '#eaecf0' });
+
+    return {
+      nav, qtr, statusChips, people, reset, groupTabs, groups,
+      quarterMode: !own, axisOwn: own, axisTicks, grid,
+      axisToday: own ? null : { left: ((days(Q.start, TODAY) / days(Q.start, Q.end)) * 100).toFixed(2) + '%', label: 'Today · ' + fmt(TODAY) },
+      countLabel: plural(shown.length, 'priority', 'priorities') + (shown.length !== all.length ? ' of ' + all.length : ''),
+      emptyText: shown.length ? '' : (all.length ? 'Nothing matches these filters.' : 'No active priorities — add this quarter’s 3–7.'),
+      draft: s.draft, reasonDraft: s.reasonDraft,
+      onReason: (e) => this.setState({ reasonDraft: e.target.value }),
+      onDraftText: (e) => this.setState({ draft: Object.assign({}, this.state.draft, { text: e.target.value }) }),
+      onDraftDue: (e) => this.setState({ draft: Object.assign({}, this.state.draft, { due: e.target.value }) }),
+      toast: s.toast, undo: s.snap ? () => this.undo() : null,
+      doneOpen: s.doneOpen, doneCaret: s.doneOpen ? '▾' : '▸', doneCount: s.done.length,
+      toggleDone: () => this.setState({ doneOpen: !s.doneOpen }),
+      doneRows: s.done.map((d) => ({ title: d.title, meta: d.owner + ' · done ' + fmt(d.doneAt), reopen: () => this.setState({
+        done: this.state.done.filter((x) => x.id !== d.id),
+        data: this.state.data.concat([{ id: d.id, title: d.title, owner: d.owner, created: d.doneAt, due: Q.end, status: 'ON TRACK', shift: '', accounts: '', dod: '', ms: [] }]) }) })),
+      adding: s.adding, add,
+      toggleAdd: () => this.setState({ adding: !s.adding }),
+      onAddTitle: (e) => setAdd({ title: e.target.value }),
+      onAddDod: (e) => setAdd({ dod: e.target.value }),
+      onAddDue: (e) => setAdd({ due: e.target.value }),
+      addDueEnd: Object.assign(sel(add.due === Q.end), { onClick: () => setAdd({ due: Q.end }) }),
+      addOwners: TEAM.map((p) => { const on = add.owner === p; return Object.assign(sel(on), { label: p + (load[p] ? ' · ' + load[p] : ''), initials: ini(p), avBg: on ? '#003087' : '#e8eff8', avColor: on ? '#fff' : '#003087', onClick: () => setAdd({ owner: p }) }); }),
+      addOwnerHint: add.owner + ' owns ' + plural(load[add.owner] || 0, 'open priority', 'open priorities') + ' · the team has ' + s.data.length + ' in total',
+      addAccts: ACCOUNT_TAGS.map((x) => { const on = add.accts.indexOf(x) !== -1; return Object.assign(sel(on), { label: x, onClick: () => setAdd({ accts: on ? add.accts.filter((y) => y !== x) : add.accts.concat([x]) }) }); }),
+      submitAdd: () => {
+        if (!add.title.trim()) { this.say('Name the outcome first.'); return; }
+        const id = 'R-0' + (30 + s.data.length);
+        this.setState({ adding: false, open: id, data: s.data.concat([{ id, title: add.title.trim(), owner: add.owner, created: TODAY, due: add.due || Q.end, status: 'ON TRACK', shift: add.shift, accounts: add.accts.join(', '), dod: add.dod.trim(), ms: [] }]),
+          add: { title: '', owner: 'Alex', due: Q.end, shift: '', accts: [], dod: '' } });
+        this.say('Priority added — give it a first milestone.');
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

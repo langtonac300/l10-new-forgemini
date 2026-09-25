@@ -418,9 +418,114 @@ function scenarioForgeSeededSession() {
   check(g2.ok && un.ok && back['Status'] === 'RAW' && back['Claimed By'] === '', 'forge unclaim: released seed should be RAW, got ' + JSON.stringify(back && { s: back['Status'], c: back['Claimed By'] }));
 }
 
+// --- Rocks page v2.19: status why / was / confirmed / caveat --------------------
+const TODAY_S = fmtDate(new Date(), 'yyyy-MM-dd');
+function rockEnv(headers) {
+  const H = headers || ['ID', 'Rock', 'Owner', 'Due', 'Shift', 'Accounts', 'Status', 'Definition of Done', 'Notes', 'Created',
+    'Status Updated', 'Metric ID', 'Source', 'Off Track Reason', 'Previous Status', 'Confirmed On', 'Caveat'];
+  const row = (id, status, extra) => H.map((h) => (extra && h in extra) ? extra[h] : ({ 'ID': id, 'Rock': 'Rock ' + id, 'Owner': 'Alex', 'Due': '2026-10-31',
+    'Status': status, 'Created': '2026-08-01', 'Status Updated': '2026-08-01' })[h] || '');
+  const env = makeEnv({ todos: [TODO_HEADERS], jira: fakeJira(mkStore([])), extraSheets: {
+    L10_Rocks: [H.slice(), row('RK-001', 'ON TRACK'), row('RK-002', 'OFF TRACK', { 'Off Track Reason': 'old why', 'Status Updated': '2026-09-01', 'Previous Status': 'ON TRACK' }),
+      row('RK-003', 'ON TRACK', { 'Confirmed On': '2026-09-20' })],
+    L10_Rock_Milestones: [['ID', 'Rock ID', 'Milestone', 'Due', 'Status', 'Done At', 'Created', 'Notes'],
+      ['MS-001', 'RK-003', 'First', '2026-09-01', 'DONE', '2026-09-01', '2026-08-01', ''],
+      ['MS-002', 'RK-003', 'Last', '2026-10-01', 'OPEN', '', '2026-08-01', '']]
+  } });
+  const get = (id) => { freshExecution(env); return env.ctx.l10ReadTab_('L10_Rocks').rows.find((r) => r['ID'] === id); };
+  return { env, get };
+}
+function scenarioRockStatus() {
+  const { env, get } = rockEnv();
+  let res = env.ctx.l10_setRockStatus('RK-001', 'OFF TRACK', { reason: '  Waiting on MCC access  ' });
+  let r = get('RK-001');
+  check(res.ok && res.changed === true, 'rock status: off track should report a change: ' + JSON.stringify(res));
+  check(r['Status'] === 'OFF TRACK' && r['Previous Status'] === 'ON TRACK' && r['Status Updated'] === TODAY_S && r['Off Track Reason'] === 'Waiting on MCC access',
+    'rock status: off track should write status, was, date and the trimmed why, got ' + JSON.stringify(r));
+  // Same status again: only the why moves — the date and "was" keep meaning "when it last changed, from what".
+  freshExecution(env);
+  res = env.ctx.l10_setRockStatus('RK-002', 'OFF TRACK', { reason: 'new why' });
+  r = get('RK-002');
+  check(res.ok && res.changed === false, 'rock status: re-marking off track is not a change: ' + JSON.stringify(res));
+  check(r['Off Track Reason'] === 'new why' && r['Status Updated'] === '2026-09-01' && r['Previous Status'] === 'ON TRACK',
+    'rock status: re-marking should only update the why, got ' + JSON.stringify(r));
+  // Back on track: the why clears, "was" records off track.
+  freshExecution(env);
+  env.ctx.l10_setRockStatus('RK-002', 'ON TRACK');
+  r = get('RK-002');
+  check(r['Status'] === 'ON TRACK' && r['Off Track Reason'] === '' && r['Previous Status'] === 'OFF TRACK' && r['Status Updated'] === TODAY_S,
+    'rock status: on track should clear the why and record was=OFF TRACK, got ' + JSON.stringify(r));
+  // Any real change clears an on-track confirmation.
+  freshExecution(env);
+  env.ctx.l10_setRockStatus('RK-003', 'OFF TRACK', { reason: 'x' });
+  check(get('RK-003')['Confirmed On'] === '', 'rock status: going off track must clear Confirmed On');
+  // Undo puts the exact prior fields back.
+  freshExecution(env);
+  res = env.ctx.l10_restoreRockStatus('RK-003', { status: 'ON TRACK', statusUpdated: '2026-08-01', previousStatus: '', reason: '', confirmedOn: '2026-09-20' });
+  r = get('RK-003');
+  check(res.ok && r['Status'] === 'ON TRACK' && r['Status Updated'] === '2026-08-01' && r['Previous Status'] === '' && r['Off Track Reason'] === '' && r['Confirmed On'] === '2026-09-20',
+    'rock restore: should put every status field back, got ' + JSON.stringify(r));
+  freshExecution(env);
+  check(env.ctx.l10_restoreRockStatus('RK-003', { status: 'MAYBE' }).ok === false, 'rock restore: a bad status must be refused');
+  freshExecution(env);
+  check(env.ctx.l10_setRockStatus('RK-404', 'DONE').ok === false, 'rock status: an unknown id must fail');
+}
+function scenarioRockConfirm() {
+  const { env, get } = rockEnv();
+  let res = env.ctx.l10_confirmRock('RK-001');
+  check(res.ok && res.confirmedOn === TODAY_S && get('RK-001')['Confirmed On'] === TODAY_S, 'rock confirm: should stamp today, got ' + JSON.stringify(res));
+  freshExecution(env);
+  res = env.ctx.l10_confirmRock('RK-001', '');
+  check(res.ok && get('RK-001')['Confirmed On'] === '', 'rock confirm: "" should clear it (Undo)');
+  freshExecution(env);
+  res = env.ctx.l10_confirmRock('RK-002');
+  check(res.ok === false && /on-track/.test(res.error || ''), 'rock confirm: an off-track rock cannot be confirmed on track: ' + JSON.stringify(res));
+  freshExecution(env);
+  check(env.ctx.l10_confirmRock('RK-001', 'soon').ok === false, 'rock confirm: a non-date value must be refused');
+}
+function scenarioRockPreRepair() {
+  // A tab from before v2.19: the plain flip still lands, anything that needs a new column fails loudly.
+  const old = ['ID', 'Rock', 'Owner', 'Due', 'Shift', 'Accounts', 'Status', 'Definition of Done', 'Notes', 'Created', 'Status Updated', 'Metric ID', 'Source'];
+  const { env, get } = rockEnv(old);
+  let res = env.ctx.l10_setRockStatus('RK-001', 'OFF TRACK');
+  check(res.ok && get('RK-001')['Status'] === 'OFF TRACK', 'pre-repair: a plain status flip must still work: ' + JSON.stringify(res));
+  freshExecution(env);
+  res = env.ctx.l10_setRockStatus('RK-001', 'OFF TRACK', { reason: 'why' });
+  check(res.ok === false && /Setup \/ repair tabs/.test(res.error || ''), 'pre-repair: a why with no column must fail loudly: ' + JSON.stringify(res));
+  freshExecution(env);
+  res = env.ctx.l10_confirmRock('RK-003');
+  check(res.ok === false && /Setup \/ repair tabs/.test(res.error || ''), 'pre-repair: confirm with no column must fail loudly: ' + JSON.stringify(res));
+  freshExecution(env);
+  res = env.ctx.l10_editRock('RK-001', { text: 'Rock RK-001', owner: 'Alex', due: '2026-10-31', caveat: 'context' });
+  check(res.ok === false && /Caveat column/.test(res.error || ''), 'pre-repair: a caveat with no column must fail loudly: ' + JSON.stringify(res));
+  freshExecution(env);
+  check(env.ctx.l10BootPlan_().rockColsReady === false, 'pre-repair: the boot flag should say the columns are missing');
+}
+function scenarioRockEditAndCascade() {
+  const { env, get } = rockEnv();
+  let res = env.ctx.l10_editRock('RK-001', { text: 'Renamed', owner: 'CJ', due: '2026-10-15', caveat: ' Contract runs to Oct 15 ', accounts: 'Amazon, Seton US', shift: 'Shift 2' });
+  let r = get('RK-001');
+  check(res.ok && r['Rock'] === 'Renamed' && r['Caveat'] === 'Contract runs to Oct 15' && r['Accounts'] === 'Amazon, Seton US' && r['Shift'] === 'Shift 2',
+    'rock edit: caveat / accounts / shift should be written, got ' + JSON.stringify(r));
+  // Fields the client didn't send stay untouched.
+  freshExecution(env);
+  env.ctx.l10_editRock('RK-001', { text: 'Renamed again', owner: 'CJ', due: '2026-10-15' });
+  r = get('RK-001');
+  check(r['Caveat'] === 'Contract runs to Oct 15' && r['Accounts'] === 'Amazon, Seton US', 'rock edit: an older form must not blank the caveat or accounts');
+  // Finishing the last milestone marks the rock done through the same status writer.
+  freshExecution(env);
+  res = env.ctx.l10_setMilestoneStatus('MS-002', 'DONE');
+  r = get('RK-003');
+  check(res.ok && res.rockDone === 'RK-003' && r['Status'] === 'DONE' && r['Previous Status'] === 'ON TRACK' && r['Status Updated'] === TODAY_S,
+    'milestone cascade: the rock should go DONE with was=ON TRACK, got ' + JSON.stringify(r));
+  freshExecution(env);
+  check(env.ctx.l10BootPlan_().rockColsReady === true, 'boot plan: the columns-ready flag should be true on a repaired tab');
+}
+
 [scenarioDuplicateHeader, scenarioCreate, scenarioLabelsRejected, scenarioWriteBackBlocked, scenarioDuplicateIds,
   scenarioSearchFails, scenarioDuplicateReport, scenarioRangeReasons, scenarioFormulaRefFallback,
-  scenarioForgeConfigFallback, scenarioForgeConfigUpgrade, scenarioForgeSeededSession].forEach((fn) => {
+  scenarioForgeConfigFallback, scenarioForgeConfigUpgrade, scenarioForgeSeededSession,
+  scenarioRockStatus, scenarioRockConfirm, scenarioRockPreRepair, scenarioRockEditAndCascade].forEach((fn) => {
   try { fn(); } catch (e) { failures.push(fn.name + ' threw: ' + (e && e.stack || e)); }
 });
 
