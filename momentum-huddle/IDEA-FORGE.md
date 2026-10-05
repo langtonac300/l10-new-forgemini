@@ -54,7 +54,7 @@ reusable for any quarterly priority-setting or "we need 40 ideas in 20 minutes" 
 
 | | Room screen (one, on the projector) | Player screen (one per person) |
 |---|---|---|
-| Opens from | Momentum Huddle nav → **Forge** → "Open room" (facilitator only) | The same web-app URL with `?forge=<session id>` (shown as a short link + QR on the room screen) |
+| Opens from | Momentum Huddle nav → **Forge** → "Open room" (facilitator only) — ⚠ v2.20 removed the Forge tab; re-add a More item to reach the room again | The same web-app URL with `?forge=<session id>` (shown as a short link + QR on the room screen) |
 | Shows | Phase name, prompt, big timer (digits + bar + glyph, colorblind-safe), live idea **count** (team total, never per person), cards flying in as they arrive (anonymous in diverge), the vote tally only after reveal, the shortlist, the goal cards at Commit | The current prompt, one big text box, **Submit** (Enter), "3 submitted this round", their own cards to edit, then vote buttons, then the goal form |
 | Controls | Start / pause / next phase / add 60 s / end round early / cluster tools / reveal / lock | None over the phases. Only their own input. |
 | Sync | Polls `l10_forgeState` every 3 s | Polls `l10_forgeState` every 3 s; submits write straight through |

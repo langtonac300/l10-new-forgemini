@@ -780,13 +780,23 @@ window.__msRO = (typeof ResizeObserver === 'function') ? new ResizeObserver(func
 function showPage(name) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('visible'); });
   $('page-' + name).classList.add('visible');
-  document.querySelectorAll('nav button').forEach(function (b) {
+  var moreHit = null;
+  document.querySelectorAll('nav button[data-page]').forEach(function (b) {
     var on = b.dataset.page === name;
     b.classList.toggle('active', on);
     // Active state was color-only; aria-current carries it to screen readers.
     if (on) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
+    if (on && b.dataset.more) moreHit = b;
   });
+  // A page that lives under More puts its name on the More button, so the bar
+  // always says where you are.
+  var mb = $('nav-more');
+  if (mb) {
+    mb.classList.toggle('active', !!moreHit);
+    $('nav-more-label').textContent = moreHit ? moreHit.textContent.trim() : 'More';
+    navMoreClose_();
+  }
   layoutTimelines($('page-' + name)); // widths were 0 while the page was hidden
   // The notify/digests tables load the first time Settings is actually opened
   // — they ride off the boot payload (see fetchSettingsData_). The extras memo
@@ -843,6 +853,60 @@ document.addEventListener('keydown', function (ev) {
 document.querySelectorAll('nav button[data-page]').forEach(function (b) {
   b.addEventListener('click', function () { showPage(b.dataset.page); });
 });
+
+// --- More menu --------------------------------------------------------------
+// Opens on click, closes on a pick, an outside click or Escape (focus back on
+// the button). Arrow keys move through the items while it is open.
+function navMoreItems_() { return [].slice.call(document.querySelectorAll('#nav-more-menu button[data-page]')); }
+function navMoreOpen_() {
+  var m = $('nav-more-menu');
+  if (!m) return;
+  m.hidden = false;
+  $('nav-more').setAttribute('aria-expanded', 'true');
+  var items = navMoreItems_();
+  var cur = items.filter(function (b) { return b.classList.contains('active'); })[0] || items[0];
+  if (cur) cur.focus();
+}
+function navMoreClose_(refocus) {
+  var m = $('nav-more-menu');
+  if (!m || m.hidden) return;
+  m.hidden = true;
+  $('nav-more').setAttribute('aria-expanded', 'false');
+  if (refocus) $('nav-more').focus();
+}
+if ($('nav-more')) {
+  $('nav-more').addEventListener('click', function () {
+    if ($('nav-more-menu').hidden) navMoreOpen_(); else navMoreClose_();
+  });
+  document.addEventListener('click', function (ev) {
+    if (!ev.target.closest || !ev.target.closest('.tab-more')) navMoreClose_();
+  });
+  // A pick hides the menu under the focused item — hand focus to the button.
+  $('nav-more-menu').addEventListener('click', function (ev) {
+    if (ev.target.closest && ev.target.closest('button[data-page]')) $('nav-more').focus();
+  });
+  $('nav-more-menu').addEventListener('keydown', function (ev) {
+    var items = navMoreItems_(), i = items.indexOf(document.activeElement);
+    if (ev.key === 'Escape') { ev.preventDefault(); navMoreClose_(true); }
+    else if (ev.key === 'ArrowDown') { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    else if (ev.key === 'Home') { ev.preventDefault(); items[0].focus(); }
+    else if (ev.key === 'End') { ev.preventDefault(); items[items.length - 1].focus(); }
+    else if (ev.key === 'Tab') navMoreClose_();
+  });
+}
+
+// The To-dos tab carries the late count — the same todoIsLate_ rule the page's
+// own "Late" group uses, so the two numbers can never disagree. Word + number,
+// never the red pill alone.
+function navTodoBadge_() {
+  var el = $('nav-todo-badge');
+  if (!el || !state.boot || !state.boot.todos) return;
+  var n = state.boot.todos.filter(function (t) { return todoOpen_(t['Status']) && todoIsLate_(t); }).length;
+  el.hidden = !n;
+  el.textContent = n ? n + ' late' : '';
+  el.parentNode.setAttribute('title', n ? n + ' to-do' + (n === 1 ? '' : 's') + ' past due' : '');
+}
 
 // Keyboard: Enter/Space activates any custom role="button" control (the
 // timeline milestone dots + edit/delete glyphs). Native buttons/inputs/links
@@ -7621,6 +7685,7 @@ function todoBulkBarHtml_(n) {
 }
 function renderTodos() {
   if (!hyd('work') || !hyd('core')) return pageLoading_('page-todos');
+  navTodoBadge_();
   var b = state.boot;
   var open = b.todos.filter(function (t) { return todoOpen_(t['Status']); });
   var shown = open.filter(todoMatches_);

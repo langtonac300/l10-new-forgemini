@@ -5,7 +5,37 @@ Version history for the L10 Huddle app. Newest first. For current state, read
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.19.1 (2026-10-05)** · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.20 (2026-10-05)** · v2.19.1 (2026-10-05) · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.20 (2026-10-05) — tab bar: three daily tabs, the rest under More
+
+The tab bar from Alex's "Huddle Tabs" canvas (direction **1b**, segmented tabs with a grouped
+More menu and settings split right), applied with the app's own tokens like v2.15–v2.19.
+Front-end only (`L10Index.html`, `L10Css.html`, `L10Js.html`). Both copies.
+
+- **Its own row under the title.** **Huddle · Rocks · To-dos** sit in a segmented pill; the
+  active tab is a filled pill with bold text and `aria-current`, not colour alone.
+- **To-dos carries the late count** as "*n* late" (word + number), computed with the
+  page's own `todoIsLate_`, so it always matches the To-dos page's Late cell. Hidden at 0.
+- **More** holds everything else, grouped: *Review* — Scorecard, Headlines, Issues, History;
+  *Plan* — Strategy, 1:1s, Team stats. Picking one puts its name on the More button (filled,
+  so the bar always says where you are). Closes on a pick, an outside click or Escape
+  (focus back on More); arrow keys / Home / End move through it.
+- **Settings, How it runs and the ? guide** are icon buttons on the right (inline SVG — no
+  icon font added; titles and aria-labels name them).
+- **Forge has no tab.** Its page, code and the phone player links (`?forge=FS-###`) are
+  unchanged, but the facilitator's room view no longer has a way in from the bar — re-add a
+  menu item if another goals day needs it.
+- Phone width: the pill keeps one line per tab; under 480 px the front-tab icons drop.
+
+**Harness:** `clickNav` opens More for menu pages and routes Forge through `showPage`; new
+tab-bar checks (no Forge tab, front-tab order, More label swap/reset, menu closes on pick /
+Escape / outside click, badge = the Late cell with zero and forced-late data). Server checks
+green. ⚠ One smoke check, *Late spine filter shows non-late rows*, fails on `main` too: the
+fixtures have no late to-do as of today's date — unrelated, not fixed here.
+
+**Deploy:** re-paste `L10Index.html`, `L10Css.html`, `L10Js.html`; redeploy the web app as a
+new version. No repair tabs.
 
 ## v2.19.1 (2026-10-05) — done to-dos actually close their Jira issues
 

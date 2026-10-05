@@ -32,21 +32,34 @@
   <div class="chips" id="hdr-chips"></div>
   <button type="button" id="btn-schedule" class="hdr-schedule" title="Schedule a meeting on Google Calendar">📅 Schedule</button>
   <span id="sync">Loading…</span>
-  <nav aria-label="Pages">
-    <button data-page="huddle" class="active">Huddle</button>
-    <button data-page="scorecard">Scorecard</button>
-    <button data-page="rocks">Rocks</button>
-    <button data-page="strategy">Strategy</button>
-    <button data-page="forge">Forge</button>
-    <button data-page="headlines">Headlines</button>
-    <button data-page="todos">To-dos</button>
-    <button data-page="issues">Issues</button>
-    <button data-page="oneonone">1:1s</button>
-    <button data-page="history">History</button>
-    <button data-page="teamstats">Team stats</button>
-    <button data-page="settings">Settings</button>
-    <button data-page="how">How it runs</button>
-    <button type="button" id="btn-guide" title="New member guide — the two-minute visual tour" aria-label="Open the new member guide">?</button>
+  <!-- Tab bar: three daily pages up front, the rest grouped under More, setup
+       pages as icon buttons on the right. Every page button keeps data-page —
+       showPage() and the click wiring key on it wherever the button sits. -->
+  <nav aria-label="Pages" class="tabbar">
+    <div class="tab-seg">
+      <button type="button" data-page="huddle" class="active"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 13.7c2.9.2 5.5 2.1 5.5 5.3"/></svg><span>Huddle</span></button>
+      <button type="button" data-page="rocks"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg><span>Rocks</span></button>
+      <button type="button" data-page="todos"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5l1.6 1.6L8.5 5"/><path d="M4 12.5l1.6 1.6 2.9-3.1"/><path d="M4 18.5l1.6 1.6 2.9-3.1"/><path d="M11.5 7h8.5M11.5 13h8.5M11.5 19h8.5"/></svg><span>To-dos</span><span class="tab-badge" id="nav-todo-badge" hidden></span></button>
+    </div>
+    <div class="tab-more">
+      <button type="button" id="nav-more" class="tab-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu"><span id="nav-more-label">More</span><svg class="tab-chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 9.5l5 5 5-5"/></svg></button>
+      <div class="tab-menu" id="nav-more-menu" role="menu" aria-label="More pages" hidden>
+        <div class="tab-menu-h" role="presentation">Review</div>
+        <button type="button" data-page="scorecard" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 17l5-5.5 4 3.5 7.5-8.5"/><path d="M15.5 6.5h4.5V11"/></svg><span>Scorecard</span></button>
+        <button type="button" data-page="headlines" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 9h10M7 12.5h10M7 16h6"/></svg><span>Headlines</span></button>
+        <button type="button" data-page="issues" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.8l9 15.7H3z"/><path d="M12 10v4.2M12 17.2v.1"/></svg><span>Issues</span></button>
+        <button type="button" data-page="history" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v3.8h3.8"/><path d="M12 8v4.5l3 1.8"/></svg><span>History</span></button>
+        <div class="tab-menu-h" role="presentation">Plan</div>
+        <button type="button" data-page="strategy" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14"/><path d="M8 20l1.2-6h5.6L16 20"/><path d="M9 14c-1.5-1.5-1.5-4 0-5.5L12 6l3 2.5c1.5 1.5 1.5 4 0 5.5"/><path d="M12 3v3"/></svg><span>Strategy</span></button>
+        <button type="button" data-page="oneonone" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="8" cy="8.5" r="3"/><circle cx="16" cy="8.5" r="3"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5M10.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/></svg><span>1:1s</span></button>
+        <button type="button" data-page="teamstats" data-more="1" role="menuitem"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg><span>Team stats</span></button>
+      </div>
+    </div>
+    <div class="tab-utils">
+      <button type="button" data-page="settings" class="tab-icon" title="Settings" aria-label="Settings"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button type="button" data-page="how" class="tab-icon" title="How it runs" aria-label="How it runs"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 6.5C10 5 6.5 4.5 3.5 5v13c3-.5 6.5 0 8.5 1.5 2-1.5 5.5-2 8.5-1.5V5c-3-.5-6.5 0-8.5 1.5z"/><path d="M12 6.5v13"/></svg></button>
+      <button type="button" id="btn-guide" class="tab-icon" title="New member guide — the two-minute visual tour" aria-label="Open the new member guide">?</button>
+    </div>
   </nav>
 </header>
 <div id="events-strip" class="events-strip" style="display:none"></div>
