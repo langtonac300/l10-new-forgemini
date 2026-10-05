@@ -5,7 +5,45 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.19 (2026-09-25)** · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.19.1 (2026-10-05)** · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.19.1 (2026-10-05) — done to-dos actually close their Jira issues
+
+Reported: new to-dos reach BNADM, but completing one in the huddle does not close its
+issue. Server-only (`L10Jira.gs` + one menu line in `L10Setup.gs`). Both copies; server
+checks green in both, with 7 new close scenarios that the previous `L10Jira.gs` fails.
+
+- **Root cause (in the code; which branch the live board hits is unconfirmed).** The close
+  step treated "Jira offered no transition to Done" as success ("already closed?") and
+  stamped `Jira Done`, so the row was never retried. Any issue in a status with no direct
+  path to Done, or whose Done transition the token's user may not run (an assignee-only
+  condition, say — issues are auto-assigned to their owners since v2.9.1), stayed open on
+  the board while the sheet said it was closed. A close Jira refused outright (a required
+  resolution, say) counted as an error, but the reason was thrown away and nothing was
+  written to the row.
+- **Fix.** The close first asks Jira for the issue's status. Already in the done category →
+  stamp, no transition. Otherwise it picks the Done transition, sends a resolution when the
+  transition screen requires one (one retry with "Done" when Jira asks without saying so),
+  and on failure writes `ERR: <reason>` to `Jira Done`: "no transition to Done from In
+  Review (offered: …)", "… exists from In Progress but Jira will not let <email> run it",
+  or Jira's own error. Only a date in `Jira Done` counts as closed; blank, `ERR:` or any
+  other text is retried every sync. **Sync now** lists each failed close with its reason.
+- **Repair for rows already stamped wrongly — Jira → Re-check done to-dos**
+  (`l10JiraRecheckDone`). Every DONE to-do with a key is checked against Jira (one search
+  per 50 keys; a deleted key falls back to one issue at a time and is reported), and each
+  still-open issue is closed now or gets its reason. Safe to re-run; stops before the
+  6-minute limit and says how many are left.
+- `l10JiraCloseIssue_` keeps its `{ok, note, error}` return shape, so other callers still
+  work — and now get a truthful result.
+
+**Deploy:** re-paste `L10Jira.gs` + `L10Setup.gs`, reload the workbook, run **Jira →
+Re-check done to-dos** once and read the alert. No web-app redeploy, no repair tabs.
+
+**Reading the result:** a `Jira Done` cell starting `ERR:` names the blocker. "no
+transition to Done from X" → set `JIRA_DONE_TRANSITION` in `L10_Config` to the
+transition your workflow uses from X, or ask a Jira admin to allow every status to move to
+Done. "will not let … run it" → a workflow condition (often assignee-only), also an admin
+fix. Not covered: DROPPED to-dos still leave their issue open (unchanged rule).
 
 ## v2.19 (2026-09-25) — Priorities page redesigned to the UX canvas (v4)
 

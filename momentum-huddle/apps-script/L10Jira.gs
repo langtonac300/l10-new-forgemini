@@ -25,7 +25,8 @@
 // summary = the to-do text, due date carried across, owner assigned when an
 // accountId can be resolved (JIRA_USER_MAP, else a TEAM_EMAILS lookup). When the
 // to-do is marked DONE in the huddle, the next sync transitions its Jira issue to
-// Done and stamps the Jira Done column so it is never re-processed. Historical
+// Done and stamps the Jira Done column so it is never re-processed; a close Jira
+// refuses writes "ERR: <reason>" there instead and is retried. Historical
 // already-DONE to-dos are left alone (no backfill spam); DROPPED to-dos are skipped.
 
 var L10_JIRA_TOKEN_PROP = 'L10_JIRA_API_TOKEN';
@@ -165,25 +166,77 @@ function l10JiraTodoFields_(s, todo) {
 
 // Transition a Jira issue into the Done state. Prefers the JIRA_DONE_TRANSITION
 // name; falls back to any transition whose target status is in the "done"
-// category. No matching transition (e.g. already closed) is treated as success.
+// category. Returns {ok: true}, {ok: true, note} when Jira already shows the
+// issue closed, or {ok: false, error} naming why it could not be closed.
+// ⚠ "No done transition offered" used to count as success ("already closed?")
+// and the row was stamped Jira Done for good — so an issue sitting in a status
+// with no direct path to Done, or whose Done transition the token's user may
+// not run (an assignee-only condition, say), stayed open on the board forever
+// with nothing in the sheet to say so. Only Jira's own status may say "closed".
 function l10JiraCloseIssue_(s, key) {
-  var tr = l10JiraFetch_(s, 'get', '/issue/' + encodeURIComponent(key) + '/transitions');
+  var path = '/issue/' + encodeURIComponent(key);
+  var cur = l10JiraFetch_(s, 'get', path + '?fields=status');
+  if (cur.code === 404) return { ok: false, error: key + ' not found in Jira (deleted, or no permission to see it)' };
+  if (!(cur.code >= 200 && cur.code < 300) || !cur.json) return { ok: false, error: 'status ' + l10JiraErr_(cur) };
+  var st = (cur.json.fields && cur.json.fields.status) || {};
+  if (st.statusCategory && st.statusCategory.key === 'done') return { ok: true, note: 'already closed in Jira' };
+  var stName = String(st.name || '?');
+  // includeUnavailableTransitions: a Done transition blocked by a workflow
+  // condition comes back with isAvailable false, so the error can say so
+  // instead of looking like a missing transition.
+  var tr = l10JiraFetch_(s, 'get', path + '/transitions?expand=transitions.fields&includeUnavailableTransitions=true');
   if (!(tr.code >= 200 && tr.code < 300) || !tr.json || !tr.json.transitions) {
     return { ok: false, error: 'transitions ' + l10JiraErr_(tr) };
   }
-  var list = tr.json.transitions, pick = null, i;
+  var all = tr.json.transitions, list = [], blocked = [], pick = null, i;
+  var toDone = function (t) { return !!(t.to && t.to.statusCategory && t.to.statusCategory.key === 'done'); };
+  all.forEach(function (t) { if (t.isAvailable === false) { if (toDone(t)) blocked.push(t.name); } else list.push(t); });
   for (i = 0; i < list.length; i++) {
     if (String(list[i].name).toLowerCase() === s.doneName.toLowerCase()) { pick = list[i]; break; }
   }
   if (!pick) {
-    for (i = 0; i < list.length; i++) {
-      var cat = list[i].to && list[i].to.statusCategory && list[i].to.statusCategory.key;
-      if (cat === 'done') { pick = list[i]; break; }
-    }
+    for (i = 0; i < list.length; i++) { if (toDone(list[i])) { pick = list[i]; break; } }
   }
-  if (!pick) return { ok: true, note: 'no done transition offered (already closed?)' };
-  var r = l10JiraFetch_(s, 'post', '/issue/' + encodeURIComponent(key) + '/transitions', { transition: { id: pick.id } });
-  return (r.code >= 200 && r.code < 300) ? { ok: true } : { ok: false, error: l10JiraErr_(r) };
+  if (!pick) {
+    if (blocked.length) {
+      return { ok: false, error: '"' + blocked.join('", "') + '" exists from ' + stName + ' but Jira will not let ' +
+          s.email + ' run it (workflow condition, e.g. only the assignee may close)' };
+    }
+    return { ok: false, error: 'no transition to Done from ' + stName + ' (offered: ' +
+        (list.map(function (t) { return t.name; }).join(', ') || 'none') + ') — set JIRA_DONE_TRANSITION or ask a Jira admin for a direct path to Done' };
+  }
+  var body = { transition: { id: pick.id } };
+  var res = l10JiraResolution_(pick);
+  if (res) body.fields = { resolution: res };
+  var r = l10JiraFetch_(s, 'post', path + '/transitions', body);
+  // A transition screen that requires a resolution, not described by expand:
+  // one retry with the conventional "Done" resolution.
+  if (r.code === 400 && !body.fields && /resolution/i.test(l10JiraErr_(r))) {
+    body.fields = { resolution: { name: 'Done' } };
+    r = l10JiraFetch_(s, 'post', path + '/transitions', body);
+  }
+  return (r.code >= 200 && r.code < 300) ? { ok: true }
+      : { ok: false, error: '"' + pick.name + '" from ' + stName + ' refused: ' + l10JiraErr_(r) };
+}
+
+// The resolution to send with a transition whose screen requires one: Done,
+// else Fixed, else the first value the screen allows. Null when not required.
+function l10JiraResolution_(t) {
+  var f = t && t.fields && t.fields.resolution;
+  if (!f || !f.required) return null;
+  var vals = f.allowedValues || [];
+  var names = vals.map(function (v) { return String(v.name || ''); });
+  var want = names.indexOf('Done') !== -1 ? 'Done' : names.indexOf('Fixed') !== -1 ? 'Fixed' : names[0];
+  return want ? { name: want } : null;
+}
+
+// Is a Jira Done cell a real close stamp? Only a date counts (Sheets hands back
+// the l10Now_ stamp as a Date). Blank, an "ERR: …" reason, or anything else a
+// shifted column left behind means the issue still needs closing — a close
+// that re-checks Jira's status first is safe to retry.
+function l10JiraStamped_(v) {
+  if (v instanceof Date) return !isNaN(v.getTime());
+  return /^\d{4}-\d{2}-\d{2}/.test(String(v || '').trim());
 }
 
 // Make sure the two bookkeeping columns exist on L10_Todos (appended at the end
@@ -331,7 +384,7 @@ function l10JiraSyncTodos() {
     var headerWarn = l10JiraHeaderWarnings_();
     var tab = l10ReadTab_(L10.TABS.TODOS);
     var created = 0, adopted = 0, closed = 0, errors = 0, skipped = 0;
-    var seen = {}, dupIds = [], halt = '';
+    var seen = {}, dupIds = [], closeErrors = [], halt = '';
     for (var i = 0; i < tab.rows.length; i++) {
       var todo = tab.rows[i];
       var id = String(todo['ID'] || '').trim();
@@ -381,13 +434,20 @@ function l10JiraSyncTodos() {
         continue;
       }
 
-      // 2) close the linked issue when its to-do is completed (once).
-      if (hasKey && status === 'DONE' && !doneMark) {
+      // 2) close the linked issue when its to-do is completed (once). Only a
+      // date in Jira Done means "closed"; a failed close writes its reason
+      // there as "ERR: …" (visible in the tab) and is retried every run.
+      // (Raw cell, not doneMark: Sheets returns the stamp as a Date, and a
+      // stringified Date no longer looks like one.)
+      if (hasKey && status === 'DONE' && !l10JiraStamped_(todo[L10_JIRA_DONE_COL])) {
         var d = l10JiraCloseIssue_(s, key);
         if (d.ok) {
           l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_DONE_COL, l10Now_()));
           closed++;
         } else {
+          var why = 'ERR: ' + String(d.error || 'close failed').slice(0, 300);
+          if (why !== doneMark) l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_DONE_COL, why));
+          closeErrors.push(id + ' (' + key + '): ' + d.error);
           errors++;
         }
         Utilities.sleep(200);
@@ -408,10 +468,11 @@ function l10JiraSyncTodos() {
     }
     l10JiraToast_('Jira sync: ' + created + ' created, ' + adopted + ' linked to existing, ' + closed + ' closed' +
         (errors ? ', ' + errors + ' error(s)' : '') + '.' +
+        (closeErrors.length ? ' Could not close: ' + closeErrors.join('; ') + '.' : '') +
         (dupIds.length ? ' Duplicate to-do id(s) skipped: ' + dupIds.join(', ') + '.' : '') +
         (headerWarn ? ' Header check: ' + headerWarn + '.' : ''));
     return { ok: true, created: created, adopted: adopted, closed: closed, errors: errors, skipped: skipped,
-             dupIds: dupIds, headerWarn: headerWarn };
+             dupIds: dupIds, headerWarn: headerWarn, closeErrors: closeErrors };
   } finally {
     lock.releaseLock();
   }
@@ -537,7 +598,11 @@ function l10MenuSyncJiraNow() {
   if (!r.ok) { ui.alert((r.halted ? 'Sync stopped: ' : 'Sync not run: ') + (r.error || 'unknown')); return; }
   ui.alert('Jira sync complete.\n\nCreated: ' + r.created + '\nLinked to existing issues: ' + r.adopted +
     '\nClosed: ' + r.closed + '\nErrors: ' + r.errors +
-    (r.errors ? '\n\nRows with errors show "ERR: …" in the Jira Key column — they retry next sync.' : '') +
+    (r.closeErrors && r.closeErrors.length
+      ? '\n\nCould not close in Jira (' + r.closeErrors.length + '):\n' + r.closeErrors.slice(0, 15).join('\n') +
+        (r.closeErrors.length > 15 ? '\n… +' + (r.closeErrors.length - 15) + ' more' : '')
+      : '') +
+    (r.errors ? '\n\nRows with errors show "ERR: …" in the Jira Key column (create) or the Jira Done column (close) — they retry next sync.' : '') +
     (r.dupIds && r.dupIds.length
       ? '\n\nDuplicate to-do id(s) in ' + L10.TABS.TODOS + ' (only the first row of each is synced): ' + r.dupIds.join(', ')
       : '') +
@@ -625,6 +690,82 @@ function l10MenuJiraDuplicateReport() {
   ui.alert('Duplicate Jira issues — ' + r.groups.length + ' to-do' + (r.groups.length === 1 ? '' : 's') + ' affected\n\n' +
     lines.join('\n') + (r.groups.length > 40 ? '\n… +' + (r.groups.length - 40) + ' more (see the execution log)' : '') +
     '\n\nNothing was changed. Delete or close the extra issues in Jira by hand; the kept key is the one the huddle keeps updating.');
+}
+
+// Repair pass: every DONE to-do with a Jira key, stamped or not, is checked
+// against Jira, and any issue still open gets closed. The sync only revisits
+// rows whose Jira Done cell is not a date, and before v2.19.1 a close that
+// found no Done transition stamped the row anyway — those issues stay open
+// until this runs. Batched: one search per 50 keys finds the still-open ones;
+// a 400 (a key Jira no longer knows fails the whole JQL) falls back to asking
+// one issue at a time. Safe to re-run. Menu: Jira ▸ Re-check done to-dos.
+function l10JiraRecheckDone() {
+  var s = l10JiraSettings_();
+  if (!l10JiraEnabled_(s)) return { ok: false, error: 'not configured' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'another Jira sync is running — try again in a minute' };
+  try {
+    var t0 = Date.now();
+    var byKey = {}, keys = [], seen = {};
+    l10ReadTab_(L10.TABS.TODOS).rows.forEach(function (t) {
+      var id = String(t['ID'] || '').trim();
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      var key = String(t[L10_JIRA_KEY_COL] || '').trim();
+      if (String(t['Status'] || '').trim().toUpperCase() !== 'DONE' || !L10_JIRA_KEY_RE.test(key)) return;
+      if (!byKey[key]) { byKey[key] = []; keys.push(key); }
+      byKey[key].push(id);
+    });
+    var open = [], missing = [], CHUNK = 50, i, j;
+    for (i = 0; i < keys.length; i += CHUNK) {
+      var part = keys.slice(i, i + CHUNK);
+      var jql = 'key in (' + part.join(',') + ') AND statusCategory != Done';
+      var r = l10JiraFetch_(s, 'get', '/search/jql?jql=' + encodeURIComponent(jql) + '&maxResults=100&fields=status');
+      if (r.code >= 200 && r.code < 300 && r.json && r.json.issues) {
+        r.json.issues.forEach(function (iss) { if (byKey[iss.key]) open.push(iss.key); });
+        continue;
+      }
+      if (r.code !== 400) return { ok: false, error: 'search ' + l10JiraErr_(r) };
+      for (j = 0; j < part.length; j++) {
+        var one = l10JiraFetch_(s, 'get', '/issue/' + encodeURIComponent(part[j]) + '?fields=status');
+        if (one.code === 404) { missing.push(part[j]); continue; }
+        if (!(one.code >= 200 && one.code < 300) || !one.json) return { ok: false, error: part[j] + ': ' + l10JiraErr_(one) };
+        var st = (one.json.fields && one.json.fields.status) || {};
+        if (!(st.statusCategory && st.statusCategory.key === 'done')) open.push(part[j]);
+        Utilities.sleep(100);
+      }
+    }
+    var closedNow = 0, failed = [], left = 0;
+    for (i = 0; i < open.length; i++) {
+      // Stay well inside the 6-minute execution limit; a re-run picks up the rest.
+      if (Date.now() - t0 > 270000) { left = open.length - i; break; }
+      var key = open[i], d = l10JiraCloseIssue_(s, key);
+      var mark = d.ok ? l10Now_() : 'ERR: ' + String(d.error || 'close failed').slice(0, 300);
+      byKey[key].forEach(function (id) { l10SetCells_(L10.TABS.TODOS, id, l10JiraKv_(L10_JIRA_DONE_COL, mark)); });
+      if (d.ok) closedNow++; else failed.push(byKey[key].join('/') + ' (' + key + '): ' + d.error);
+      Utilities.sleep(200);
+    }
+    var out = { ok: true, checked: keys.length, open: open.length, alreadyClosed: keys.length - open.length - missing.length,
+                closedNow: closedNow, failed: failed, missing: missing, left: left };
+    try { Logger.log(JSON.stringify(out)); } catch (e) {}
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function l10MenuJiraRecheckDone() {
+  var ui = SpreadsheetApp.getUi();
+  var r = l10JiraRecheckDone();
+  if (!r.ok) { ui.alert('Re-check not run: ' + (r.error || 'unknown')); return; }
+  ui.alert('Done to-dos checked against Jira: ' + r.checked + '\n\n' +
+    'Already closed in Jira: ' + r.alreadyClosed + '\n' +
+    'Were still open — closed now: ' + r.closedNow + '\n' +
+    'Still open — could not close: ' + r.failed.length +
+    (r.failed.length ? '\n\n' + r.failed.slice(0, 15).join('\n') +
+      (r.failed.length > 15 ? '\n… +' + (r.failed.length - 15) + ' more (see the Jira Done column)' : '') : '') +
+    (r.missing.length ? '\n\nNot found in Jira (deleted?): ' + r.missing.join(', ') : '') +
+    (r.left ? '\n\nStopped before the time limit with ' + r.left + ' still to close — run this again.' : ''));
 }
 
 function l10MenuInstallJiraTrigger() {
