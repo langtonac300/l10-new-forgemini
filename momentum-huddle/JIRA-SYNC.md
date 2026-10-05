@@ -14,7 +14,9 @@ and on demand (menu **Sync now**):
   resolves). The returned key is written back to the new **`Jira Key`** column.
 - A **DONE** to-do whose issue we created → transition to Done (prefers the
   `JIRA_DONE_TRANSITION` name, else any transition whose target is in the *done*
-  status category) and stamp the **`Jira Done`** column so it's never re-processed.
+  status category) and stamp the **`Jira Done`** column so it's never re-processed —
+  only once Jira confirms the issue is closed; a refused close writes `ERR: <reason>`
+  there and retries (v2.19.1, see the end of this file).
 - **Idempotent + safe:** the `Jira Key` column is the dedupe guard — and, from v2.17.1,
   Jira itself is asked before any create and the written key is read back (see the
   v2.17.1 section at the end). A real key
@@ -149,3 +151,37 @@ row, no to-do id twice.
 > label; label rejected → one retry without; blocked write-back → exactly one create,
 > halt, trigger removed, one chat line, and **the next run creates nothing**; duplicate
 > ids → one create; search failure → no create; the duplicate report's keep/extra split.
+
+## v2.19.1 (2026-10-05) — closes that silently did not happen
+
+**What happened.** Done to-dos stayed open in BNADM. `l10JiraCloseIssue_` read "Jira
+offers no transition to Done" as "already closed" and the sync stamped `Jira Done`, which
+retires the row for good. Any issue whose status has no direct path to Done, or whose Done
+transition the token's user is not allowed to run (assignee-only conditions are common, and
+issues are assigned to their owners, not the token owner), stayed open while the sheet said
+closed. A close Jira refused (a required resolution) was counted in the error total but
+its reason was discarded and nothing was written to the row.
+
+**Rules now** (`l10JiraSyncTodos` step 2, `l10JiraCloseIssue_`):
+
+- Jira's status decides. The close reads the issue's status first. Already in the *done*
+  category → stamp, no transition.
+- Transition choice is unchanged (`JIRA_DONE_TRANSITION` by name, else any transition into
+  the done category), but transitions blocked by a workflow condition are recognised
+  (`includeUnavailableTransitions`) and reported as such, not mistaken for a missing path.
+- A required resolution is sent (Done, else Fixed, else the first allowed value); a 400
+  naming the resolution gets one retry with "Done".
+- Failure writes `ERR: <reason>` into `Jira Done`. Only a **date** there means closed
+  (`l10JiraStamped_` — Sheets returns the stamp as a Date); anything else is retried
+  every run. **Sync now** lists each failed close.
+- **Jira → Re-check done to-dos** (`l10JiraRecheckDone`) is the one-time repair for rows the
+  old rule stamped: every DONE to-do with a key, stamped or not, is checked (batched JQL
+  `key in (…) AND statusCategory != Done`; a 400 from a deleted key falls back to one issue
+  at a time), and every still-open issue is closed or gets its reason.
+
+> Verified by `harness/server-checks.js`: plain close + no second close; no path to Done →
+> `ERR:` with the offered transitions, not stamped, closes on the next run once Done is
+> reachable; Done blocked by a condition → not attempted, reason written; already closed →
+> stamped with no transition call; required resolution (declared and undeclared); junk and
+> `ERR:` marks retried while a Date stamp is left alone; the re-check (wrongly stamped
+> issue closed, closed one left alone, deleted key reported).

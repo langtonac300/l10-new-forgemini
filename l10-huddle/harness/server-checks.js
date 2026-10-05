@@ -81,17 +81,33 @@ function adfText(node) {
   return out;
 }
 function mkStore(issues) {
-  return { issues: issues || [], creates: [], searches: [], seq: 600, rejectLabels: false, searchFail: false };
+  return { issues: issues || [], creates: [], searches: [], seq: 600, rejectLabels: false, searchFail: false,
+    transitionGets: [], transitionPosts: [] };
 }
-// A tiny Jira: enhanced JQL search (labels = / description ~ / statusCategory),
-// issue create (optionally rejecting the Labels field the way a project whose
-// create screen lacks it does), transitions.
+const DONE_TRANSITION = { id: '31', name: 'Done', to: { name: 'Done', statusCategory: { key: 'done' } } };
+const statusOf = (is) => ({ name: is.done ? 'Done' : (is.status || 'In Progress'), statusCategory: { key: is.done ? 'done' : 'indeterminate' } });
+// A tiny Jira: enhanced JQL search (labels = / description ~ / statusCategory /
+// key in, which fails with a 400 on a key Jira does not know, as the real one
+// does), issue create (optionally rejecting the Labels field the way a project
+// whose create screen lacks it does), issue status, and per-issue transitions
+// (is.transitions, default a single Done; isAvailable false = a workflow
+// condition; is.requireResolution = a screen that needs one).
 function fakeJira(store) {
+  const find = (k) => store.issues.find((is) => is.key === k);
   return function (method, p, payload) {
     if (method === 'get' && p.startsWith('/search/jql')) {
       const jql = decodeURIComponent(p.match(/jql=([^&]*)/)[1]);
       store.searches.push(jql);
       if (store.searchFail) return { code: 500, body: { errorMessages: ['search backend unavailable'] } };
+      const keyIn = jql.match(/key in \(([^)]*)\)/);
+      if (keyIn) {
+        const keys = keyIn[1].split(',').map((k) => k.trim());
+        const unknown = keys.filter((k) => !find(k));
+        if (unknown.length) return { code: 400, body: { errorMessages: ["An issue with key '" + unknown[0] + "' does not exist for field 'key'."] } };
+        const wantOpen = /statusCategory != Done/.test(jql);
+        const hits = keys.map(find).filter((is) => (wantOpen ? !is.done : is.done));
+        return { code: 200, body: { issues: hits.map((is) => ({ key: is.key, fields: { status: statusOf(is) } })), isLast: true } };
+      }
       const lab = jql.match(/labels = "([^"]+)"/);
       const txt = jql.match(/description ~ "([^"]+)"/);
       const issues = store.issues.filter((is) => !is.done &&
@@ -107,8 +123,23 @@ function fakeJira(store) {
       store.issues.push({ key, fields: { labels: payload.fields.labels || [], description: payload.fields.description, summary: payload.fields.summary, created: '2026-09-21T10:00:00.000-0500' } });
       return { code: 201, body: { id: String(store.seq), key, self: '' } };
     }
-    if (method === 'get' && /\/issue\/[^/]+\/transitions$/.test(p)) return { code: 200, body: { transitions: [{ id: '31', name: 'Done', to: { statusCategory: { key: 'done' } } }] } };
-    if (method === 'post' && /\/issue\/[^/]+\/transitions$/.test(p)) return { code: 204, body: '' };
+    const one = p.match(/^\/issue\/([^/?]+)(\/transitions)?(\?.*)?$/);
+    if (one) {
+      const is = find(one[1]);
+      if (!is) return { code: 404, body: { errorMessages: ['Issue does not exist or you do not have permission to see it.'] } };
+      const list = is.transitions || [DONE_TRANSITION];
+      if (method === 'get' && !one[2]) return { code: 200, body: { key: is.key, fields: { status: statusOf(is) } } };
+      if (method === 'get') { store.transitionGets.push(is.key); return { code: 200, body: { transitions: list } }; }
+      if (method === 'post' && one[2]) {
+        store.transitionPosts.push({ key: is.key, payload });
+        const t = list.find((x) => x.id === payload.transition.id);
+        if (!t || t.isAvailable === false) return { code: 400, body: { errorMessages: ['Transition id ' + payload.transition.id + ' is not valid for this issue.'] } };
+        if (is.requireResolution && !(payload.fields && payload.fields.resolution)) return { code: 400, body: { errors: { resolution: 'Resolution is required.' } } };
+        is.status = t.to.name;
+        if (t.to.statusCategory.key === 'done') is.done = true;
+        return { code: 204, body: '' };
+      }
+    }
     return { code: 404, body: { errorMessages: ['unexpected ' + method + ' ' + p] } };
   };
 }
@@ -291,6 +322,110 @@ function scenarioDuplicateReport() {
   check(g9 && g9.keep === 'BNADM-702' && JSON.stringify(g9.extras) === '["BNADM-701"]', 'report: TD-009 should keep the sheet key and list BNADM-701 as extra: ' + JSON.stringify(g9));
   check(g11 && g11.linked === '' && g11.keep === 'BNADM-704' && JSON.stringify(g11.extras) === '["BNADM-705"]', 'report: TD-011 should keep the oldest: ' + JSON.stringify(g11));
   check(store.creates.length === 0, 'report: must not write to Jira');
+}
+
+// --- Closing issues for done to-dos (v2.19.1) --------------------------------------
+const DONE_COL = TODO_HEADERS.indexOf('Jira Done'); // 0-based → column L
+const doneTodo = (id, key, jiraDone) => { const r = todo(id, 'Finished ' + id, 'Scott', 'DONE', key); r[DONE_COL] = jiraDone === undefined ? '' : jiraDone; return r; };
+const openIssue = (key, id, extra) => Object.assign(issue(key, id), extra || {});
+const stampedDate = (v) => v instanceof Date || /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(String(v));
+
+function scenarioCloseDone() {
+  const store = mkStore([openIssue('BNADM-801', 'TD-020')]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-020', 'BNADM-801')], jira: fakeJira(store) });
+  const res = env.ctx.l10JiraSyncTodos();
+  check(res.ok && res.closed === 1 && res.errors === 0, 'close: expected 1 closed, got ' + JSON.stringify(res));
+  check(store.issues[0].done === true, 'close: the Jira issue should now be done');
+  check(stampedDate(env.sheets['L10_Todos'].grid[1][DONE_COL]), 'close: Jira Done should carry a date stamp, got ' + JSON.stringify(env.sheets['L10_Todos'].grid[1][DONE_COL]));
+  freshExecution(env);
+  const posts = store.transitionPosts.length;
+  const res2 = env.ctx.l10JiraSyncTodos();
+  check(res2.ok && res2.closed === 0 && store.transitionPosts.length === posts, 'close: a stamped row must not be closed again: ' + JSON.stringify(res2));
+}
+
+function scenarioCloseNoPathIsNotSuccess() {
+  // The reported bug: the issue sits in a status with no direct transition to
+  // Done. The old code called that success and stamped the row for good.
+  const store = mkStore([openIssue('BNADM-802', 'TD-021', { status: 'In Progress',
+    transitions: [{ id: '21', name: 'Send to review', to: { name: 'In Review', statusCategory: { key: 'indeterminate' } } }] })]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-021', 'BNADM-802')], jira: fakeJira(store) });
+  const res = env.ctx.l10JiraSyncTodos();
+  const cell = String(env.sheets['L10_Todos'].grid[1][DONE_COL]);
+  check(res.closed === 0 && res.errors === 1, 'no path: must not count as closed, got ' + JSON.stringify(res));
+  check(/^ERR: no transition to Done from In Progress \(offered: Send to review\)/.test(cell), 'no path: the reason should be written to Jira Done, got ' + JSON.stringify(cell));
+  check(!stampedDate(cell), 'no path: the row must not be stamped as closed');
+  check(res.closeErrors && res.closeErrors.length === 1 && /TD-021 \(BNADM-802\)/.test(res.closeErrors[0]), 'no path: closeErrors should name the row: ' + JSON.stringify(res.closeErrors));
+  check(store.transitionPosts.length === 0 && store.issues[0].done !== true, 'no path: nothing should have been transitioned');
+  // A Jira admin adds a direct path; the next run closes it — the retry is the point.
+  store.issues[0].transitions = [DONE_TRANSITION];
+  freshExecution(env);
+  const res2 = env.ctx.l10JiraSyncTodos();
+  check(res2.closed === 1 && store.issues[0].done === true && stampedDate(env.sheets['L10_Todos'].grid[1][DONE_COL]),
+    'no path: once Done is reachable the next run should close and stamp, got ' + JSON.stringify(res2));
+}
+
+function scenarioCloseBlockedByCondition() {
+  const store = mkStore([openIssue('BNADM-803', 'TD-022', { transitions: [Object.assign({ isAvailable: false }, DONE_TRANSITION)] })]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-022', 'BNADM-803')], jira: fakeJira(store) });
+  const res = env.ctx.l10JiraSyncTodos();
+  check(res.closed === 0 && res.errors === 1 && store.transitionPosts.length === 0, 'condition: an unavailable Done must not be attempted: ' + JSON.stringify(res));
+  check(/will not let owner@example.com run it/.test(String(env.sheets['L10_Todos'].grid[1][DONE_COL])),
+    'condition: the reason should say a workflow condition blocks it, got ' + JSON.stringify(env.sheets['L10_Todos'].grid[1][DONE_COL]));
+}
+
+function scenarioCloseAlreadyClosed() {
+  const store = mkStore([openIssue('BNADM-804', 'TD-023', { done: true })]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-023', 'BNADM-804')], jira: fakeJira(store) });
+  const res = env.ctx.l10JiraSyncTodos();
+  check(res.closed === 1 && res.errors === 0 && store.transitionGets.length === 0 && store.transitionPosts.length === 0,
+    'already closed: should stamp without touching transitions, got ' + JSON.stringify(res) + ' gets=' + store.transitionGets.length);
+  check(stampedDate(env.sheets['L10_Todos'].grid[1][DONE_COL]), 'already closed: the row should be stamped');
+}
+
+function scenarioCloseNeedsResolution() {
+  // (a) the transition screen declares a required resolution — send it up front.
+  const store = mkStore([openIssue('BNADM-805', 'TD-024', { requireResolution: true, transitions: [Object.assign({ fields: { resolution: { required: true,
+    allowedValues: [{ name: "Won't Do" }, { name: 'Done' }] } } }, DONE_TRANSITION)] }),
+  // (b) it requires one without saying so — one retry with "Done".
+    openIssue('BNADM-806', 'TD-025', { requireResolution: true })]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-024', 'BNADM-805'), doneTodo('TD-025', 'BNADM-806')], jira: fakeJira(store) });
+  const res = env.ctx.l10JiraSyncTodos();
+  check(res.closed === 2 && res.errors === 0, 'resolution: both should close, got ' + JSON.stringify(res));
+  const a = store.transitionPosts.filter((x) => x.key === 'BNADM-805'), b = store.transitionPosts.filter((x) => x.key === 'BNADM-806');
+  check(a.length === 1 && a[0].payload.fields && a[0].payload.fields.resolution.name === 'Done', 'resolution (a): one POST carrying resolution Done, got ' + JSON.stringify(a));
+  check(b.length === 2 && !b[0].payload.fields && b[1].payload.fields.resolution.name === 'Done', 'resolution (b): a bare POST then one retry with Done, got ' + JSON.stringify(b));
+}
+
+function scenarioCloseRetriesNonDateMarks() {
+  // Junk a shifted column left in Jira Done, and an earlier ERR reason, both get
+  // retried; a real Date stamp (how Sheets hands l10Now_ back) is left alone.
+  const store = mkStore([openIssue('BNADM-807', 'TD-026'), openIssue('BNADM-808', 'TD-027'), openIssue('BNADM-809', 'TD-028')]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-026', 'BNADM-807', 'WEEKLY'), doneTodo('TD-027', 'BNADM-808', 'ERR: HTTP 500 boom'),
+    doneTodo('TD-028', 'BNADM-809', '')], jira: fakeJira(store) });
+  // Built inside the vm: a Date from node's realm would fail instanceof there.
+  env.sheets['L10_Todos'].grid[3][DONE_COL] = vm.runInContext('new Date(2026, 8, 1, 9, 30)', env.ctx);
+  const res = env.ctx.l10JiraSyncTodos();
+  check(res.closed === 2 && store.issues[0].done && store.issues[1].done && !store.issues[2].done,
+    'non-date marks: junk and ERR should be retried, a Date stamp skipped, got ' + JSON.stringify(res));
+}
+
+function scenarioRecheckDone() {
+  // TD-030 was stamped by the old "no transition = success" path but its issue
+  // is still open; TD-031 is genuinely closed; TD-032's issue was deleted (its
+  // key fails the batch search, so the batch falls back to one issue at a time).
+  const store = mkStore([openIssue('BNADM-810', 'TD-030'), openIssue('BNADM-811', 'TD-031', { done: true })]);
+  const env = makeEnv({ todos: [TODO_HEADERS, doneTodo('TD-030', 'BNADM-810', '2026-09-01 09:00'), doneTodo('TD-031', 'BNADM-811', '2026-09-01 09:00'),
+    doneTodo('TD-032', 'BNADM-899', '2026-09-01 09:00'), todo('TD-033', 'Still owed', 'CJ', 'OPEN', 'BNADM-812')], jira: fakeJira(store) });
+  const r = env.ctx.l10JiraRecheckDone();
+  check(r.ok && r.checked === 3 && r.closedNow === 1 && r.alreadyClosed === 1 && JSON.stringify(r.missing) === '["BNADM-899"]' && r.failed.length === 0,
+    'recheck: expected 3 checked / 1 closed now / 1 already / BNADM-899 missing, got ' + JSON.stringify(r));
+  check(store.issues[0].done === true, 'recheck: the falsely stamped issue should now be closed');
+  check(String(env.sheets['L10_Todos'].grid[1][DONE_COL]) !== '2026-09-01 09:00' && stampedDate(env.sheets['L10_Todos'].grid[1][DONE_COL]),
+    'recheck: the row should carry a fresh stamp');
+  check(store.searches.some((q) => /key in \(BNADM-810,BNADM-811,BNADM-899\) AND statusCategory != Done/.test(q)), 'recheck: one batched search expected: ' + JSON.stringify(store.searches));
+  freshExecution(env);
+  const r2 = env.ctx.l10JiraRecheckDone();
+  check(r2.ok && r2.closedNow === 0 && r2.alreadyClosed === 2, 'recheck: a second run should find nothing to close, got ' + JSON.stringify(r2));
 }
 
 function scenarioRangeReasons() {
@@ -523,7 +658,9 @@ function scenarioRockEditAndCascade() {
 }
 
 [scenarioDuplicateHeader, scenarioCreate, scenarioLabelsRejected, scenarioWriteBackBlocked, scenarioDuplicateIds,
-  scenarioSearchFails, scenarioDuplicateReport, scenarioRangeReasons, scenarioFormulaRefFallback,
+  scenarioSearchFails, scenarioDuplicateReport, scenarioCloseDone, scenarioCloseNoPathIsNotSuccess,
+  scenarioCloseBlockedByCondition, scenarioCloseAlreadyClosed, scenarioCloseNeedsResolution,
+  scenarioCloseRetriesNonDateMarks, scenarioRecheckDone, scenarioRangeReasons, scenarioFormulaRefFallback,
   scenarioForgeConfigFallback, scenarioForgeConfigUpgrade, scenarioForgeSeededSession,
   scenarioRockStatus, scenarioRockConfirm, scenarioRockPreRepair, scenarioRockEditAndCascade].forEach((fn) => {
   try { fn(); } catch (e) { failures.push(fn.name + ' threw: ' + (e && e.stack || e)); }
