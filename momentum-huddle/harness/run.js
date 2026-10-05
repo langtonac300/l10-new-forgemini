@@ -21,6 +21,10 @@ async function shot(page, name) {
 }
 
 async function clickNav(page, target) {
+  // Forge has no tab (v2.20) — its room view is reached by code, not the bar.
+  if (target === 'forge') { await page.evaluate(() => showPage('forge')); await page.waitForTimeout(120); return; }
+  // Pages under More: open the menu first, as a person would.
+  if (await page.$(`#nav-more-menu button[data-page="${target}"]`)) await page.click('#nav-more');
   await page.click(`nav button[data-page="${target}"]`);
   await page.waitForTimeout(120);
 }
@@ -54,6 +58,51 @@ async function clickNav(page, target) {
     if (empty < 40) errors.push(`page-${p} rendered nearly empty (${empty} chars)`);
     await shot(page, 'page-' + p);
   }
+
+  // Tab bar (v2.20): three daily tabs, the rest under More, Forge has no tab.
+  if (await page.$('nav button[data-page="forge"]')) errors.push('tab bar: Forge should have no tab');
+  const segTabs = await page.$$eval('.tab-seg button[data-page]', (els) => els.map((e) => e.dataset.page));
+  if (segTabs.join(',') !== 'huddle,rocks,todos') errors.push('tab bar: expected huddle,rocks,todos up front, got ' + segTabs.join(','));
+  await clickNav(page, 'scorecard');
+  const tb1 = await page.evaluate(() => ({
+    label: document.getElementById('nav-more-label').textContent,
+    item: document.querySelector('#nav-more-menu button[data-page="scorecard"]').textContent.trim(),
+    moreOn: document.getElementById('nav-more').classList.contains('active'),
+    hidden: document.getElementById('nav-more-menu').hidden }));
+  if (tb1.label !== tb1.item || !tb1.moreOn) errors.push('tab bar: a More page should put its name on the More button: ' + JSON.stringify(tb1));
+  if (!tb1.hidden) errors.push('tab bar: the menu should close after a pick');
+  await page.click('#nav-more');
+  if (await page.$eval('#nav-more-menu', (m) => m.hidden)) errors.push('tab bar: More did not open');
+  await page.keyboard.press('Escape');
+  const esc1 = await page.evaluate(() => ({ hidden: document.getElementById('nav-more-menu').hidden, focus: document.activeElement && document.activeElement.id }));
+  if (!esc1.hidden || esc1.focus !== 'nav-more') errors.push('tab bar: Escape should close the menu and focus More: ' + JSON.stringify(esc1));
+  await page.click('#nav-more');
+  await page.click('h1');
+  if (!(await page.$eval('#nav-more-menu', (m) => m.hidden))) errors.push('tab bar: an outside click should close the menu');
+  await clickNav(page, 'todos');
+  if ((await page.$eval('#nav-more-label', (e) => e.textContent)) !== 'More') errors.push('tab bar: a front tab should reset the More label');
+  // The badge must agree with the page's own Late cell.
+  const lateCell = await page.$eval('#page-todos .tdw-day[data-tdday="late"] .tdw-day-n', (e) => e.textContent.trim());
+  const badge = await page.$eval('#nav-todo-badge', (e) => (e.hidden ? '' : e.textContent.trim()));
+  const want = /^\d+$/.test(lateCell) ? lateCell + ' late' : '';
+  if (badge !== want) errors.push('tab bar: To-dos badge "' + badge + '" disagrees with the Late cell "' + lateCell + '"');
+  // Force two open to-dos overdue so the non-zero path is exercised too.
+  const forced = await page.evaluate(() => {
+    const open = state.boot.todos.filter((t) => todoOpen_(t['Status']));
+    const was = open.slice(0, 2).map((t) => t['Due']);
+    open.slice(0, 2).forEach((t) => { t['Due'] = '2020-01-06'; });
+    renderTodos();
+    const out = {
+      cell: document.querySelector('#page-todos .tdw-day[data-tdday="late"] .tdw-day-n').textContent.trim(),
+      badge: document.getElementById('nav-todo-badge').hidden ? '' : document.getElementById('nav-todo-badge').textContent.trim() };
+    // Put the fixtures back — later checks must see the data as loaded.
+    open.slice(0, 2).forEach((t, i) => { t['Due'] = was[i]; });
+    renderTodos();
+    return out;
+  });
+  if (!/^\d+$/.test(forced.cell) || Number(forced.cell) < 2 || forced.badge !== forced.cell + ' late')
+    errors.push('tab bar: with late to-dos the badge should read "<n> late" matching the Late cell: ' + JSON.stringify(forced));
+  await shot(page, 'tabbar');
 
   // --- To-dos page (v2.16 layout): week card + spine, quick add, sheet, rows, drawer, bulk ---
   await clickNav(page, 'todos');

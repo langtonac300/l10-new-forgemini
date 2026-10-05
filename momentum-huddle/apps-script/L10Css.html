@@ -60,10 +60,35 @@ header .chips { display: flex; gap: 6px; margin-left: 8px; flex-wrap: wrap; min-
 #sync { display: none; align-items: center; gap: 5px; background: var(--accent-soft); color: var(--accent-deep); border-radius: 99px; padding: 4px 12px; font-size: var(--text-3); font-weight: 700; white-space: nowrap; }
 #sync::before { content: '⟳'; display: inline-block; animation: l10spin 1s linear infinite; }
 @keyframes l10spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
-nav button { background: transparent; color: var(--soft); border: 0; padding: 9px 14px; font-size: var(--text-5); font-weight: 600; cursor: pointer; border-radius: var(--radius-md); font-family: inherit; }
-nav button:hover { background: var(--bg); color: var(--ink); }
-nav button.active { background: var(--accent-soft); color: var(--accent-deep); }
+/* Tab bar: its own row under the title. Daily pages in a segmented pill, the
+   rest in the More menu, setup pages as icon buttons on the right. The active
+   tab is a filled pill with bold text (and aria-current) — never colour alone. */
+nav.tabbar { display: flex; align-items: center; gap: 12px; flex-basis: 100%; flex-wrap: wrap; padding-top: 4px; }
+nav.tabbar button { font-family: inherit; cursor: pointer; }
+.tab-ic { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.tab-seg { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 4px; }
+.tab-seg button { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 0; background: transparent; color: var(--soft); padding: 8px 18px; border-radius: var(--radius-pill); font-size: var(--text-5); font-weight: 600; }
+.tab-seg button:hover { color: var(--ink); background: var(--card); }
+.tab-seg button.active { background: var(--accent-deep); color: #fff; font-weight: 700; box-shadow: 0 1px 3px rgba(16,24,40,.18); }
+.tab-badge { background: var(--bad-soft); color: var(--bad); font-size: var(--text-2); font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); white-space: nowrap; }
+.tab-more { position: relative; }
+.tab-more-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--card); color: var(--soft); font-size: var(--text-5); font-weight: 600; }
+.tab-more-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+.tab-more-btn.active { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; font-weight: 700; }
+.tab-chev { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.tab-more-btn[aria-expanded="true"] .tab-chev { transform: rotate(180deg); }
+.tab-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: calc(var(--z-header) + 1); width: 240px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: 0 8px 30px rgba(16,24,40,.14); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.tab-menu[hidden] { display: none; }
+.tab-menu-h { font-size: var(--text-2); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); padding: 10px 12px 4px; }
+.tab-menu button { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: var(--ink); text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); font-size: var(--text-5); font-weight: 500; }
+.tab-menu button .tab-ic { color: var(--accent-deep); }
+.tab-menu button:hover, .tab-menu button:focus-visible { background: var(--accent-soft); }
+.tab-menu button.active { background: var(--accent-soft); color: var(--accent-deep); font-weight: 700; }
+.tab-menu button.active::after { content: '✓'; margin-left: auto; }
+.tab-utils { display: flex; gap: 6px; margin-left: auto; }
+.tab-icon { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: var(--card); color: var(--soft); padding: 0; font-size: var(--text-5); font-weight: 800; }
+.tab-icon:hover { border-color: var(--accent); color: var(--accent-deep); }
+.tab-icon.active { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; }
 .events-strip { background: #06316b; color: #e4eefb; font-size: 13px; padding: 8px 28px; display: flex; gap: 22px; overflow-x: auto; white-space: nowrap; }
 .events-strip b { color: #fff; }
 main { padding: 24px 28px 80px; max-width: 1200px; margin: 0 auto; }
@@ -518,9 +543,6 @@ pre.copybox, textarea.copybox { width: 100%; background: #0f172a; color: #e2e8f0
 .card.fr-card { border: 1.5px solid #c7d7fe; }
 .fr-mark { font-weight: 800; color: var(--faint); width: 20px; flex: none; text-align: center; }
 .fr-mark.ok { color: var(--good); }
-/* The ? guide button rides in the nav but isn't a page tab. */
-nav #btn-guide { border: 1.5px solid var(--line); border-radius: var(--radius-pill); padding: 6px 13px; font-weight: 800; background: var(--card); color: var(--soft); font-size: var(--text-5); cursor: pointer; font-family: inherit; }
-nav #btn-guide:hover { border-color: var(--accent); color: var(--accent-deep); background: var(--card); }
 .ids-backdrop { position: fixed; inset: 0; background: rgba(13, 18, 28, .58); }
 .ids-card { position: relative; max-width: 780px; margin: 6vh auto 8vh; background: #fff; border-radius: 18px; padding: 24px 28px 28px; box-shadow: 0 24px 64px rgba(16, 24, 40, .35); }
 .ids-head { display: flex; gap: 16px; align-items: flex-start; }
@@ -603,7 +625,8 @@ nav #btn-guide:hover { border-color: var(--accent); color: var(--accent-deep); b
 .empty .e { font-size: 32px; margin-bottom: 8px; }
 .methodology p, .methodology li, .methodology td { font-size: var(--text-5); line-height: 1.6; color: var(--soft); }
 .methodology b { color: var(--ink); }
-@media (max-width: 900px) { main { padding: 16px 14px 60px; } nav { flex-wrap: wrap; } }
+@media (max-width: 900px) { main { padding: 16px 14px 60px; } .tab-seg button { padding: 8px 12px; } }
+@media (max-width: 480px) { .tab-seg button { padding: 8px 10px; gap: 6px; } .tab-seg button .tab-ic { display: none; } }
 
 /* Phone: the item row is a rigid flex line — a fixed 110px owner column plus an
    action cluster that can run to seven buttons. Below ~640px that squeezes the
