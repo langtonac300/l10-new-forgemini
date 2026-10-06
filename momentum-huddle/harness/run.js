@@ -52,7 +52,7 @@ async function clickNav(page, target) {
   await shot(page, 'start-screen');
 
   // Every page renders without error.
-  for (const p of ['scorecard', 'rocks', 'strategy', 'headlines', 'todos', 'issues', 'oneonone', 'history', 'teamstats', 'settings', 'how']) {
+  for (const p of ['scorecard', 'rocks', 'strategy', 'headlines', 'todos', 'issues', 'oneonone', 'history', 'teamstats', 'team', 'settings', 'how']) {
     await clickNav(page, p);
     const empty = await page.$eval('#page-' + p, (el) => el.innerHTML.trim().length);
     if (empty < 40) errors.push(`page-${p} rendered nearly empty (${empty} chars)`);
