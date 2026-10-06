@@ -625,6 +625,10 @@ pre.copybox, textarea.copybox { width: 100%; background: #0f172a; color: #e2e8f0
 .empty .e { font-size: 32px; margin-bottom: 8px; }
 .methodology p, .methodology li, .methodology td { font-size: var(--text-5); line-height: 1.6; color: var(--soft); }
 .methodology b { color: var(--ink); }
+/* Who owns what: static reference tables scroll inside their card on narrow screens. */
+.table-scroll { overflow-x: auto; }
+.team-ref table.data { min-width: 560px; }
+.team-ref table.data td:first-child { font-weight: 600; color: var(--ink); }
 @media (max-width: 900px) { main { padding: 16px 14px 60px; } .tab-seg button { padding: 8px 12px; } }
 @media (max-width: 480px) { .tab-seg button { padding: 8px 10px; gap: 6px; } .tab-seg button .tab-ic { display: none; } }
 
