@@ -573,12 +573,19 @@ function l10BootJson_() {
 }
 
 function l10OpenDashboard() {
+  // Immediate feedback: the dialog takes a few seconds to appear, and a second
+  // menu click in that gap opens a second copy that competes for the workbook.
+  try { SpreadsheetApp.getActive().toast('Opening Momentum Huddle…', '', 8); } catch (e) {}
   // Modal (embedded) context: no web-app URL (Present pops out from the
   // standalone tab, not the modal). The template var must still be defined.
   var t = HtmlService.createTemplateFromFile('L10Index');
   t.webAppUrl = '';
   t.forgePlayer = '';
-  t.bootJson = l10BootJson_();
+  // No embedded core slice here: computing it before showDialog makes the
+  // dialog wait on a full tab read, and on a busy workbook that read alone runs
+  // tens of seconds. With 'null' the page opens at once and fetches all four
+  // slices in parallel (the standard fallback path in boot()).
+  t.bootJson = 'null';
   var html = t.evaluate().setWidth(1400).setHeight(850).setTitle('Momentum Huddle');
   SpreadsheetApp.getUi().showModalDialog(html, 'Momentum Huddle');
 }

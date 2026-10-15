@@ -5,7 +5,29 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.21.1 (2026-10-06)** · v2.21 (2026-10-06) · v2.20 (2026-10-05) · v2.19.1 (2026-10-05) · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.21.2 (2026-10-15)** · v2.21.1 (2026-10-06) · v2.21 (2026-10-06) · v2.20 (2026-10-05) · v2.19.1 (2026-10-05) · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.21.2 (2026-10-15) — menu open shows the window first
+
+`L10Setup.gs` only (`l10OpenDashboard`). Both copies.
+
+- **Why:** on 2026-10-15 the Sheets-menu open took **34–40 s** before the dialog appeared
+  (7 s that morning; source: Alex's Executions log). The menu path computed the core boot
+  slice (`l10BootJson_`, a full read of the core tabs) *before* `showModalDialog`, so on a busy
+  workbook the user stared at nothing, clicked again, and two copies competed.
+- **Change:** the menu path now embeds `bootJson = 'null'`, so the dialog opens as soon as the
+  page is built and `boot()` fetches all four slices in parallel (the existing fallback path —
+  the same one the harness always exercises). An immediate toast ("Opening Momentum Huddle…") stops
+  the double-click.
+- **Trade-off:** the menu path no longer paints list pages from the localStorage snapshot (that
+  is keyed by the embedded `sid`); pages show their loading state until the live slices land.
+  `doGet()` (the web-app tab) is unchanged and keeps the embed + snapshot.
+- **Root cause of the day's slowdown was not this app:** a `From spreadsheet – On change`
+  trigger on `buildSpendTrends` fired 15× in 7 min (161–395 s each) and starved the workbook;
+  Alex deleted it 2026-10-15. This change only removes the blank wait on the menu path.
+
+**Harness:** smoke green in both copies. **Deploy:** re-paste `L10Setup.gs` (or replace just the
+`l10OpenDashboard` function). Menu-only change — no web-app redeploy needed.
 
 ## v2.21.1 (2026-10-06) — Who owns what: Alex's corrections
 
