@@ -5,7 +5,30 @@ Version history for the Momentum Huddle app. Newest first. For current state, re
 "Current state & open threads" block mid-file is a 2026-06-12 snapshot superseded
 by the v2.0 rebase — historical only, don't plan from it.)
 
-**Versions:** **v2.21.2 (2026-10-15)** · v2.21.1 (2026-10-06) · v2.21 (2026-10-06) · v2.20 (2026-10-05) · v2.19.1 (2026-10-05) · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+**Versions:** **v2.21.3 (2026-10-15)** · v2.21.2 (2026-10-15) · v2.21.1 (2026-10-06) · v2.21 (2026-10-06) · v2.20 (2026-10-05) · v2.19.1 (2026-10-05) · v2.19 (2026-09-25) · v2.18 (2026-09-21) · v2.17.2 (2026-09-21) · v2.17.1 (2026-09-21) · v2.17 (2026-09-17) · v2.16 (2026-09-15) · v2.15 (2026-09-15) · v2.14.3 (2026-09-15) · v2.14.2 (2026-09-15) · v2.14.1 (2026-09-15) · v2.14 (2026-09-15) · v2.13 (2026-09-01) · v2.12.1 (2026-09-01) · v2.12 (2026-09-01) · v2.11 (2026-08-28) · v2.10.1 (2026-08-13) · v2.10 (2026-08-13) · v2.9.1 (2026-07-28) · v2.9 (2026-07-28) · v2.8.1 (2026-07-28) · v2.8 (2026-07-28) · v2.7.3 (2026-07-27) · v2.7.2 (2026-07-27) · v2.7.1 (2026-07-27) · v2.7 (2026-07-27) · v2.6 (2026-07-20) · v2.5 (2026-07-20) · v2.4 (2026-07-20) · v2.3 (2026-07-15) · v2.2.1 (2026-07-10) · v2.2 (2026-07-10) · v2.1 (2026-07-10) · v2.0 (2026-07-10) · v1.22.1 (2026-07-09) · v1.22 (2026-07-09) · v1.21 (2026-07-08) · v1.20.2 (2026-07-02) · v1.20.1 (2026-07-02) · v1.20 (2026-07-02) · v1.19 (2026-07-01) · v1.18 (2026-06-30) · v1.17 (2026-06-30) · v1.16 (2026-06-30) · v1.15 (2026-06-30) · v1.14 (2026-06-30) · v1.13 (2026-06-25) · v1.12 (2026-06-25) · v1.11 (2026-06-24) · v1.10 (2026-06-16) · v1.9 (2026-06-16) · v1.8 (2026-06-15) · v1.7 (2026-06-15) · v1.6 (2026-06-12, evening) · v1.5 (2026-06-12, evening) · v1.4 (2026-06-12, evening) · v1.3 (2026-06-12, evening) · v1.2 (2026-06-12, later) · v1.1 (2026-06-12)
+
+## v2.21.3 (2026-10-15) — Setup / repair no longer stacks duplicate status colors
+
+`L10Setup.gs` only (`l10StatusColors_`). Both copies.
+
+- **Bug:** every *Setup / repair tabs* run appended a fresh copy of each tab's status-color
+  rules without removing the old ones. Alex's workbook export (2026-10-15) held **731**
+  conditional-format rules across the `L10_*` tabs where about 45 belong — 39 copies of each
+  color on `L10_Rocks` (156), `L10_Issues` (156) and `L10_Todos` (141), 74 on
+  `L10_Rock_Milestones`. Every write to those tabs paid for the dead weight.
+- **Fix:** the function now drops every existing "text is exactly" rule confined to that
+  status column before adding the current set, so a run *replaces* rather than appends. It
+  matches on the column, not the exact range, because row deletions shrink older copies'
+  ranges (`E2:E997` vs `E2:E999` on `L10_Todos`). Rules on other columns, non-text rules and
+  multi-column rules are left alone.
+- **One-time cleanup:** after pasting, run *Setup / repair tabs* once — that pass removes all
+  the stacked copies.
+
+**Verified:** stubbed unit test (160 rules → 8 on a rocks-shaped tab with 4 foreign rules kept;
+second run idempotent; shrunk-range todos 129 → 5); `node --check`; harness smoke and
+server-checks green in both copies.
+**Deploy:** replace `l10StatusColors_` in `L10Setup.gs` (or re-paste the file), then run
+*Setup / repair tabs* once. No web-app redeploy.
 
 ## v2.21.2 (2026-10-15) — menu open shows the window first
 
