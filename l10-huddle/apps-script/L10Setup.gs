@@ -787,7 +787,16 @@ function l10ListValidation_(sheet, col, rows, values) {
 
 function l10StatusColors_(sheet, col, colors) {
   var range = sheet.getRange(2, col, 998, 1);
-  var rules = sheet.getConditionalFormatRules();
+  // Replace, never append: drop every existing "text is exactly" rule confined
+  // to this status column before adding the current set. Appending made each
+  // Setup / repair run stack another full copy (39 copies were found on one
+  // tab), and row deletions shrink older copies' ranges, so the match is on the
+  // column rather than the exact range. Rules on other columns are kept.
+  var rules = sheet.getConditionalFormatRules().filter(function (r) {
+    var cond = r.getBooleanCondition();
+    if (!cond || cond.getCriteriaType() !== SpreadsheetApp.BooleanCriteria.TEXT_EQUAL_TO) return true;
+    return !r.getRanges().every(function (g) { return g.getColumn() === col && g.getNumColumns() === 1; });
+  });
   Object.keys(colors).forEach(function (status) {
     rules.push(SpreadsheetApp.newConditionalFormatRule()
         .whenTextEqualTo(status).setBackground(colors[status]).setRanges([range]).build());
